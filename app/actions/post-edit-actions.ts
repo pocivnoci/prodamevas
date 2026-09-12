@@ -334,7 +334,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch(() => { /* non-fatal */ })
+                ).catch((err: any) => console.warn(`⚠️ učení z revize selhalo: ${err?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — the edit is already saved */ }
 
@@ -478,7 +478,7 @@ export async function saveManualText(
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch(() => { /* non-fatal */ })
+                ).catch((err: any) => console.warn(`⚠️ učení z revize selhalo: ${err?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — text je uložený */ }
 

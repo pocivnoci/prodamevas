@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import "@/lib/agents/handlers" // side-effect: registers all task handlers
 import { drainTasks } from "@/lib/agent-runner"
 
@@ -16,11 +17,8 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
  * session in a cron invocation.
  */
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     // Leave headroom under the 800s cap for the in-flight task to finish cleanly.
     const summary = await drainTasks(700_000)

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { RENDER_BUDGET_MS } from "@/lib/job-park"
+import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { getConnection } from "@/instagram/ig-connection"
 import { getChannelAdapter } from "@/lib/channels"
@@ -30,7 +32,7 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute).
  */
 
 const BATCH = 20            // posts claimed per tick (publish is mostly network wait)
-const BUDGET_MS = 700 * 1000 // stop taking new posts past this, margin under 800s
+const BUDGET_MS = RENDER_BUDGET_MS // jeden rozpočet lambdy pro všechny workery (lib/job-park.ts)
 const MAX_ATTEMPTS = 4      // give up (status 'failed') after this many publish failures
 
 const nowIso = () => new Date().toISOString()
@@ -46,11 +48,8 @@ function resolveMediaType(post: { media_type: string | null; image_url: string |
 }
 
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     const t0 = Date.now()
 
@@ -165,7 +164,11 @@ export async function GET(req: Request) {
         try {
             const conn = await getConnection(post.client_id)
             if (!conn || conn.status !== "connected") {
-                await failPermanent("Instagram není připojený (nebo vypršel token).")
+                // PŘECHODNÉ, ne trvalé: token obnovuje denní cron, zákazník se může právě
+                // znovu připojovat. Trvalé selhání tu dřív zabilo každý post naplánovaný
+                // mezi vypršením tokenu a jeho obnovou — a incident-watch pak každému
+                // poslal „příspěvek nevyšel". Backoff MAX_ATTEMPTS dá spojení čas se vrátit.
+                await failTransient("Instagram není připojený (nebo vypršel token) — zkusíme znovu.")
                 continue
             }
 

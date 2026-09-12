@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { syncPostMetrics } from "@/instagram/metrics-sync"
 
@@ -16,11 +17,8 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
  * — there is no user session in a cron invocation.
  */
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     const { data: rows, error } = await supabaseAdmin
         .from("ig_connections")

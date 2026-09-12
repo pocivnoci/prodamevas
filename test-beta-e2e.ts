@@ -3024,6 +3024,63 @@ test("23.6 brief běží po skenech a po penězích", () => {
     }
     assert(hourOf("/api/cron/billing-worker") < hourOf("/api/cron/daily-ops"),
         "billing-worker musí běžet před daily-ops — jinak brief reportuje včerejší peníze")
+
+    // Totéž pro metriky: do 9/2026 běžel ig-metrics-sync v 07:00, tedy AŽ PO daily-ops
+    // (05:30) i weekly-report (06:00) — brief i report tak stály na 25 h starém
+    // engagementu a učení z metrik proběhlo až po tom, co si ho reporty přečetly.
+    assert(hourOf("/api/cron/ig-token-refresh") < hourOf("/api/cron/ig-metrics-sync"),
+        "token se obnovuje před syncem metrik, jinak sync na prošlém tokenu selže")
+    assert(hourOf("/api/cron/ig-metrics-sync") < hourOf("/api/cron/daily-ops"),
+        "metriky musí dorazit před daily-ops — brief a učení čtou dnešní čísla, ne včerejší")
+    assert(hourOf("/api/cron/ig-metrics-sync") < hourOf("/api/cron/weekly-report"),
+        "metriky musí dorazit před weekly-report")
+    assert(hourOf("/api/cron/growth-snapshot") < hourOf("/api/cron/weekly-report"),
+        "snímek růstu před týdenním reportem, ne ve stejnou minutu")
+})
+
+test("23.6b crony sdílí jednu bránu a jeden rozpočet", () => {
+    // Brána cronů byla 11× opsaná a jako jediná porovnávala tajemství obyčejným `!==`.
+    const routes = sourceFiles("app/api/cron").filter(f => f.endsWith("route.ts"))
+    assert(routes.length >= 10, "cron routy se musí dát najít")
+    for (const r of routes) {
+        const src = codeOnly(r)
+        assert(src.includes('from "@/lib/cron-auth"') && /requireCron\(req\)/.test(src), `${r}: brána cronu je jedna — requireCron`)
+        assert(!/!== `Bearer/.test(src) && !/process\.env\.CRON_SECRET/.test(src), `${r}: tajemství se neporovnává ručně`)
+    }
+    assert(/timingSafeEqual/.test(codeOnly("lib/cron-auth.ts")), "brána porovnává v konstantním čase")
+    assert(/if \(!secret\) return false/.test(codeOnly("lib/cron-auth.ts")), "bez CRON_SECRET neprojde nikdo (fail closed)")
+    // Rozpočet lambdy je jeden (lib/job-park.ts) — publisher si ho dřív držel jako literál.
+    assert(/BUDGET_MS = RENDER_BUDGET_MS/.test(codeOnly("app/api/cron/ig-publisher/route.ts")), "ig-publisher bere rozpočet z job-park")
+})
+
+test("23.6c workery nezakopávají o vlastní lease a neumlčují peníze", () => {
+    // agent-runner: prošlá lease běžící úlohy = spadlý pokus. Bez započtení se
+    // handler, který zabije lambdu, přebíral každou minutu navždy — max_attempts
+    // na něj nedosáhl a u AI handlerů to byl neomezený účet.
+    const runner = codeOnly("lib/agent-runner.ts")
+    const claim = runner.slice(runner.indexOf("async function claimNext"), runner.indexOf("async function beatLease"))
+    assert(/select\("id, type, attempts, max_attempts"\)/.test(claim), "claimNext musí číst attempts a max_attempts")
+    assert(/crashed >= \(c\.max_attempts \|\| 3\)/.test(claim), "reclaim nad stropem úlohu uzavře místo dalšího běhu")
+    assert(/attempts: crashed/.test(claim), "reclaim spadlý pokus započítá")
+
+    // campaign-worker: tep lease jen u běžící kampaně (jinak tep po uvolnění lease
+    // kampaň na 5 min zamkne) a peníze nikdy potichu.
+    const worker = codeOnly("app/api/cron/campaign-worker/route.ts")
+    const beat = worker.slice(worker.indexOf("const heartbeat = setInterval"), worker.indexOf("}, 60_000)"))
+    assert(/\.eq\("status", "running"\)/.test(beat), "heartbeat kampaně musí mít filtr status=running")
+    assert(!/catch \{ \/\* best-effort \*\/ \}/.test(worker.slice(worker.indexOf("refundJobCharge("))), "refund/reconcile nesmí být v tichém catch")
+    assert(/mustSucceed\("vrácení kreditu"/.test(worker) && /mustSucceed\("dorovnání ceny/.test(worker), "refund i reconcile jdou přes mustSucceed (log + Sentry)")
+    assert(/\.eq\("config->>campaignId", campaign\.id\)/.test(worker), "kontinuita kampaně se filtruje v SQL, ne stažením celé historie tenanta")
+
+    // ig-publisher: odpojený IG je přechodný stav, ne trvalé selhání postu.
+    const pub = codeOnly("app/api/cron/ig-publisher/route.ts")
+    assert(!/failPermanent\("Instagram není připojený/.test(pub) && /failTransient\("Instagram není připojený/.test(pub),
+        "nepřipojený Instagram = transient (token obnoví cron, zákazník se připojuje)")
+
+    // Učení z revize je „nejkvalitnější signál v systému" — jeho pád nesmí být němý.
+    for (const f of ["app/actions/variant-actions.ts", "app/actions/post-edit-actions.ts"]) {
+        assert(!/\.catch\(\(\) => \{ \/\* non-fatal \*\/ \}\)/.test(codeOnly(f)), `${f}: učení z revize nesmí mít němý catch`)
+    }
 })
 
 test("23.7 hranice mezi oznámením a přemlouváním se nesmí pohnout", () => {
@@ -4009,6 +4066,42 @@ test("31.11 zápis do tenanta jde jen přes bránu projektu", () => {
     const types = admin.slice(admin.indexOf("export async function getIGPostTypes"), admin.indexOf("let clientId: string"))
     assert(/requireSuperAdmin/.test(types) && !/requireAuth\(\)/.test(types),
         "getIGPostTypes bez slugu = všechny tenanty → jen super admin")
+})
+
+test("31.12 odkaz z e-mailu vede na sekci, která existuje", () => {
+    // Šablony předplatného posílaly na #subscription a #billing — ani jedno není
+    // sekce, parseHash to tiše překlopil na dashboard a „Opravit kartu →" vedlo
+    // na přehled. Registr sekcí je jeden (nav.ts); každý hash v šablonách a
+    // každý studioDeepLink musí být v něm.
+    const nav = codeOnly("app/(dashboard)/nav.ts")
+    const sections = new Set<string>()
+    for (const m of nav.matchAll(/id: "([a-z]+)"/g)) sections.add(m[1])
+    const sub = nav.match(/SUBSECTIONS: StudioSection\[\] = \[([^\]]*)\]/)
+    for (const m of (sub?.[1] || "").matchAll(/"([a-z]+)"/g)) sections.add(m[1])
+    assert(sections.has("settings") && sections.has("posts"), "registr sekcí se musí dát přečíst")
+
+    const files = ["lib/agents/notice-templates.ts", "lib/agents/lifecycle-templates.ts", "lib/mail/templates/subscription.ts", "app/api/cron/campaign-worker/route.ts"]
+    for (const f of files) {
+        const src = codeOnly(f)
+        for (const m of src.matchAll(/\/dashboard\/instagram#([a-z]+)/g)) {
+            assert(sections.has(m[1]), `${f}: hash #${m[1]} není sekce studia`)
+        }
+        for (const m of src.matchAll(/(?:studioDeepLink|studio|link)\([^)]*?"([a-z]+)"\)/g)) {
+            assert(sections.has(m[1]), `${f}: deep link na "${m[1]}" — taková sekce není`)
+        }
+        assert(!/"subscription"\)|"billing"\)|#subscription|#billing/.test(src), `${f}: předplatné žije v #settings`)
+    }
+    // Typ místo stringu: překlep se má projevit při buildu, ne u zákazníka.
+    assert(/section: StudioSection = "calendar"/.test(codeOnly("lib/mail/links.ts")), "studioDeepLink má sekci typovanou registrem")
+    // Banner nad obsahem: ?section= nikdo nečte, sekce je hash — proto navigace hookem.
+    const banner = codeOnly("app/(dashboard)/BillingBanner.tsx")
+    assert(/useStudioNavigate\(\)/.test(banner) && !/\?section=/.test(banner), "BillingBanner naviguje hookem, ne mrtvým query parametrem")
+    // Hook musí přepnout route i bez options — jinak je sidebar mimo /dashboard/instagram „zaseknutý".
+    const ctx = codeOnly("app/(dashboard)/StudioContext.tsx")
+    const hook = ctx.slice(ctx.indexOf("export function useStudioNavigate"))
+    assert(!/if \(!opts\) \{ setActiveSection\(s\); return \}/.test(hook), "useStudioNavigate nesmí bez options přeskočit router.push")
+    // Deep link z agentů nese UUID, sidebar slug — obojí se mapuje přes vlastní seznam.
+    assert(/c\.id === id \|\| c\.clientId === id/.test(ctx), "?project= musí umět slug i UUID")
 })
 
 test("28.7 zaseklý job se reapuje i bez otevřeného tabu — a nikdy dvakrát", () => {

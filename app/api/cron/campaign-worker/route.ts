@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
 import { isQualityUnavailable, isVideoPending } from "@/utils/retry"
@@ -36,11 +37,8 @@ const DRAFT_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const GATE_MAX_WAIT_MS = Number(process.env.CAMPAIGN_GATE_MAX_WAIT_MS || 20 * 60 * 1000)
 
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     const t0 = Date.now()
     const nowIso = () => new Date().toISOString()
@@ -163,19 +161,25 @@ export async function GET(req: Request) {
     // Cross-tick campaign continuity: seed previous hooks from already-done posts.
     const previousPosts: { hook: string; topic: string }[] = []
     try {
+        // Filtr na kampaň patří do SQL: dřív se každý tick stahovala CELÁ historie
+        // hotových jobů tenanta (config + result = captiony a URL) a v JS se z ní
+        // vybíralo pár řádků téhle kampaně. Rostlo to s délkou života klienta.
         const { data: doneJobs } = await supabaseAdmin
             .from("ig_jobs")
-            .select("config, result, created_at")
+            .select("config, result")
             .eq("client_id", clientId)
             .eq("status", "done")
+            .eq("config->>campaignId", campaign.id)
             .order("created_at", { ascending: true })
+            .limit(total)
         for (const j of doneJobs || []) {
-            if ((j.config as any)?.campaignId === campaign.id) {
-                const caption = (j.result as any)?.caption || ""
-                previousPosts.push({ hook: caption.split("\n")[0] || "", topic: (j.config as any)?.topic || "auto" })
-            }
+            const caption = (j.result as any)?.caption || ""
+            previousPosts.push({ hook: caption.split("\n")[0] || "", topic: (j.config as any)?.topic || "auto" })
         }
-    } catch { /* non-fatal — continuity is best-effort */ }
+    } catch (err) {
+        // Bez kontinuity vyjde sedm postů, které se opakují — musí to být vidět.
+        console.warn(`   ⚠️ campaign ${campaign.id}: continuity load failed — ${(err as Error)?.message?.slice(0, 120)}`)
+    }
 
     // Jedno čtení předplatného pro celý běh: `allowed_media` rozhoduje o clampu
     // média, `credits_per_month` je příděl, proti kterému rezervace počítá zůstatek
@@ -197,10 +201,27 @@ export async function GET(req: Request) {
             .from("ig_campaigns")
             .update({ worker_lease: nowIso() })
             .eq("id", campaign.id)
+            // Jen dokud kampaň běží: tep, který doletí těsně PO uvolnění lease na konci
+            // rozpočtu (worker_lease: null), by ji znovu zamkl a další tick by ji 5 minut
+            // nemohl zvednout. Stejný filtr má agent-runner.beatLease.
+            .eq("status", "running")
             .then(({ error }) => {
                 if (error) console.warn(`⚠️ campaign-worker lease heartbeat failed: ${error.message}`)
             })
     }, 60_000)
+
+    // Peníze a ochrana proti dvojímu účtování NIKDY potichu: dřív šest
+    // `catch { /* best-effort */ }` na refund, reconcile i na zápisu jobId, který
+    // brání účtovat položku dvakrát. Tok se nemění (kampaň jede dál), ale selhání
+    // jde do logu i do Sentry, aby se na nevrácený kredit přišlo dřív než od zákazníka.
+    const mustSucceed = async (what: string, fn: () => Promise<void>) => {
+        try { await fn() } catch (e: any) {
+            console.error(`🚨 campaign ${campaign.id}: ${what} SELHALO — ${e?.message}`)
+            Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
+                tags: { area: "credits", campaign_id: campaign.id, op: what },
+            })
+        }
+    }
 
     try {
     // (body deliberately not re-indented — same style as autopilot's withActiveProject wrapper)
@@ -404,7 +425,10 @@ export async function GET(req: Request) {
             // charge. Same persistence pattern as the deferral path below.
             if (item) {
                 item.jobId = job.id
-                try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
+                await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                    const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
+                    if (error) throw new Error(error.message)
+                })
             }
         }
 
@@ -447,7 +471,7 @@ export async function GET(req: Request) {
             }).eq("id", job.id)
 
             // Engine clamped below the billed medium? Refund the difference.
-            try { await reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType) } catch { /* best-effort */ }
+            await mustSucceed("dorovnání ceny (reconcile)", () => reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType))
 
             // Planner: stamp the chosen posting time + calendar entry on the new post.
             // Best-effort — a calendar hiccup must never fail an already-generated post.
@@ -479,7 +503,10 @@ export async function GET(req: Request) {
                 await supabaseAdmin.from("ig_jobs").update({ status: "failed", retry_after: null, agent_message: "🎬 Video se ještě renderuje — pokračuji v dalším ticku", error: msg }).eq("id", job.id)
                 if (item) {
                     item.jobId = job.id
-                    try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
+                    await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                    const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
+                    if (error) throw new Error(error.message)
+                })
                 }
                 console.log(`   🎬 campaign ${campaign.id} item #${cursor + 1}: video still rendering — parked job ${job.id}, deferring to next tick`)
                 stopReason = "deferred"
@@ -500,20 +527,23 @@ export async function GET(req: Request) {
                     await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "⏸️ Odloženo — velký provoz, pokračuji v dalším ticku", error: msg }).eq("id", job.id)
                     if (item) {
                         item.jobId = job.id
-                        try { await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id) } catch { /* best-effort */ }
+                        await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                    const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
+                    if (error) throw new Error(error.message)
+                })
                     }
                     console.warn(`   ⏸️ campaign ${campaign.id} item #${cursor + 1}: Pro engines busy — parked job ${job.id}, deferring to next tick`)
                     stopReason = "deferred"
                     break
                 }
                 // Tried for hours — give up on this item as a failure, refund, move on.
-                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
+                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits))
                 await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Nepodařilo se dokončit — velký provoz", error: msg }).eq("id", job.id)
                 console.warn(`   ❌ campaign ${campaign.id} item #${cursor + 1}: Pro exhausted past max age — failing item`)
                 failures++
             } else {
                 await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id)
-                try { await refundJobCharge(clientId, job.id, charged, chargedCredits) } catch { /* best-effort */ }
+                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits))
                 failures++
             }
         }

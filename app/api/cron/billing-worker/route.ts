@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { getOwnerEmail } from "@/lib/notifications"
 import { enqueueTask } from "@/lib/agent-runner"
@@ -46,11 +47,8 @@ export const maxDuration = 300
  * Auth: CRON_SECRET bearer (v cronu není uživatelská session).
  */
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     const { isRecurringEnabled, chargeRecurring, generateRenewalRefId, isMockPaymentMode } = await import("@/lib/comgate")
     const { MAX_BILLING_FAILURES, rollLapsedCreditWindows } = await import("@/lib/subscription")

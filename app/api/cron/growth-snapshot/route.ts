@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { fetchInstagramProfile } from "@/lib/ig-scraper"
 
@@ -15,11 +16,8 @@ export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
  * requireAuth() — there is no user session in a cron invocation.
  */
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     // Active subscriptions + plan features + client config (for the IG handle)
     const { data: subs, error } = await supabaseAdmin

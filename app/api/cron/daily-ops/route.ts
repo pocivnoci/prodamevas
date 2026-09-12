@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCron } from "@/lib/cron-auth"
 import { requestAction } from "@/lib/agent-safety"
 
 export const maxDuration = 60
@@ -37,11 +38,8 @@ export const maxDuration = 60
  * Auth: CRON_SECRET bearer (no user session in cron).
  */
 export async function GET(req: Request) {
-    const secret = process.env.CRON_SECRET
-    const auth = req.headers.get("authorization")
-    if (!secret || auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const deny = requireCron(req)
+    if (deny) return deny
 
     const lifecycle = await requestAction({
         agentType: "lifecycle",

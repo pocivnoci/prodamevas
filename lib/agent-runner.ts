@@ -118,7 +118,7 @@ async function claimNext(): Promise<AgentTask | null> {
 
     const { data: candidates } = await supabaseAdmin
         .from("agent_tasks")
-        .select("id")
+        .select("id, type, attempts, max_attempts")
         .in("status", ["pending", "running"])
         .lte("scheduled_for", nowIso())
         .or(`lease.is.null,lease.lt.${staleBefore}`)
@@ -126,20 +126,44 @@ async function claimNext(): Promise<AgentTask | null> {
         .order("scheduled_for", { ascending: true })
         .limit(5)
 
-    const tryClaim = async (id: string, leaseNull: boolean): Promise<AgentTask | null> => {
+    type Candidate = { id: string; type: string; attempts: number | null; max_attempts: number | null }
+
+    // Prošlá lease na běžící úloze = pokus, který umřel bez zápisu (800s strop, OOM).
+    // `attempts` se dřív zvedaly jen v runTask po doběhnutí handleru, takže handler,
+    // který lambdu spolehlivě zabije, se přebíral každou minutu donekonečna a
+    // max_attempts na něj z principu nedosáhl — u AI handlerů neomezený účet.
+    // Reclaim proto spadlý pokus započítá a nad stropem úlohu uzavře.
+    const tryClaim = async (c: Candidate, leaseNull: boolean): Promise<AgentTask | null> => {
+        const crashed = (c.attempts ?? 0) + (leaseNull ? 0 : 1)
+        if (!leaseNull && crashed >= (c.max_attempts || 3)) {
+            const { data: closed } = await supabaseAdmin
+                .from("agent_tasks")
+                .update({ status: "failed", attempts: crashed, lease: null, error: `Běh opakovaně umřel bez odpovědi (${crashed}× — strop lambdy nebo OOM).` })
+                .eq("id", c.id)
+                .in("status", ["pending", "running"])
+                .lt("lease", staleBefore)
+                .select("id")
+                .maybeSingle()
+            if (closed) {
+                Sentry.captureException(new Error(`agent-runner: task '${c.type}' crashed past max_attempts`), {
+                    tags: { agent_task_type: c.type, task_id: c.id, attempts: String(crashed) },
+                })
+            }
+            return null
+        }
         let q = supabaseAdmin
             .from("agent_tasks")
-            .update({ status: "running", lease: nowIso() })
-            .eq("id", id)
+            .update({ status: "running", lease: nowIso(), attempts: crashed })
+            .eq("id", c.id)
             .in("status", ["pending", "running"])
         q = leaseNull ? q.is("lease", null) : q.lt("lease", staleBefore)
         const { data, error } = await q.select("*").maybeSingle()
-        if (error) console.warn(`⚠️ agent-runner claim error (${id}): ${error.message}`)
+        if (error) console.warn(`⚠️ agent-runner claim error (${c.id}): ${error.message}`)
         return (data as AgentTask) || null
     }
 
-    for (const c of candidates || []) {
-        const claimed = (await tryClaim(c.id, true)) || (await tryClaim(c.id, false))
+    for (const c of (candidates || []) as Candidate[]) {
+        const claimed = (await tryClaim(c, true)) || (await tryClaim(c, false))
         if (claimed) return claimed
     }
     return null
