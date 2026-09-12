@@ -20,15 +20,16 @@ import type { StudioSection } from "./StudioContext"
 
 export type NavGroupId = "root" | "content" | "create" | "inspiration" | "analytics" | "account" | "admin"
 
-/** Prázdný label = skupina se v sidebaru vykreslí bez nadpisu. */
+/** Klíč do `nav` namespace v messages (`t(GROUP_LABELS[g])`). Prázdný = skupina
+ *  se v sidebaru vykreslí bez nadpisu. Text samotný žije v `messages/<locale>.json`. */
 export const GROUP_LABELS: Record<NavGroupId, string> = {
     root: "",
-    content: "Obsah",
-    create: "Tvořit",
-    inspiration: "Inspirace",
-    analytics: "Analytika",
+    content: "groups.content",
+    create: "groups.create",
+    inspiration: "groups.inspiration",
+    analytics: "groups.analytics",
     account: "",
-    admin: "Admin",
+    admin: "groups.admin",
 }
 
 /**
@@ -40,9 +41,11 @@ export type NavBadgeId = "tasksAwaitingAnswer"
 
 export interface NavItem {
     id: StudioSection
-    /** Plný název — sidebar a rozbalovací panel. */
+    /** Klíč plného názvu v `nav` namespace messages (`t(item.label)`) — sidebar
+     *  a rozbalovací panel. Registr nese KLÍČ, text je v `messages/<locale>.json`:
+     *  jazyk UI je vlastnost uživatele, registr je jeden pro všechny. */
     label: string
-    /** Zkrácený název do spodní lišty, kde je na slot ~70 px. */
+    /** Klíč zkráceného názvu do spodní lišty, kde je na slot ~70 px. */
     shortLabel?: string
     icon: LucideIcon
     /**
@@ -57,34 +60,34 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-    { id: "dashboard", label: "Dashboard", shortLabel: "Přehled", icon: Home, group: "root" },
+    { id: "dashboard", label: "items.dashboard.label", shortLabel: "items.dashboard.short", icon: Home, group: "root" },
 
-    { id: "posts", label: "Příspěvky", shortLabel: "Příspěvky", icon: Images, group: "content" },
-    { id: "plan", label: "Plán", shortLabel: "Kalendář", icon: CalendarDays, matches: ["plan", "calendar", "feed"], group: "content" },
+    { id: "posts", label: "items.posts.label", shortLabel: "items.posts.short", icon: Images, group: "content" },
+    { id: "plan", label: "items.plan.label", shortLabel: "items.plan.short", icon: CalendarDays, matches: ["plan", "calendar", "feed"], group: "content" },
 
-    { id: "generate", label: "Generovat", shortLabel: "Generovat", icon: Sparkles, group: "create" },
+    { id: "generate", label: "items.generate.label", shortLabel: "items.generate.short", icon: Sparkles, group: "create" },
 
-    { id: "inspiration", label: "Nápady & Recenze", icon: Lightbulb, matches: ["inspiration", "ideas", "reviews"], group: "inspiration" },
-    { id: "brand", label: "Fotky značky", icon: ImageIcon, group: "inspiration" },
+    { id: "inspiration", label: "items.inspiration.label", icon: Lightbulb, matches: ["inspiration", "ideas", "reviews"], group: "inspiration" },
+    { id: "brand", label: "items.brand.label", icon: ImageIcon, group: "inspiration" },
 
-    { id: "performance", label: "Výkon", icon: BarChart3, group: "analytics" },
+    { id: "performance", label: "items.performance.label", icon: BarChart3, group: "analytics" },
     // Paměť se do sidebaru nikdy nedostala, přestože sekce existuje.
-    { id: "brain", label: "Paměť", icon: Brain, group: "analytics" },
+    { id: "brain", label: "items.brain.label", icon: Brain, group: "analytics" },
 
-    { id: "faq", label: "Nápověda", icon: CircleQuestionMark, group: "account" },
-    { id: "settings", label: "Nastavení", icon: Settings, group: "account" },
+    { id: "faq", label: "items.faq.label", icon: CircleQuestionMark, group: "account" },
+    { id: "settings", label: "items.settings.label", icon: Settings, group: "account" },
 
     // Otázka od AI čeká na odpověď, dokud si jí někdo nevšimne — odznak je
     // jediné místo, kde je vidět bez otevření sekce.
-    { id: "tasks", label: "Úkoly", icon: ListChecks, badge: "tasksAwaitingAnswer", group: "admin" },
-    { id: "leads", label: "Obchod", shortLabel: "Obchod", icon: Handshake, group: "admin" },
-    { id: "products", label: "Produkty", icon: Package, group: "admin" },
-    { id: "company", label: "Firma", icon: Building2, group: "admin" },
-    { id: "approvals", label: "Schválení", icon: CircleCheck, group: "admin" },
-    { id: "onboard", label: "Onboarding", icon: UserPlus, group: "admin" },
-    { id: "waitlist", label: "Waitlist", icon: KeyRound, group: "admin" },
-    { id: "mailing", label: "Mailing", icon: Mail, group: "admin" },
-    { id: "emails", label: "Šablony", icon: LayoutTemplate, group: "admin" },
+    { id: "tasks", label: "items.tasks.label", icon: ListChecks, badge: "tasksAwaitingAnswer", group: "admin" },
+    { id: "leads", label: "items.leads.label", shortLabel: "items.leads.short", icon: Handshake, group: "admin" },
+    { id: "products", label: "items.products.label", icon: Package, group: "admin" },
+    { id: "company", label: "items.company.label", icon: Building2, group: "admin" },
+    { id: "approvals", label: "items.approvals.label", icon: CircleCheck, group: "admin" },
+    { id: "onboard", label: "items.onboard.label", icon: UserPlus, group: "admin" },
+    { id: "waitlist", label: "items.waitlist.label", icon: KeyRound, group: "admin" },
+    { id: "mailing", label: "items.mailing.label", icon: Mail, group: "admin" },
+    { id: "emails", label: "items.emails.label", icon: LayoutTemplate, group: "admin" },
 ]
 
 /** Sekce, které nemají vlastní položku — dosažitelné jen přes sub-taby nebo prokliky. */

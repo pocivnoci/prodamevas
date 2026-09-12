@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 
 /**
  * Heslo s okem místo pole „heslo znovu". Kontrolní opis chytí překlep jen
@@ -19,6 +20,7 @@ export function PasswordField({
     trailing?: React.ReactNode
 }) {
     const [visible, setVisible] = useState(false)
+    const t = useTranslations("auth.common")
 
     return (
         <div>
@@ -41,7 +43,7 @@ export function PasswordField({
                 <button
                     type="button"
                     onClick={() => setVisible(v => !v)}
-                    aria-label={visible ? "Skrýt heslo" : "Zobrazit heslo"}
+                    aria-label={visible ? t("hidePassword") : t("showPassword")}
                     className="absolute inset-y-0 right-0 px-3 flex items-center text-white/30 hover:text-white/70 transition-colors cursor-pointer"
                 >
                     {visible ? (

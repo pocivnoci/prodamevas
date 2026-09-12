@@ -1,21 +1,22 @@
 import { requestPasswordReset } from "@/app/forgot-password/actions"
 import Link from "next/link"
-
-const ERROR_MESSAGES: Record<string, string> = {
-    missing_email: "Zadej svůj e-mail.",
-    rate_limit: "Příliš mnoho pokusů. Zkus to za chvíli znovu.",
-    link_expired: "Odkaz pro obnovu vypršel nebo je neplatný. Vyžádej si nový.",
-}
+import { getTranslations } from "next-intl/server"
+import { UiLocaleProvider } from "@/components/i18n/UiLocaleProvider"
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher"
 
 export default async function ForgotPasswordPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
     const searchParams = await props.searchParams
+    const t = await getTranslations("auth")
     const isSent = searchParams?.sent === "1"
     const errorKey = searchParams?.error as string | undefined
-    const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] || "Něco se pokazilo." : null
+    const errorMessage = errorKey
+        ? (t.has(`forgot.errors.${errorKey}`) ? t(`forgot.errors.${errorKey}`) : t("common.somethingWrong"))
+        : null
 
     return (
+        <UiLocaleProvider>
         <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 text-white">
             <div className="w-full max-w-md p-8 bg-[#0a0a0a] border border-white/10 rounded-sm">
                 <div className="text-center mb-8">
@@ -24,8 +25,8 @@ export default async function ForgotPasswordPage(props: {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </div>
-                    <h1 className="text-xl font-black uppercase tracking-widest">Obnova hesla</h1>
-                    <p className="text-white/40 mt-2 text-xs font-medium">Zadej e-mail a pošleme ti odkaz pro nastavení nového hesla.</p>
+                    <h1 className="text-xl font-black uppercase tracking-widest">{t("forgot.title")}</h1>
+                    <p className="text-white/40 mt-2 text-xs font-medium">{t("forgot.subtitle")}</p>
                 </div>
 
                 {isSent && (
@@ -37,9 +38,9 @@ export default async function ForgotPasswordPage(props: {
                                 </svg>
                             </div>
                             <div className="ml-3">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400">Odkaz odeslán</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400">{t("forgot.sentTitle")}</h3>
                                 <div className="mt-1 text-xs text-emerald-400/80">
-                                    <p>Pokud účet s tímto e-mailem existuje, poslali jsme na něj odkaz pro obnovu hesla. Zkontroluj i složku se spamem.</p>
+                                    <p>{t("forgot.sentBody")}</p>
                                 </div>
                             </div>
                         </div>
@@ -55,7 +56,7 @@ export default async function ForgotPasswordPage(props: {
                                 </svg>
                             </div>
                             <div className="ml-3">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">Chyba</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">{t("common.error")}</h3>
                                 <div className="mt-1 text-xs text-red-400/80">
                                     <p>{errorMessage}</p>
                                 </div>
@@ -67,13 +68,13 @@ export default async function ForgotPasswordPage(props: {
                 {!isSent && (
                     <form className="space-y-5">
                         <div>
-                            <label htmlFor="email" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Email</label>
+                            <label htmlFor="email" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">{t("common.email")}</label>
                             <input
                                 id="email"
                                 name="email"
                                 type="email"
                                 required
-                                placeholder="tvuj@email.cz"
+                                placeholder={t("forgot.emailPlaceholder")}
                                 className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm"
                             />
                         </div>
@@ -84,7 +85,7 @@ export default async function ForgotPasswordPage(props: {
                             className="w-full relative group overflow-hidden rounded-sm bg-aisummit-cinnabar px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-[0_0_20px_rgba(229,83,63,0.2)] transition-all hover:bg-aisummit-cinnabar/90 mt-2 cursor-pointer"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                Poslat odkaz
+                                {t("forgot.submit")}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>
@@ -93,13 +94,17 @@ export default async function ForgotPasswordPage(props: {
 
                 <div className="mt-6 text-center">
                     <p className="text-xs text-white/30">
-                        Vzpomněl sis na heslo?{" "}
+                        {t("forgot.remembered")}{" "}
                         <Link href="/login" className="text-aisummit-cinnabar hover:text-aisummit-cinnabar/80 transition-colors font-bold uppercase tracking-wider text-[10px]">
-                            Přihlas se
+                            {t("forgot.login")}
                         </Link>
                     </p>
                 </div>
+                <div className="mt-4">
+                    <LanguageSwitcher variant="compact" />
+                </div>
             </div>
         </div>
+        </UiLocaleProvider>
     )
 }

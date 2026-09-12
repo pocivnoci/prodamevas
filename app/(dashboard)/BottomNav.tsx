@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence, useDragControls } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { Sparkles, MoreHorizontal } from "lucide-react"
 
 import { useStudio, useStudioNavigate, type StudioSection } from "./StudioContext"
@@ -23,6 +24,7 @@ import { BOTTOM_NAV_LEFT, BOTTOM_NAV_RIGHT, navItem, navMatches } from "./nav"
 
 function NavSlot({ section, onNavigate }: { section: StudioSection; onNavigate: (s: StudioSection, active: boolean) => void }) {
     const { activeSection, navBadges } = useStudio()
+    const t = useTranslations("nav")
     const item = navItem(section)
     if (!item) return null
 
@@ -53,7 +55,7 @@ function NavSlot({ section, onNavigate }: { section: StudioSection; onNavigate: 
                 ) : null}
             </span>
             <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
-                {item.shortLabel ?? item.label}
+                {t(item.shortLabel ?? item.label)}
             </span>
         </button>
     )
@@ -62,6 +64,7 @@ function NavSlot({ section, onNavigate }: { section: StudioSection; onNavigate: 
 export function BottomNav() {
     const { activeSection, setGenerateIntent } = useStudio()
     const navigate = useStudioNavigate()
+    const t = useTranslations("nav")
     const [sheetOpen, setSheetOpen] = useState(false)
     /** Tažení panelu spouští jen úchyt — viz `dragListener={false}` níž. */
     const dragControls = useDragControls()
@@ -89,7 +92,7 @@ export function BottomNav() {
     return (
         <>
             <nav
-                aria-label="Hlavní navigace"
+                aria-label={t("mainNav")}
                 className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#050505]/95 backdrop-blur-2xl border-t border-white/5 pb-[env(safe-area-inset-bottom)]"
             >
                 <div className="grid grid-cols-5 h-[var(--studio-navbar-h)]">
@@ -102,14 +105,14 @@ export function BottomNav() {
                     <div className="relative flex items-start justify-center pointer-events-none">
                         <button
                             onClick={() => { setGenerateIntent(null); navigate("generate") }}
-                            aria-label="Generovat"
+                            aria-label={t("items.generate.label")}
                             aria-current={generateActive ? "page" : undefined}
                             className={`pointer-events-auto -translate-y-5 w-14 h-14 rounded-sm flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer bg-gradient-to-br from-aisummit-cinnabar to-orange-600 text-white shadow-[0_0_24px_rgba(230,57,70,0.45)] active:scale-95 ${
                                 generateActive ? "ring-2 ring-white/70" : ""
                             }`}
                         >
                             <Sparkles className="w-5 h-5" />
-                            <span className="text-[7px] font-black uppercase tracking-widest leading-none">Tvořit</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest leading-none">{t("create")}</span>
                         </button>
                     </div>
 
@@ -119,14 +122,14 @@ export function BottomNav() {
 
                     <button
                         onClick={() => setSheetOpen(true)}
-                        aria-label="Další sekce"
+                        aria-label={t("moreAria")}
                         aria-expanded={sheetOpen}
                         className={`flex flex-col items-center justify-center gap-1 h-full transition-colors cursor-pointer ${
                             sheetOpen ? "text-white" : "text-white/35 active:text-white/70"
                         }`}
                     >
                         <MoreHorizontal className="w-5 h-5" />
-                        <span className="text-[9px] font-bold uppercase tracking-widest leading-none">Více</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest leading-none">{t("more")}</span>
                     </button>
                 </div>
             </nav>

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/supabase/server'
 import { enforceInviteGate } from '@/lib/invite-gate'
+import { syncLocaleCookieFromUser } from '@/lib/i18n/server'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -34,6 +35,9 @@ export async function login(formData: FormData) {
     // v databázi celou dobu čeká taky.
     const { claimHandoffs } = await import('@/lib/handoff')
     await claimHandoffs(data.user)
+
+    // Jazyk UI uložený u účtu vyhrává nad cookie tohohle prohlížeče.
+    await syncLocaleCookieFromUser(data.user)
 
     revalidatePath('/', 'layout')
     redirect('/dashboard/instagram')

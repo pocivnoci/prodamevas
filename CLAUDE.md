@@ -98,6 +98,9 @@ Tři vrstvy, všechny multi-tenant:
   zůstávají psané česky, výstupní jazyk si berou z balíčku (`writeRuleCs`, `adverbCs`,
   `exactTextRule`). Svátky jdou po trhu značky (`getDayContext(date, language)`).
   Nový enginový kód s `clientId` bez configu bere jazyk z `languageForClient()`.
+  Jazyk UI: texty v `messages/<locale>.json` (zdroj `cs.json`) přes next-intl
+  (`useTranslations` / `getTranslations`), registr navigace nese klíče. Do souboru,
+  který už prošel migrací, nepatří česky natvrdo (hlídá `scripts/test-i18n.ts`).
 - **Modely** — všechna ID v `instagram/models.ts`, vždy přes `getModel()`, nikdy
   hardcoded string (env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Pro tier používá
   alias `gemini-pro-latest`, **nepinuj Pro preview ID**.

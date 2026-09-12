@@ -1,10 +1,12 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { RefreshCw, LogOut, CalendarDays } from "lucide-react"
 
 import { logout } from "@/app/login/actions"
 import { LogoPV } from "@/components/LogoPV"
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher"
 import { useStudio, useStudioNavigate, type StudioSection } from "./StudioContext"
 import {
     GROUP_LABELS, SIDEBAR_GROUPS, itemsInGroup, navMatches, type NavItem,
@@ -23,8 +25,10 @@ import {
  * odmountuje.
  */
 
-function NavButton({ item, active, onSelect, layoutId, badge }: {
+function NavButton({ item, label, active, onSelect, layoutId, badge }: {
     item: NavItem
+    /** Přeložený název — registr nese jen klíč. */
+    label: string
     active: boolean
     onSelect: () => void
     /** Nenulové číslo z registru (`NavItem.badge`) — jinak se nekreslí nic. */
@@ -53,7 +57,7 @@ function NavButton({ item, active, onSelect, layoutId, badge }: {
                 <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm" />
             )}
             <Icon className={`relative z-10 w-4 h-4 shrink-0 transition-transform duration-200 ${active ? "scale-110" : "opacity-60 group-hover:opacity-100"}`} />
-            <span className="relative z-10">{item.label}</span>
+            <span className="relative z-10">{label}</span>
             {badge ? (
                 <span className="relative z-10 ml-auto min-w-4 px-1 py-0.5 rounded-sm bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold leading-none text-center">
                     {badge}
@@ -76,6 +80,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
         subscription, subscriptionLoading, setGenerateIntent, navBadges,
     } = useStudio()
     const navigate = useStudioNavigate()
+    const t = useTranslations("nav")
 
     const layoutId = variant === "sidebar" ? "sidebarActive" : "sheetActive"
 
@@ -88,7 +93,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                 <div className="p-6 pb-4 border-b border-white/5">
                     <div className="flex items-center gap-3">
                         <LogoPV className="h-8 flex-shrink-0" />
-                        <p className="text-[8px] text-white/30 font-bold tracking-[0.2em] uppercase">Studio</p>
+                        <p className="text-[8px] text-white/30 font-bold tracking-[0.2em] uppercase">{t("studio")}</p>
                     </div>
                 </div>
             )}
@@ -98,7 +103,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                 costs ~80px of FIXED chrome above the scrollable <nav>. */}
             {clients.length > 1 && (
                 <div className="px-4 py-3 border-b border-white/5">
-                    <label className="text-[8px] text-white/30 font-bold uppercase tracking-[0.2em] block mb-1.5">Klient</label>
+                    <label className="text-[8px] text-white/30 font-bold uppercase tracking-[0.2em] block mb-1.5">{t("client")}</label>
                     <div className="relative">
                         <select
                             value={projectId}
@@ -123,7 +128,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                     }}
                     className="w-full py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_20px_rgba(229,83,63,0.25)] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                    <CalendarDays className="w-4 h-4" /> Obsah na měsíc
+                    <CalendarDays className="w-4 h-4" /> {t("monthCta")}
                 </button>
             </div>
 
@@ -138,13 +143,14 @@ export function StudioNavPanel({ variant, onNavigate }: {
                         return (
                             <div key={group}>
                                 {GROUP_LABELS[group] && (
-                                    <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{GROUP_LABELS[group]}</p>
+                                    <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{t(GROUP_LABELS[group])}</p>
                                 )}
                                 <div className="space-y-0.5">
                                     {items.map(item => (
                                         <NavButton
                                             key={item.id}
                                             item={item}
+                                            label={t(item.label)}
                                             active={navMatches(item, activeSection)}
                                             onSelect={() => go(item.id)}
                                             layoutId={layoutId}
@@ -159,12 +165,13 @@ export function StudioNavPanel({ variant, onNavigate }: {
                     {/* Admin group — super admins only (SUPER_ADMIN_EMAILS) */}
                     {isAdmin && (
                         <div>
-                            <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{GROUP_LABELS.admin}</p>
+                            <p className="text-[8px] text-white/25 font-bold uppercase tracking-[0.25em] px-3 mb-1.5">{t(GROUP_LABELS.admin)}</p>
                             <div className="space-y-0.5">
                                 {itemsInGroup("admin").map(item => (
                                     <NavButton
                                         key={item.id}
                                         item={item}
+                                        label={t(item.label)}
                                         active={navMatches(item, activeSection)}
                                         onSelect={() => go(item.id)}
                                         layoutId={layoutId}
@@ -185,12 +192,12 @@ export function StudioNavPanel({ variant, onNavigate }: {
                         </div>
                     ) : !subscription ? (
                         <div className="bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm p-3">
-                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">Žádný plán</p>
+                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">{t("plan.none")}</p>
                             <button
                                 onClick={() => go("settings")}
                                 className="w-full py-2 bg-aisummit-cinnabar text-white rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all cursor-pointer"
                             >
-                                Vybrat plán
+                                {t("plan.choose")}
                             </button>
                         </div>
                     ) : (() => {
@@ -211,11 +218,11 @@ export function StudioNavPanel({ variant, onNavigate }: {
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-[9px] text-white/60 font-bold uppercase tracking-widest">
                                         {subscription.planName}
-                                        {isTrial && <span className="text-amber-400 ml-1">Trial</span>}
+                                        {isTrial && <span className="text-amber-400 ml-1">{t("plan.trial")}</span>}
                                     </span>
                                     {trialDays !== null && (
                                         <span className="text-[8px] text-amber-400 font-bold">
-                                            {trialDays}d zbývá
+                                            {t("plan.daysLeft", { days: trialDays })}
                                         </span>
                                     )}
                                 </div>
@@ -227,10 +234,10 @@ export function StudioNavPanel({ variant, onNavigate }: {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-[9px] text-white/30 font-bold">
-                                        {usedUnits}/{totalUnits} {usePostQuota ? "příspěvků zdarma" : "kreditů"}
+                                        {usedUnits}/{totalUnits} {usePostQuota ? t("plan.postsFree") : t("plan.credits")}
                                     </span>
                                     <span className={`text-[9px] font-bold ${isLow ? 'text-aisummit-cinnabar' : 'text-white/20'}`}>
-                                        {remainingUnits} zbývá
+                                        {t("plan.remaining", { n: remainingUnits })}
                                     </span>
                                 </div>
                                 {(subscription.status === "expired" || isLow) && (
@@ -238,7 +245,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                                         onClick={() => go("settings")}
                                         className="w-full mt-2 py-2 bg-aisummit-cinnabar text-white rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-aisummit-cinnabar/90 transition-all cursor-pointer"
                                     >
-                                        {subscription.status === "expired" ? "Obnovit plán" : "Upgradovat"}
+                                        {subscription.status === "expired" ? t("plan.renew") : t("plan.upgrade")}
                                     </button>
                                 )}
                             </div>
@@ -252,18 +259,21 @@ export function StudioNavPanel({ variant, onNavigate }: {
                         <NavButton
                             key={item.id}
                             item={item}
+                            label={t(item.label)}
                             active={navMatches(item, activeSection)}
                             onSelect={() => go(item.id)}
                             layoutId={layoutId}
                         />
                     ))}
 
+                    <LanguageSwitcher />
+
                     <button
                         onClick={() => window.location.reload()}
                         className="group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider text-white/40 hover:text-white/70 transition-all cursor-pointer"
                     >
                         <RefreshCw className="w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <span>Aktualizovat</span>
+                        <span>{t("refresh")}</span>
                     </button>
 
                     <form action={logout}>
@@ -272,7 +282,7 @@ export function StudioNavPanel({ variant, onNavigate }: {
                             className="group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-sm text-[11px] font-bold uppercase tracking-wider text-white/30 hover:text-white/60 transition-all cursor-pointer"
                         >
                             <LogOut className="w-4 h-4 shrink-0 opacity-50 group-hover:opacity-80 transition-opacity" />
-                            <span>Odhlásit se</span>
+                            <span>{t("logout")}</span>
                         </button>
                     </form>
                 </div>

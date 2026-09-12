@@ -96,3 +96,36 @@ v `lib/i18n`: cookie `NEXT_LOCALE` → `user_metadata.locale` → `Accept-Langua
 `getTranslations()`. Navigační registr (`app/(dashboard)/nav.ts`) nese klíče,
 ne texty. Skloňování počtů: `lib/plural.ts` (čeština má 3 tvary, angličtina 2 —
 pravidla per locale, ne `n === 1`).
+
+## Migrace tabu na messages (postup pro každý soubor)
+
+Texty jsou v `messages/<locale>/<namespace>.json` — **jeden soubor na tab**,
+namespace = jméno souboru = top-level klíč (`{ "settings": { … } }`). Soubor musí
+být zapsaný v `MESSAGE_FILES` (`lib/i18n/messages.ts`) a v `MIGRATED`
+(`scripts/test-i18n.ts`), jinak ho guard neuvidí.
+
+1. **Čeština je zdroj.** Každý český text z JSX, `aria-label`, `placeholder`,
+   `title`, tooltipů, hlášek `setMessage(...)`, popisků selectů a tabulek jde do
+   `messages/cs/<ns>.json` **beze změny znění** a do `messages/en/<ns>.json`
+   jako překlad. Klíče strukturuj podle komponenty/sekce (`settings.basic.name`),
+   ne podle pořadí; stejný text na dvou místech = jeden klíč.
+2. **Komponenta:** `"use client"` → `const t = useTranslations("<ns>")`; hooky jen
+   uvnitř funkčních komponent (u vnořených komponent v témž souboru každá vlastní
+   `t`). Serverové komponenty: `await getTranslations("<ns>")`.
+3. **Proměnné a počty** přes ICU, ne skládáním řetězců:
+   `"{count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}"`
+   (čeština má tvary one/few/other, angličtina one/other). `lib/plural.ts`
+   v migrovaném souboru nepoužívej.
+4. **Data, datumy, čísla:** `useFormatter()` z next-intl (má locale i zónu
+   Europe/Prague), ne `toLocaleDateString("cs-CZ")`.
+5. **Label mapy v `lib/`** (`STATUS_LABELS`, názvy tarifů, médií…) se v `lib/`
+   NEMĚNÍ — čtou je i e-maily a server. V tabu je nahraď klíčem podle hodnoty:
+   `t(\`status.${status}\`)` s položkami v namespace tabu.
+6. **Co se nepřekládá:** hlášky vrácené ze server actions (`result.error` — jdou
+   z `app/actions`, další krok), názvy značek/produktů/hooků (data), hashtagy,
+   texty, které jdou do promptu nebo na Instagram (jazyk značky, ne UI), kód
+   a klíče v logu (`console.log`).
+7. **Ověření:** `npx tsc --noEmit -p tsconfig.json` (chyby jen ve svém souboru),
+   `npx tsx scripts/test-i18n.ts` (parita klíčů cs/en, ICU proměnné, žádná
+   čeština mimo komentáře v migrovaných souborech), na konci `npm run guard`.
+   Komentáře v kódu smí zůstat česky — kontrola je jen nad kódem.

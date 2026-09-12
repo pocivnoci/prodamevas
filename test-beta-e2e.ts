@@ -992,10 +992,12 @@ test("10.7l Každé přesměrování na /login má přeloženou hlášku", () =>
     const mw = codeOnly("middleware.ts")
     const keys = [...mw.matchAll(/\?error=([a-z_]+)/g)].map(m => m[1])
     assert(keys.length >= 2, `aserce musí reálně něco kontrolovat (našla ${keys.length} klíčů)`)
-    const login = codeOnly("app/login/page.tsx")
+    // Hlášky žijí v messages (jazyk UI), stránka je jen překládá klíčem.
+    const errors = JSON.parse(fileContent("messages/cs/auth.json")).auth?.login?.errors ?? {}
+    assert(codeOnly("app/login/page.tsx").includes("login.errors."), "/login musí hlášky brát z messages, ne z lokální tabulky")
     for (const key of new Set(keys)) {
-        assert(new RegExp(`\\b${key}:`).test(login),
-            `${key}: middleware na tenhle klíč přesměrovává, ale /login ho nezná`)
+        assert(typeof errors[key] === "string" && errors[key].length > 0,
+            `${key}: middleware na tenhle klíč přesměrovává, ale messages/cs/auth.json ho nezná`)
     }
 })
 

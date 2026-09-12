@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
     serverExternalPackages: ["sharp", "ffmpeg-static"],
@@ -38,4 +39,8 @@ const nextConfig: NextConfig = {
     },
 };
 
-export default nextConfig;
+// Jazyk UI: zprávy a locale per request (`lib/i18n/request.ts`). Bez prefixu v URL —
+// dashboard je hash-SPA a marketingové adresy jsou indexované.
+const withNextIntl = createNextIntlPlugin("./lib/i18n/request.ts");
+
+export default withNextIntl(nextConfig);

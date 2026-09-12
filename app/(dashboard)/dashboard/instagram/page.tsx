@@ -1,6 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { useStudio } from "../../StudioContext"
 import { navItem } from "../../nav"
 
@@ -31,45 +32,12 @@ import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
 /**
- * Popisek pod nadpisem sekce.
- *
- * **Titulek se sem nepíše** — bere se z `navItem(id).label`, tedy z registru
- * navigace. Dvě kopie názvu znamenaly, že se rozešly: `leads` ani `emails`
- * v téhle tabulce nebyly a obě sekce se otevíraly bez nadpisu.
+ * Nadpis i popisek sekce jdou z messages (`nav.items.<id>.label`,
+ * `sections.descriptions.<id>`), klíč nadpisu nese registr navigace
+ * (`navItem(id).label`). Dvě kopie názvu se dřív rozešly: `leads` ani `emails`
+ * v tabulce popisků nebyly a obě sekce se otevíraly bez nadpisu. Sekce bez
+ * vlastní položky v registru (sub-tab) má nadpis v `sections.subsections.<id>`.
  */
-const SECTION_DESCRIPTIONS: Record<string, string> = {
-    dashboard: "Váš přehled a rychlé akce",
-    posts: "Všechny vygenerované příspěvky",
-    plan: "Kalendář a feed náhled",
-    calendar: "Naplánujte obsah na celý týden",
-    feed: "Jak bude vypadat váš Instagram profil",
-    generate: "Vytvořte nový příspěvek pomocí AI",
-    inspiration: "Nápady a recenze pro tvorbu obsahu",
-    ideas: "Banka nápadů na obsah",
-    reviews: "Recenze zákazníků pro tvorbu obsahu",
-    brand: "Referenční fotky vaší značky",
-    products: "Produktové nápady a vizualizace",
-    performance: "Jak si váš obsah vede",
-    settings: "Konfigurace značky a systému",
-    onboard: "Onboardujte nového klienta",
-    waitlist: "Správa zájemců a zvacích kódů",
-    brain: "Naučené vzorce z reálného výkonu",
-    faq: "Časté dotazy a průvodce studiem",
-    approvals: "Akce agentů čekající na vaše schválení",
-    company: "Zdraví zákaznických účtů napříč tenanty",
-    mailing: "Rozeslání e-mailu na segment (waitlist, klienti)",
-    tasks: "Co je rozdělané, čí to je a co čeká",
-    leads: "Evidence klientů — kontakty, schůzky, historie oslovení",
-    emails: "Šablony transakčních e-mailů a jejich náhledy",
-}
-
-/** Sekce bez vlastní položky v registru (sub-tab) si nadpis nese sama. */
-const SUBSECTION_TITLES: Record<string, string> = {
-    calendar: "Kalendář",
-    feed: "Feed náhled",
-    ideas: "Nápady",
-    reviews: "Recenze",
-}
 
 export default function InstagramPage() {
     // Admin-only sections are gated in render, not just hidden in the sidebar —
@@ -79,9 +47,14 @@ export default function InstagramPage() {
     // `isAdmin` jde z kontextu, ne z vlastního dotazu: jinak by na jednu stránku
     // byly dvě odpovědi na tutéž otázku a mohly by se lišit.
     const { activeSection, projectId, isAdmin, navDirection, refreshNonce } = useStudio()
+    const tNav = useTranslations("nav")
+    const tSections = useTranslations("sections")
+    const labelKey = navItem(activeSection)?.label
     const sectionInfo = {
-        title: navItem(activeSection)?.label ?? SUBSECTION_TITLES[activeSection] ?? "",
-        description: SECTION_DESCRIPTIONS[activeSection] ?? "",
+        title: labelKey
+            ? tNav(labelKey)
+            : tSections.has(`subsections.${activeSection}`) ? tSections(`subsections.${activeSection}`) : "",
+        description: tSections.has(`descriptions.${activeSection}`) ? tSections(`descriptions.${activeSection}`) : "",
     }
     const { showTutorial, openTutorial, closeTutorial } = useTutorialState()
 

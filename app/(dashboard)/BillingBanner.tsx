@@ -1,6 +1,8 @@
 "use client"
 
+import { useLocale, useTranslations } from "next-intl"
 import { useStudio, useStudioNavigate, type SubscriptionState } from "./StudioContext"
+import { UI_LOCALE_TAGS, type UiLocale } from "@/lib/i18n/locales"
 
 /**
  * Pruh nad obsahem, když je něco s předplatným.
@@ -23,10 +25,21 @@ const TONE: Record<Tone, string> = {
     info: "border-white/10 bg-white/5 text-white/70",
 }
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null, locale: string): string {
     if (!iso) return ""
     const d = new Date(iso)
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric", year: "numeric" })
+    const tag = UI_LOCALE_TAGS[locale as UiLocale] ?? UI_LOCALE_TAGS.cs
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(tag, { day: "numeric", month: "numeric", year: "numeric" })
+}
+
+/** Stavy, pro které existuje text i CTA v messages (`shell.billing.<state>` / `<state>Cta`). */
+const BANNER_STATES: Record<string, Tone> = {
+    dunning: "danger",
+    expired: "danger",
+    grace: "warn",
+    expiring_soon: "warn",
+    cancelled: "info",
+    gift_ending: "info",
 }
 
 export function BillingBanner() {
@@ -34,14 +47,14 @@ export function BillingBanner() {
     // Sekce je stav (hash), ne query parametr: `?section=subscription` nikdo nečetl a
     // „subscription" ani není sekce — CTA na opravu karty vedlo na přehled.
     const navigate = useStudioNavigate()
+    const t = useTranslations("shell.billing")
+    const locale = useLocale()
     if (!subscription || subscription.billingState === "ok") return null
 
-    const until = fmtDate(subscription.currentPeriodEnd)
-
     const { tone, text, cta } = describe(subscription.billingState, {
-        until,
+        until: fmtDate(subscription.currentPeriodEnd, locale),
         attempt: subscription.billingFailures,
-    })
+    }, t)
 
     return (
         <div className={`mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border px-4 py-3 ${TONE[tone]}`}>
@@ -60,45 +73,14 @@ export function BillingBanner() {
 function describe(
     state: SubscriptionState["billingState"],
     vars: { until: string; attempt: number },
+    t: ReturnType<typeof useTranslations<"shell.billing">>,
 ): { tone: Tone; text: string; cta: string } {
-    switch (state) {
-        case "dunning":
-            return {
-                tone: "danger",
-                text: `Platbu za předplatné se nepodařilo strhnout${vars.attempt ? ` (pokus ${vars.attempt} ze 3)` : ""}. Zkontrolujte prosím kartu — po třetím neúspěchu se generování zastaví.`,
-                cta: "Zkontrolovat platbu",
-            }
-        case "expired":
-            return {
-                tone: "danger",
-                text: "Předplatné vypršelo a generování je pozastavené. Vaše data i naučená značka zůstávají uložené.",
-                cta: "Obnovit předplatné",
-            }
-        case "grace":
-            return {
-                tone: "warn",
-                text: `Zaplacené období skončilo${vars.until ? ` ${vars.until}` : ""}. Ještě pár dní běžíte v odkladu, než se obnova dokončí.`,
-                cta: "Zobrazit předplatné",
-            }
-        case "expiring_soon":
-            return {
-                tone: "warn",
-                text: `Předplatné se obnovuje${vars.until ? ` ${vars.until}` : " během pár dní"}.`,
-                cta: "Spravovat plán",
-            }
-        case "cancelled":
-            return {
-                tone: "info",
-                text: `Předplatné jste zrušili — běží ještě do${vars.until ? ` ${vars.until}` : " konce období"}. Do té doby ho můžete kdykoli obnovit.`,
-                cta: "Obnovit",
-            }
-        case "gift_ending":
-            return {
-                tone: "info",
-                text: `Tarif zdarma končí${vars.until ? ` ${vars.until}` : " během pár dní"}. Nic se nestrhne — když chcete pokračovat, vyberte si plán.`,
-                cta: "Vybrat plán",
-            }
-        default:
-            return { tone: "info", text: "", cta: "" }
+    const tone = BANNER_STATES[state]
+    if (!tone) return { tone: "info", text: "", cta: "" }
+    // `none` = sentinel pro ICU select: bez data se věta dokončí obecně („během pár dní").
+    return {
+        tone,
+        text: t(state, { attempt: vars.attempt ?? 0, until: vars.until || "none" }),
+        cta: t(`${state}Cta`),
     }
 }

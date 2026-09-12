@@ -1,0 +1,178 @@
+{
+  "common": {
+    "language": "Interface language",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "back": "Back"
+  },
+  "nav": {
+    "items": {
+      "dashboard": {
+        "label": "Dashboard",
+        "short": "Overview"
+      },
+      "posts": {
+        "label": "Posts",
+        "short": "Posts"
+      },
+      "plan": {
+        "label": "Plan",
+        "short": "Calendar"
+      },
+      "generate": {
+        "label": "Generate",
+        "short": "Generate"
+      },
+      "inspiration": {
+        "label": "Ideas & Reviews"
+      },
+      "brand": {
+        "label": "Brand photos"
+      },
+      "performance": {
+        "label": "Performance"
+      },
+      "brain": {
+        "label": "Memory"
+      },
+      "faq": {
+        "label": "Help"
+      },
+      "settings": {
+        "label": "Settings"
+      },
+      "tasks": {
+        "label": "Tasks"
+      },
+      "leads": {
+        "label": "Sales",
+        "short": "Sales"
+      },
+      "products": {
+        "label": "Products"
+      },
+      "company": {
+        "label": "Company"
+      },
+      "approvals": {
+        "label": "Approvals"
+      },
+      "onboard": {
+        "label": "Onboarding"
+      },
+      "waitlist": {
+        "label": "Waitlist"
+      },
+      "mailing": {
+        "label": "Mailing"
+      },
+      "emails": {
+        "label": "Templates"
+      }
+    },
+    "groups": {
+      "content": "Content",
+      "create": "Create",
+      "inspiration": "Inspiration",
+      "analytics": "Analytics",
+      "admin": "Admin"
+    },
+    "studio": "Studio",
+    "client": "Client",
+    "monthCta": "A month of content",
+    "mainNav": "Main navigation",
+    "create": "Create",
+    "more": "More",
+    "moreAria": "More sections",
+    "refresh": "Refresh",
+    "logout": "Sign out",
+    "plan": {
+      "none": "No plan",
+      "choose": "Choose a plan",
+      "trial": "Trial",
+      "daysLeft": "{days}d left",
+      "postsFree": "free posts",
+      "credits": "credits",
+      "remaining": "{n} left",
+      "renew": "Renew plan",
+      "upgrade": "Upgrade"
+    }
+  },
+  "sections": {
+    "descriptions": {
+      "dashboard": "Your overview and quick actions",
+      "posts": "Every generated post",
+      "plan": "Calendar and feed preview",
+      "calendar": "Plan content for the whole week",
+      "feed": "How your Instagram profile will look",
+      "generate": "Create a new post with AI",
+      "inspiration": "Ideas and reviews for content creation",
+      "ideas": "Your content idea bank",
+      "reviews": "Customer reviews for content creation",
+      "brand": "Reference photos of your brand",
+      "products": "Product ideas and visualisations",
+      "performance": "How your content is doing",
+      "settings": "Brand and system configuration",
+      "onboard": "Onboard a new client",
+      "waitlist": "Manage prospects and invite codes",
+      "brain": "Patterns learned from real performance",
+      "faq": "Frequently asked questions and a studio guide",
+      "approvals": "Agent actions waiting for your approval",
+      "company": "Health of customer accounts across tenants",
+      "mailing": "Send an e-mail to a segment (waitlist, clients)",
+      "tasks": "What is in progress, whose it is and what is waiting",
+      "leads": "Client records — contacts, meetings, outreach history",
+      "emails": "Transactional e-mail templates and previews"
+    },
+    "subsections": {
+      "calendar": "Calendar",
+      "feed": "Feed preview",
+      "ideas": "Ideas",
+      "reviews": "Reviews"
+    }
+  },
+  "shell": {
+    "topbar": {
+      "overview": "Overview",
+      "studio": "Studio",
+      "posts": "posts",
+      "credits": "credits",
+      "choosePlan": "Choose a plan"
+    },
+    "error": {
+      "title": "Something went wrong",
+      "body": "An unexpected error occurred. Try reloading the page. If the problem persists, contact support.",
+      "reload": "Reload page",
+      "retry": "Try again",
+      "details": "Technical details"
+    },
+    "billing": {
+      "dunning": "We could not charge your subscription{attempt, plural, =0 {} other { (attempt # of 3)}}. Please check your card — after the third failure, generation stops.",
+      "dunningCta": "Check payment",
+      "expired": "Your subscription has expired and generation is paused. Your data and everything learned about your brand stay saved.",
+      "expiredCta": "Renew subscription",
+      "grace": "Your paid period ended{until, select, none {} other { on {until}}}. You are running on a few days of grace while the renewal completes.",
+      "graceCta": "View subscription",
+      "expiring_soon": "Your subscription renews{until, select, none { in a few days} other { on {until}}}.",
+      "expiring_soonCta": "Manage plan",
+      "cancelled": "You cancelled your subscription — it still runs until{until, select, none { the end of the period} other { {until}}}. You can renew it any time before then.",
+      "cancelledCta": "Renew",
+      "gift_ending": "Your free plan ends{until, select, none { in a few days} other { on {until}}}. Nothing will be charged — pick a plan if you want to continue.",
+      "gift_endingCta": "Choose a plan"
+    },
+    "install": {
+      "eyebrow": "Chrlit on your phone",
+      "prompt": "Add the studio to your home screen — it then opens with one tap, no browser hunting.",
+      "safariBefore": "Add the studio to your home screen: in Safari tap",
+      "safariShare": "Share",
+      "safariMiddle": "and choose",
+      "safariAdd": "Add to Home Screen",
+      "install": "Install",
+      "hide": "Hide",
+      "hideAria": "Hide the install offer"
+    }
+  }
+}

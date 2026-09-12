@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/supabase/server'
 import { claimInvite, findUsableInvite } from '@/lib/invite-gate'
 import { inviteRequired } from '@/lib/beta-access'
+import { currentLocaleCookie } from '@/lib/i18n/server'
 
 export async function signup(formData: FormData) {
     const supabase = await createClient()
@@ -39,7 +40,9 @@ export async function signup(formData: FormData) {
                 // Razítko je jediná evidence, že účet branou prošel. Bez kódu se
                 // razítkuje 'OPEN' — prázdná hodnota by účet nechala bez razítka
                 // a middleware by ho z /dashboard vyhodil se smazanými cookies.
-                invite_code: inviteRecord?.code || 'OPEN'
+                invite_code: inviteRecord?.code || 'OPEN',
+                // Jazyk UI zvolený ještě před registrací patří k účtu, ne k prohlížeči.
+                ...(await currentLocaleCookie() ? { locale: await currentLocaleCookie() } : {}),
             }
         },
     })

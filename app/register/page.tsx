@@ -6,24 +6,20 @@ import { AuthNotice } from "@/components/auth/AuthNotice"
 import { PasswordField } from "@/components/auth/PasswordField"
 import { googleAuthEnabled } from "@/lib/auth-providers"
 import { inviteRequired } from "@/lib/beta-access"
-
-const ERROR_MESSAGES: Record<string, string> = {
-    missing_fields: "Vyplň email i heslo.",
-    password_too_short: "Heslo musí mít alespoň 6 znaků.",
-    already_exists: "Účet s tímto emailem už existuje. Přihlas se.",
-    signup_failed: "Registrace selhala. Zkus to znovu.",
-    invalid_invite: "Neplatný nebo vyčerpaný kód pozvánky.",
-    invite_required: "Chrlit je zatím na pozvánky. Vyplň kód a klikni na Google znovu.",
-    google_unavailable: "Registrace přes Google se teď nepodařila spustit. Zkus to znovu, nebo použij e-mail.",
-}
+import { getTranslations } from "next-intl/server"
+import { UiLocaleProvider } from "@/components/i18n/UiLocaleProvider"
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher"
 
 export default async function RegisterPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
     const searchParams = await props.searchParams
+    const t = await getTranslations("auth")
     const errorKey = searchParams?.error as string | undefined
     const isSuccess = searchParams?.success === "check_email"
-    const errorMessage = errorKey ? ERROR_MESSAGES[errorKey] || "Registrace selhala." : null
+    const errorMessage = errorKey
+        ? (t.has(`register.errors.${errorKey}`) ? t(`register.errors.${errorKey}`) : t("register.fallbackError"))
+        : null
     const gateClosed = inviteRequired()
 
     // Odkaz z pozvánky (waitlist, předání značky) nese kód i adresu. Předvyplnění
@@ -34,6 +30,7 @@ export default async function RegisterPage(props: {
     const prefillEmail = typeof searchParams?.email === "string" ? searchParams.email.trim() : ""
 
     return (
+        <UiLocaleProvider>
         <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 text-white">
             <div className="w-full max-w-md p-8 bg-[#0a0a0a] border border-white/10 rounded-sm">
                 <div className="text-center mb-8">
@@ -42,18 +39,18 @@ export default async function RegisterPage(props: {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
                     </div>
-                    <h1 className="text-xl font-black uppercase tracking-widest">Registrace</h1>
-                    <p className="text-white/40 mt-2 text-xs font-medium">Vytvoř si účet pro přístup do Chrlit Studia.</p>
+                    <h1 className="text-xl font-black uppercase tracking-widest">{t("register.title")}</h1>
+                    <p className="text-white/40 mt-2 text-xs font-medium">{t("register.subtitle")}</p>
                 </div>
 
                 {isSuccess && (
-                    <AuthNotice tone="success" title="Registrace úspěšná!">
-                        Zkontroluj svůj email a klikni na potvrzovací odkaz.
+                    <AuthNotice tone="success" title={t("register.successTitle")}>
+                        {t("register.successBody")}
                     </AuthNotice>
                 )}
 
                 {errorMessage && (
-                    <AuthNotice tone="error" title="Chyba">{errorMessage}</AuthNotice>
+                    <AuthNotice tone="error" title={t("common.error")}>{errorMessage}</AuthNotice>
                 )}
 
                 {!isSuccess && (
@@ -64,14 +61,14 @@ export default async function RegisterPage(props: {
                             kde kód vzít. */}
                         {gateClosed && (
                             <div>
-                                <label htmlFor="inviteCode" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Kód pozvánky</label>
+                                <label htmlFor="inviteCode" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">{t("register.inviteCode")}</label>
                                 <input
                                     id="inviteCode"
                                     name="inviteCode"
                                     type="text"
                                     required
                                     defaultValue={prefillCode}
-                                    placeholder="Např. BETA-VIP"
+                                    placeholder={t("register.invitePlaceholder")}
                                     className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm uppercase"
                                 />
                             </div>
@@ -80,13 +77,13 @@ export default async function RegisterPage(props: {
                         {googleAuthEnabled() && (
                             <>
                                 {/* formNoValidate: e-mail a heslo pod tím jsou pro tuhle cestu prázdné schválně. */}
-                                <GoogleButton action={signUpWithGoogle} label="Pokračovat přes Google" formNoValidate />
-                                <AuthDivider label="nebo e-mailem" />
+                                <GoogleButton action={signUpWithGoogle} label={t("common.google")} formNoValidate />
+                                <AuthDivider label={t("common.orEmail")} />
                             </>
                         )}
 
                         <div>
-                            <label htmlFor="email" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">Email</label>
+                            <label htmlFor="email" className="block text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5">{t("common.email")}</label>
                             <input
                                 id="email"
                                 name="email"
@@ -94,12 +91,12 @@ export default async function RegisterPage(props: {
                                 required
                                 defaultValue={prefillEmail}
                                 autoComplete="email"
-                                placeholder="tvuj@email.cz"
+                                placeholder={t("register.emailPlaceholder")}
                                 className="w-full px-4 py-2.5 rounded-sm bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-aisummit-cinnabar/40 focus:border-aisummit-cinnabar/50 transition-all text-sm"
                             />
                         </div>
 
-                        <PasswordField label="Heslo" placeholder="Min. 6 znaků" minLength={6} />
+                        <PasswordField label={t("common.password")} placeholder={t("register.passwordPlaceholder")} minLength={6} />
 
                         <button
                             formAction={signup}
@@ -107,7 +104,7 @@ export default async function RegisterPage(props: {
                             className="w-full relative group overflow-hidden rounded-sm bg-emerald-600 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 mt-2 cursor-pointer"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                Vytvořit účet
+                                {t("register.submit")}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>
@@ -116,13 +113,17 @@ export default async function RegisterPage(props: {
 
                 <div className="mt-6 text-center">
                     <p className="text-xs text-white/30">
-                        Už máš účet?{" "}
+                        {t("register.hasAccount")}{" "}
                         <Link href="/login" className="text-aisummit-cinnabar hover:text-aisummit-cinnabar/80 transition-colors font-bold uppercase tracking-wider text-[10px]">
-                            Přihlas se
+                            {t("register.login")}
                         </Link>
                     </p>
                 </div>
+                <div className="mt-4">
+                    <LanguageSwitcher variant="compact" />
+                </div>
             </div>
         </div>
+        </UiLocaleProvider>
     )
 }

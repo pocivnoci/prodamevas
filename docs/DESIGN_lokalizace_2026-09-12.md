@@ -95,29 +95,43 @@ v jakém pořadí jde zbytek. Pravidla, která z toho plynou, jsou ve skillu
 - Analýza produktového briefu počítá s českým DPH/clem — je to interní laboratoř
   produktů, ne obsah pro publikum.
 
-## Osa 2 — jazyk UI (plán)
+### Osa 2 — jazyk UI: hotovo v téhle větvi
+
+- `next-intl` bez routování: `lib/i18n/request.ts` (registrovaný v `next.config.ts`),
+  `lib/i18n/locales.ts` (cs, en; cookie `NEXT_LOCALE`; `Accept-Language`),
+  `lib/i18n/server.ts` (`resolveUiLocale`, `syncLocaleCookieFromUser`),
+  `app/actions/locale-actions.ts` (`setUiLocale` = cookie + `user_metadata.locale`).
+- `components/i18n/UiLocaleProvider` obaluje dashboard a auth stránky; kořenový
+  layout zůstává statický, `<html lang>` nastavuje `HtmlLang` v prohlížeči.
+- `messages/cs.json` (zdroj) + `messages/en.json`: `common`, `nav`, `sections`,
+  `shell` (horní lišta, chybová obrazovka, pruh předplatného, instalace), `auth`.
+- Migrováno: registr navigace (klíče), sidebar/sheet, spodní lišta, mobilní lišta,
+  nadpisy a popisky sekcí, chybová obrazovka, pruh předplatného, instalační pruh,
+  přihlášení / registrace / obnova hesla / nové heslo; přepínač jazyka v navigaci
+  studia i na auth stránkách; jazyk účtu se opisuje do cookie při přihlášení,
+  OAuth callbacku a registraci.
+- Guard: `scripts/test-i18n.ts` (parita klíčů cs/en vč. ICU proměnných, registr
+  nese klíče, každá sekce má text, migrované soubory bez češtiny natvrdo, zapojení).
+
+## Osa 2 — jazyk UI: co zbývá
 
 Pořadí je dané tím, co vidí platící zákazník nejdřív a co se nejhůř přepisuje
 zpětně:
 
-1. **Infrastruktura** — `next-intl` bez routování, `lib/i18n` (locale z cookie →
-   `user_metadata.locale` → `Accept-Language` → cs), `messages/cs.json` jako zdroj
-   pravdy + `messages/en.json`, `<html lang>` z locale, přepínač jazyka v účtu,
-   `lib/plural.ts` po locale.
-2. **Shell studia** — navigační registr nese klíče (`nav.<id>.label`), sidebar,
-   spodní lišta, mobilní horní lišta, popisky sekcí, auth stránky.
-3. **Taby dashboardu** — po jednom (Generate, Posts, Plan, Settings jsou největší),
+1. **Taby dashboardu** — po jednom (Generate, Posts, Plan, Settings jsou největší),
    každý tab vlastní namespace v messages, hlášky ze server actions přes
    `getTranslations()`; guard aserce, které pinnují české labely (např. §9
    „Instrukce pro obrázky"), se přesměrují na `messages/cs.json`.
-4. **E-maily uživateli** — šablony dostanou `locale`, transakční (aktivace,
+2. **E-maily uživateli** — šablony dostanou `locale`, transakční (aktivace,
    obnova, faktura) nejdřív; marketingové broadcasty zůstávají česky, dokud není
    cizojazyčná báze zákazníků.
-5. **Platby a doklady** — ComGate `lang` z locale uživatele; Fakturoid `language`
+3. **Platby a doklady** — ComGate `lang` z locale uživatele; Fakturoid `language`
    podle země fakturační adresy (cz/sk/en); měna zůstává CZK, dokud se neotevře
    ceník v EUR (obchodní rozhodnutí, viz `brain/GTM/Ceník.md`).
-6. **Marketing** — landing a `/aplikace` až s rozhodnutím o trhu (SK „téměř
-   zadarmo", PL „skutečná práce" — `docs/BUSINESS_PLAN.md`).
+4. **Marketing** — landing a `/aplikace` až s rozhodnutím o trhu (SK „téměř
+   zadarmo", PL „skutečná práce" — `docs/BUSINESS_PLAN.md`). `lib/plural.ts`
+   (české tvary počtů) zůstává pro nemigrované taby; migrovaný text používá ICU
+   plural v messages.
 
 Invariant pro každý krok: guard drží, `npm run build` zelený, čeština vypadá
 stejně jako před krokem (zdrojový jazyk se nemění, jen se přesouvá do messages).

@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { useSyncExternalStore } from "react"
 
 /**
@@ -117,17 +118,18 @@ function ShareIcon() {
 export function InstallBanner() {
     const state = useInstallState()
     const dismissed = useDismissed()
+    const t = useTranslations("shell.install")
 
     if (dismissed || state === "ssr" || state === "installed" || state === "other") return null
 
     return (
         <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-sm border border-white/10 bg-[#0a0a0a] px-4 py-3">
             <div className="flex-1 min-w-[220px]">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">Chrlit v telefonu</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">{t("eyebrow")}</p>
                 <p className="mt-1 text-xs text-white/60">
                     {state === "prompt"
-                        ? "Přidejte si studio na plochu — otevírá se pak na jedno ťuknutí, bez hledání v prohlížeči."
-                        : <>Přidejte si studio na plochu: v Safari ťukněte na <ShareIcon /> <strong className="text-white/80">Sdílet</strong> a zvolte <strong className="text-white/80">Přidat na plochu</strong>.</>}
+                        ? t("prompt")
+                        : <>{t("safariBefore")} <ShareIcon /> <strong className="text-white/80">{t("safariShare")}</strong> {t("safariMiddle")} <strong className="text-white/80">{t("safariAdd")}</strong>.</>}
                 </p>
             </div>
             {state === "prompt" && (
@@ -135,21 +137,22 @@ export function InstallBanner() {
                     onClick={runInstall}
                     className="rounded-sm bg-aisummit-cinnabar px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-aisummit-cinnabar/90 cursor-pointer"
                 >
-                    Nainstalovat
+                    {t("install")}
                 </button>
             )}
             <button
                 onClick={dismiss}
-                aria-label="Skrýt nabídku instalace"
+                aria-label={t("hideAria")}
                 className="text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/60 transition-colors cursor-pointer"
             >
-                Skrýt
+                {t("hide")}
             </button>
         </div>
     )
 }
 
-/** Velké tlačítko na stránce s návodem. Když prohlížeč instalaci neumí, mlčí. */
+/** Velké tlačítko na stránce s návodem (`/aplikace` — marketing, česky; mimo
+ *  UiLocaleProvider, proto bez next-intl). Když prohlížeč instalaci neumí, mlčí. */
 export function InstallButton() {
     const state = useInstallState()
 

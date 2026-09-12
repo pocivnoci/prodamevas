@@ -9,6 +9,7 @@ import { BottomNav } from "./BottomNav"
 import { GestureShell } from "./GestureShell"
 import { MobileTopBar } from "./MobileTopBar"
 import { checkOnboardingStatus } from "@/app/onboarding/actions"
+import { UiLocaleProvider } from "@/components/i18n/UiLocaleProvider"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute)
 
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
     }
 
     return (
+        <UiLocaleProvider>
         <StudioProvider>
             <PaywallProvider>
             <div className="min-h-screen bg-aisummit-bg text-aisummit-text selection:bg-aisummit-cinnabar/30 selection:text-white font-sans relative overflow-hidden">
@@ -57,5 +59,6 @@ export default async function DashboardLayout({
             </div>
             </PaywallProvider>
         </StudioProvider>
+        </UiLocaleProvider>
     )
 }

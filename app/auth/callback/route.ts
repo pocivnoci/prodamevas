@@ -64,6 +64,10 @@ export async function GET(request: Request) {
                 // k onboardingu značky, kterou už má hotovou.
                 const { claimHandoffs } = await import('@/lib/handoff')
                 await claimHandoffs(user)
+
+                // Jazyk UI uložený u účtu → cookie tohohle prohlížeče.
+                const { syncLocaleCookieFromUser } = await import('@/lib/i18n/server')
+                await syncLocaleCookieFromUser(user)
             }
 
             // Welcome e-mail, exactly once per user. The recovery flow reuses this
