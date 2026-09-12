@@ -4,8 +4,11 @@
 -- stejná rodina jako `waitlist` / `invite_codes` / `leads`. Kdyby to byla `ig_*`
 -- tabulka, každý dotaz by musel filtrovat klienta a žádný klient sem nepatří.
 --
--- Vstupem je Google tabulka („dulezite kontakty", list ÚKOLY), kterou tým udržuje
--- ručně; zapisovat do ní zpátky nejde, takže stav žije tady.
+-- Prvním vstupem byla Google tabulka („dulezite kontakty", list ÚKOLY). Od 9/2026
+-- je tahle tabulka JEDINÝ zdroj pravdy: `lib/tasks/sheet-sync.ts` z ní dělá
+-- jednosměrný import (zakládá, co chybí), cron je zrušený a tabulka nevlastní
+-- žádný sloupec. Historie níž se čte jako doktrína, která už neplatí — nechává
+-- se, protože vysvětluje, proč tu `source` a `source_key` vůbec jsou.
 
 -- ── Kdo je kdo ──────────────────────────────────────────────────────────────
 -- POZOR: `team_members` říká, KDO jsi. Nikdy ne, jestli se dostaneš dovnitř.
@@ -24,11 +27,11 @@ comment on table team_members is
     'Identita a role členů týmu. NEUDĚLUJE přístup — ten drží SUPER_ADMIN_EMAILS.';
 
 -- ── Úkoly ───────────────────────────────────────────────────────────────────
--- Vlastnictví sloupců je celý vtip téhle tabulky:
---   tabulka (sync) vlastní  → title, priority, note
---   aplikace (lidi) vlastní → status, owner_email, due_date
--- Sync smí přepsat jen první skupinu. Kdyby sahal i na druhou, každé pondělí
--- a čtvrtek by smazal všechno, co tým během týdne odbavil.
+-- HISTORIE: tabulka původně vlastnila title/priority/note a sync je dvakrát týdně
+-- přepisoval. Ukázalo se, že to je přesně naopak, než jak se s úkoly pracuje —
+-- co člověk v appce upřesnil, pondělní běh zahodil. Dnes vlastní všechny sloupce
+-- aplikace a import nové hodnoty jen ZAKLÁDÁ; `.update()` nad `tasks` v importéru
+-- nesmí být (hlídá `scripts/test-ukoly.ts`).
 create table if not exists tasks (
     id           uuid primary key default gen_random_uuid(),
     title        text not null,
@@ -38,10 +41,12 @@ create table if not exists tasks (
     status       text not null default 'todo'
                  check (status in ('todo', 'doing', 'blocked', 'done', 'dropped')),
     due_date     date,
-    -- Odkud úkol přišel. 'sheet' = řádek z Google tabulky, 'app' = založený v appce.
+    -- Odkud úkol PŘIŠEL — historický údaj, ne vlastnictví. 'sheet' = doputoval
+    -- importem z Google tabulky, 'app' = založený v appce nebo AI.
     source       text not null default 'app' check (source in ('sheet', 'app')),
     -- Stabilní klíč řádku v tabulce (normalizovaný název). Na něm stojí idempotence
-    -- syncu — bez něj by každý běh založil úkoly znovu.
+    -- importu — bez něj by každý běh založil úkoly znovu. Sdílí ho i návrhy AI
+    -- (prefix `ai:`), takže se `source_key` nikdy nezahazuje.
     source_key   text,
     created_at   timestamptz not null default now(),
     updated_at   timestamptz not null default now(),
@@ -50,7 +55,7 @@ create table if not exists tasks (
     updated_by   text
 );
 
--- Claim řádku při syncu, přesně jako `UNIQUE INDEX ON invoices(payment_id)` drží
+-- Claim řádku při importu, přesně jako `UNIQUE INDEX ON invoices(payment_id)` drží
 -- vystavení dokladu. Částečný index: úkoly založené v appce `source_key` nemají
 -- a nesmí se o jediný NULL prát.
 create unique index if not exists idx_tasks_source_key

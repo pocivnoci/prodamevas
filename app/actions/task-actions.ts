@@ -3,8 +3,8 @@
 /**
  * Úkoly firmy — seznam, který drží stav mezi schůzkami.
  *
- * Vstupem je Google tabulka, kterou tým udržuje ručně (`lib/tasks/sheet-sync.ts`).
- * Zapisovat do ní zpátky nejde, takže stav — kdo to má a jak na tom je — žije tady.
+ * Zdroj pravdy je tahle databáze. Google tabulka je jen historický import
+ * (`lib/tasks/sheet-sync.ts`, ruční spuštění) — nic z ní se nepřepisuje zpátky.
  *
  * Brána je `requireSuperAdmin()` u KAŽDÉ akce, jako v `waitlist-admin.ts`. Role
  * z `lib/team.ts` rozhodují jen o přiřazování a filtrování; kdo se sem dostane,
@@ -198,20 +198,20 @@ export async function assignTask(id: string, ownerEmail: string | null): Promise
 }
 
 /**
- * Úprava textu úkolu.
+ * Úprava úkolu — název, poznámka, priorita, termín, klient.
  *
- * U úkolu z tabulky název a poznámku normálně vlastní tabulka a příští sync by je
- * přepsal zpátky. Ruční zásah proto úkol překlopí na `source: 'app'` a sync ho od
- * té chvíle přeskakuje — tichá ztráta ruční úpravy je horší než rozejít se s tabulkou.
- *
- * `source_key` si přitom **nechává**. Je to claim na řádek v tabulce: kdyby se zahodil,
- * sync by tentýž řádek považoval za nový a založil vedle druhý úkol.
+ * Od chvíle, kdy se z Google tabulky stal jednosměrný import
+ * (`lib/tasks/sheet-sync.ts`), nevlastní žádný sloupec nikdo jiný než tahle
+ * aplikace, takže se tu nic nemusí bránit před přepsáním zvenčí. `source`
+ * i `source_key` zůstávají nedotčené: první je stopa, odkud úkol přišel, druhý
+ * claim na řádek v tabulce — bez něj by ho příští import založil podruhé.
  */
 export async function updateTask(id: string, input: {
     title?: string
     note?: string | null
     priority?: number | null
     dueDate?: string | null
+    clientId?: string | null
 }): Promise<TaskResult> {
     const { email } = await requireSuperAdmin()
 
@@ -225,11 +225,7 @@ export async function updateTask(id: string, input: {
     if (input.note !== undefined) patch.note = input.note?.trim() || null
     if (input.priority !== undefined) patch.priority = clampPriority(input.priority)
     if (input.dueDate !== undefined) patch.due_date = input.dueDate || null
-
-    // Ruční zásah do textu vytrhává úkol ze syncu — viz doktrína v hlavičce.
-    // `source_key` zůstává: je to claim na řádek v tabulce, ne značka původu.
-    const touchesSheetColumns = input.title !== undefined || input.note !== undefined || input.priority !== undefined
-    if (touchesSheetColumns) patch.source = "app"
+    if (input.clientId !== undefined) patch.client_id = input.clientId || null
 
     const { data, error } = await supabaseAdmin
         .from("tasks")
@@ -250,8 +246,9 @@ export async function updateTask(id: string, input: {
  * Smazání. Vědomě natvrdo, ne příznak: `dropped` už je „tohle neděláme" se stopou,
  * takže druhý měkký stav by jen dělal seznam, který nikdy nezhubne.
  *
- * Pozor: úkol z tabulky se příštím syncem vrátí — řádek v tabulce pořád existuje.
- * To je správně; smazat cizí řádek z tabulky odsud neumíme a předstírat to nebudeme.
+ * Pozor: úkol s `source_key` z tabulky se vrátí, kdyby někdo pustil import znovu —
+ * řádek v tabulce pořád existuje. Import se pouští ručně, takže je to viditelné
+ * rozhodnutí, ne překvapení z pondělního cronu.
  */
 export async function deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
     await requireSuperAdmin()

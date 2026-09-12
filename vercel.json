@@ -7,10 +7,6 @@
             "schedule": "0 6 * * 1"
         },
         {
-            "path": "/api/cron/tasks-sync",
-            "schedule": "0 5 * * 1,4"
-        },
-        {
             "path": "/api/cron/campaign-worker",
             "schedule": "* * * * *"
         },

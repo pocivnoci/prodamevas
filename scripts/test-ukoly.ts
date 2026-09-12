@@ -4,9 +4,9 @@
  *
  * Dvě věci se tu hlídají, protože obě selžou tiše:
  *
- * 1. **Sync nesmí sáhnout na sloupce, které vlastní aplikace.** Kdyby ano, každé
- *    pondělí a čtvrtek by přepsal stav i vlastníka a nikdo by si toho nevšiml až
- *    do chvíle, kdy by se hledal odbavený úkol.
+ * 1. **Import z Google tabulky smí jen zakládat.** Zdroj pravdy je databáze;
+ *    jediný `.update()` v importéru by tiše přepsal, co do úkolu někdo napsal
+ *    v appce — a všimlo by si toho až ve chvíli, kdy se to hledá.
  * 2. **Každá akce nad úkoly musí projít `requireSuperAdmin()`.** Chybějící brána
  *    nic nerozbije — jen otevře interní backlog komukoliv s odkazem.
  */
@@ -73,29 +73,29 @@ check("„opravit generování postů“ je produkt", suggestRole("opravit gener
 check("neutrální text nikoho nenavrhne", suggestRole("koupit kafe") === null)
 check("bez diakritiky se hledá stejně", normalizeText("SCHŮZKA") === "schuzka")
 
-// ── 3. Sync nesahá na sloupce aplikace ──────────────────────
+// ── 3. Import z tabulky jen zakládá ─────────────────────────
+// Do 9/2026 tabulka vlastnila title/note/priority a sync je přepisoval. Dneska
+// je zdroj pravdy databáze, takže importér smí jen INSERT. Kontroluje se tvar
+// zápisu nad `tasks`, ne jednotlivé sloupce — jedna silná aserce místo tří
+// slabých, které by přehlédly, kdyby se do update větve přidal sloupec nový.
 const syncCode = codeOnly("lib/tasks/sheet-sync.ts")
 
-// Update větev smí nést jen sloupce tabulky. `owner_email` se v souboru vyskytuje
-// legitimně u ZAKLÁDÁNÍ nového úkolu (návrh vlastníka), proto se kontroluje tvar
-// zápisu, ne pouhý výskyt slova.
-const updateBlock = syncCode.slice(syncCode.indexOf('.from("tasks")\n            .update('))
 check(
-    "update ze syncu nepřepisuje stav úkolu",
-    !/\bstatus:/.test(updateBlock),
-    "sync by přepsal, co tým odbavil",
-)
-check(
-    "update ze syncu nepřepisuje vlastníka",
-    !/owner_email:/.test(updateBlock),
-    "ručně přiřazený úkol by se v úterý vrátil na návrh podle klíčových slov",
-)
-check(
-    "update ze syncu nepřepisuje termín",
-    !/due_date:/.test(updateBlock),
+    "import nikdy neupravuje existující úkol",
+    !/\.update\(/.test(syncCode),
+    "co člověk v appce upřesnil, by příští import zahodil",
 )
 check("sync nemaže úkoly, které z tabulky zmizely", !syncCode.includes(".delete("))
 check("sync zakládá přes source_key", syncCode.includes("source_key: task.sourceKey"))
+
+// Cron by z importu udělal zpátky sync — a s ním i tichý přepis. Rozvrh proto
+// ve `vercel.json` být nesmí; route zůstává jako ruční spuštění za CRON_SECRET.
+const vercelJson = file("vercel.json")
+check(
+    "import úkolů nemá cron ve vercel.json",
+    !vercelJson.includes("tasks-sync"),
+    "naplánovaný běh by z jednosměrného importu udělal zpátky obousměrný sync",
+)
 
 // Unikátní index je to, na čem stojí idempotence — bez něj sync duplikuje.
 // Bez komentářů: `client_id` se v hlavičce migrace legitimně vysvětluje slovy.

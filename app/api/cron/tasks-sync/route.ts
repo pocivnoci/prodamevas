@@ -2,13 +2,17 @@ import { NextResponse } from "next/server"
 import { syncTasksFromSheet } from "@/lib/tasks/sheet-sync"
 
 /**
- * Sync úkolů z Google tabulky — pondělí a čtvrtek ráno.
+ * Ruční import úkolů z Google tabulky.
  *
- * Proč cron v aplikaci a ne naplánovaná relace agenta: egress proxy blokuje
- * `www.chrlit.cz`, takže agent běžící mimo produkci nemá kam zapsat. Tady se navíc
- * nic neděje, když zrovna nikdo nic nespustil.
+ * **Není to cron.** Zdroj pravdy o úkolech je databáze; tabulka je historický
+ * vstup, ze kterého se jednou za čas dotáhne, co se do appky nedostalo. Rozvrh
+ * ve `vercel.json` proto zmizel a route zůstala jako tlačítko na zavolání
+ * (`curl -H "Authorization: Bearer $CRON_SECRET"`).
  *
- * Auth: `CRON_SECRET` bearer (v cronu není uživatelská session).
+ * Cesta přes API, ne přes skript: `lib/tasks/sheet-sync.ts` je server-only
+ * a z lokálu se k produkční databázi nedostane.
+ *
+ * Auth: `CRON_SECRET` bearer — zůstává, mimo session se nedá ověřit člověk.
  */
 export async function GET(req: Request) {
     const secret = process.env.CRON_SECRET
@@ -21,24 +25,24 @@ export async function GET(req: Request) {
         const summary = await syncTasksFromSheet()
         if (summary.skipped) {
             // Chybějící konfigurace není chyba běhu — jen se nic nestalo.
-            console.log(`⏭️  Sync úkolů přeskočen: ${summary.skipped}`)
+            console.log(`⏭️  Import úkolů přeskočen: ${summary.skipped}`)
             return NextResponse.json({ ok: true, ...summary })
         }
 
         console.log(
-            `✅ Sync úkolů: ${summary.novych} nových, ${summary.zmenenych} změněných, ` +
-            `${summary.bezeZmeny} beze změny, ${summary.chybiVTabulce.length} už není v tabulce`
+            `✅ Import úkolů: ${summary.novych} nových, ${summary.preskocenych} už v databázi bylo, ` +
+            `${summary.chybiVTabulce.length} už není v tabulce`
         )
 
-        // Nové řádky roztřídit HNED, ne až ranním cronem: sync běží v pondělí
-        // a ve čtvrtek ráno a do té doby by seznam nesl věty, ze kterých se nedá
-        // vybrat práce. Přes agent stack, ne přímo — ať je z toho řádek v auditu
-        // a ať se běh chová stejně jako každá jiná agentská akce.
+        // Nové řádky roztřídit HNED, ne až ranním cronem: kdo import spustil,
+        // se na seznam dívá teď a holé věty z tabulky se nedají vzít do ruky.
+        // Přes agent stack, ne přímo — ať je z toho řádek v auditu a ať se běh
+        // chová stejně jako každá jiná agentská akce.
         if (summary.novych > 0) {
             const { requestAction } = await import("@/lib/agent-safety")
             await requestAction({
                 agentType: "ops",
-                action: `Roztřídění ${summary.novych} nových úkolů ze syncu`,
+                action: `Roztřídění ${summary.novych} nových úkolů z importu`,
                 riskTier: "internal",
                 taskType: "task_triage",
                 clientId: null,
@@ -48,7 +52,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: true, ...summary })
     } catch (err) {
         const message = (err as Error)?.message || "sync selhal"
-        console.error("tasks-sync error:", message)
+        console.error("tasks-sync (import) error:", message)
         return NextResponse.json({ ok: false, error: message }, { status: 500 })
     }
 }

@@ -1,8 +1,11 @@
 /**
- * Sync úkolů z Google tabulky — ruční spuštění a dry-run.
+ * Import úkolů z Google tabulky — ruční spuštění a dry-run.
  *
  *   npx tsx scripts/sync-ukoly.ts --dry-run   # jen přečte a vypíše, nic nezapíše
- *   npx tsx scripts/sync-ukoly.ts             # ostrý běh (potřebuje .env.local)
+ *   npx tsx scripts/sync-ukoly.ts             # ostrý import (potřebuje .env.local)
+ *
+ * Zdroj pravdy o úkolech je databáze. Tohle je jednosměrný import: zakládá jen
+ * to, co v databázi ještě není, a existujícího úkolu se nedotkne.
  *
  * Dry-run schválně nesahá do databáze, takže jde spustit i tam, kde `.env.local`
  * není — stačí `TASKS_SHEET_ID` a `GOOGLE_SHEETS_API_KEY`.
@@ -24,7 +27,7 @@ async function main() {
 
     const tasks = await fetchSheetTasks()
     if (!tasks) {
-        console.error("❌ Sync není nakonfigurovaný.")
+        console.error("❌ Import není nakonfigurovaný.")
         process.exit(1)
     }
 
@@ -46,7 +49,7 @@ async function main() {
     // Až tady, aby dry-run nepotřeboval databázi: import stahuje supabase klienta.
     const { syncTasksFromSheet } = await import("../lib/tasks/sheet-sync")
     const summary = await syncTasksFromSheet()
-    console.log(`\n✅ ${summary.novych} nových · ${summary.zmenenych} změněných · ${summary.bezeZmeny} beze změny`)
+    console.log(`\n✅ Import: ${summary.novych} nových · ${summary.preskocenych} už v databázi bylo`)
     if (summary.chybiVTabulce.length > 0) {
         console.log(`⚠️  Už není v tabulce (nemaže se): ${summary.chybiVTabulce.join(", ")}`)
     }
