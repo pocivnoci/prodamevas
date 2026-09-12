@@ -607,8 +607,10 @@ export async function recomposeReelSubtitles(
     }
     if (!isReelMedium(post.media_type)) return { success: false, error: "Tenhle příspěvek není reel." }
 
-    const source = post.video_source as { rawVideoPath?: string; voiceoverPath?: string } | null
-    if (!source?.rawVideoPath || !source.voiceoverPath) {
+    const source = post.video_source as { rawVideoPath?: string; voiceoverPath?: string; mode?: string } | null
+    // Textový reel voiceover nikdy neměl (hudba je rovnou ve videu) — chybějící WAV
+    // u něj není chybějící zdroj, jen jiný režim.
+    if (!source?.rawVideoPath || (source.mode !== "text" && !source.voiceoverPath)) {
         return { success: false, error: "U tohohle reelu nemáme uložené surové video — titulky jdou změnit jen vygenerováním znovu." }
     }
 

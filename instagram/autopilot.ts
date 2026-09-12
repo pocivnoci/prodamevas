@@ -1141,6 +1141,11 @@ ${feedSummary}
 
             captionData.hook = script.hook
             captionData.scenes = scriptToScenes(script, duration)
+            // Režim i hook do obrazu musí dojet až k orchestrátoru — jede se podle
+            // nich TTS (nebo ne) a první titulková karta. `captionData` je zároveň
+            // obsah caption checkpointu, takže to přežije i resume.
+            captionData.reelMode = script.mode
+            captionData.onScreenHook = script.onScreenHook
             reelHookPattern = script.hookPattern
             reelMode = script.mode
             cost += COSTS.reelScript

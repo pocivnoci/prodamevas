@@ -124,7 +124,12 @@ export function buildComposeArgs(o: {
         filters.push(`[1:a]${tempo}aformat=sample_rates=48000:channel_layouts=stereo,${gain},loudnorm=I=-14:TP=-1.5:LRA=11[a]`)
         audioMap = "[a]"
     } else if (o.hasVideoAudio) {
-        filters.push(`[0:a]loudnorm=I=-14:TP=-1.5:LRA=11[a]`)
+        // Bez voiceoveru není co stlačovat: zvuk videa (u textového reelu hudba
+        // a atmosféra ze Seedance) je celá stopa — žádný sidechain, jen loudnorm.
+        // `ambientLevel` se tu aplikuje taky, aby ho textový režim mohl pustit
+        // naplno (1.0) proti 0,6 pod řečí.
+        const amb = o.ambientLevel !== 1 ? `volume=${o.ambientLevel.toFixed(2)},` : ""
+        filters.push(`[0:a]${amb}loudnorm=I=-14:TP=-1.5:LRA=11[a]`)
         audioMap = "[a]"
     }
 

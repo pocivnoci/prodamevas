@@ -10,11 +10,12 @@
 
 import { readFileSync } from "fs"
 import { MEDIA_CREDITS } from "../lib/credits"
-import { REEL_MEDIA, REEL_LIMITS, REEL_TIMELINE, isReelMedium, clampReelDuration, REEL_LABELS, SPOKEN_WORDS_PER_SECOND, plannedNarrationWords, plannedNarrationSentences, narrationWordBudget } from "../lib/reel-media"
+import { REEL_MEDIA, REEL_LIMITS, REEL_TIMELINE, isReelMedium, clampReelDuration, REEL_LABELS, SPOKEN_WORDS_PER_SECOND, plannedNarrationWords, plannedNarrationSentences, narrationWordBudget, clampReelModes, READ_WORDS_PER_SECOND, MIN_CARD_SECONDS } from "../lib/reel-media"
 import { parsePostMedia } from "../lib/media-urls"
 import { applyFormatClamps } from "../instagram/format-clamps"
 import { deliveryTags } from "../instagram/tts/delivery"
 import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS, trimSilence } from "../instagram/reel-audio"
+import { buildTextTimeline, textCardWordBudget } from "../instagram/reel-text-timeline"
 import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
 import sharp from "sharp"
 import { referenceTooSmall, upscaleReference } from "../instagram/reel-references"
@@ -111,6 +112,63 @@ check("orchestrátor zkracuje podle naměřeného tempa nejvýš dvakrát, ne po
 const captionSrc = readFileSync("instagram/caption-generator.ts", "utf-8")
 check("prompt copywritera bere strop slov z plannedNarrationWords, ne z délky × 2,3", /plannedNarrationWords\(/.test(captionSrc) && !/\* 2\.3\)/.test(captionSrc))
 
+console.log("\n🪧 TEXTOVÝ REŽIM — OSA ZE ČTECÍHO TEMPA\n")
+// Textový reel nemá zvuk, který by šel změřit: délku karty určuje ČTENÍ. Kdyby se
+// tahle osa spočítala špatně, poznalo by se to až na hotovém videu (karta zmizí
+// dřív, než ji jde přečíst), a opravit by to šlo jen přerenderováním.
+const tri = buildTextTimeline(["Ranní várka", "Šest hodin ráno a kavárna už voní", "Ulož si to"], REEL_LIMITS.reel_long)
+check("text: nájezd 0,5 s a karty za sebou s mezerou", near(tri.lines[0].start, REEL_TIMELINE.leadInSeconds) && near(tri.lines[1].start, tri.lines[0].end + REEL_TIMELINE.gapSeconds))
+check("text: dlouhá karta trvá déle než krátká (čtecí tempo, ne rovnoměrné dělení)", tri.lines[1].end - tri.lines[1].start > tri.lines[0].end - tri.lines[0].start)
+check(`text: karta o ${Math.round(READ_WORDS_PER_SECOND * 2)} slovech trvá ~2 s (${READ_WORDS_PER_SECOND} slova/s)`, (() => {
+    const six = buildTextTimeline([Array.from({ length: READ_WORDS_PER_SECOND * 2 }, () => "slovo").join(" ")], REEL_LIMITS.reel_long)
+    return near(six.lines[0].end - six.lines[0].start, 2, 0.05)
+})())
+check(`text: jednoslovná karta drží minimum ${MIN_CARD_SECONDS} s`, (() => {
+    const one = buildTextTimeline(["Ano"], REEL_LIMITS.reel_long)
+    return near(one.lines[0].end - one.lines[0].start, MIN_CARD_SECONDS)
+})())
+check("text: délka videa je z osy a sedí do mezí velikosti", tri.durationSeconds >= REEL_LIMITS.reel_long.minSeconds && tri.durationSeconds <= REEL_LIMITS.reel_long.maxSeconds && tri.durationSeconds >= Math.ceil(tri.totalSeconds - 1e-6))
+check("text: krátká osa se natáhne na minimum velikosti, ne pod něj", buildTextTimeline(["Ano"], REEL_LIMITS.reel_long).durationSeconds === REEL_LIMITS.reel_long.minSeconds)
+const tooMuch = buildTextTimeline(Array.from({ length: 6 }, () => "tohle je hodně dlouhá karta plná slov navíc"), REEL_LIMITS.reel)
+check("text: co se nevejde do stropu, hlásí tooLong (zrychlit čtení nejde)", tooMuch.tooLong && tooMuch.durationSeconds === REEL_LIMITS.reel.maxSeconds)
+check("text: ani při stahování nejde karta pod minimum", tooMuch.lines.every(l => l.end - l.start >= MIN_CARD_SECONDS - 0.001))
+check("text: rozpočet slov vrací vždy míň, než text měl, a aspoň slovo na kartu",
+    textCardWordBudget({ words: 60, cards: 4, maxSeconds: 8 }) < 60 && textCardWordBudget({ words: 3, cards: 4, maxSeconds: 8 }) === 4)
+check("text: reel bez jediné karty je chyba, ne prázdná osa", (() => {
+    try { buildTextTimeline(["   "], REEL_LIMITS.reel); return false } catch { return true }
+})())
+check("textová osa se nezrychluje (atempo 1) — zrychlit čtení nejde", tri.atempo === 1)
+
+// „Textový režim nevolá TTS" je celý smysl balíku: jedno zapomenuté volání by
+// reel bez hlasu stálo o hlas víc a rozbilo by rozpočet (COSTS.ttsVoiceover).
+const textBranch = (() => {
+    const from = orchestratorSrc.indexOf("async function prepareTextTimeline")
+    const to = orchestratorSrc.indexOf("\n}", from)
+    return from > 0 && to > from ? orchestratorSrc.slice(from, to) : ""
+})()
+check("orchestrátor má samostatnou větev textového režimu", textBranch.length > 200 && /buildTextTimeline\(/.test(textBranch))
+check("textová větev nevolá TTS ani neúčtuje voiceover", !/synthesizeNarration|ttsVoiceover|assembleVoiceoverWav|deliveryTags/.test(textBranch))
+check("textová větev zkracuje nejvýš dvakrát, stejně jako mluvená", /maxCondenseRounds = 2/.test(textBranch))
+check("orchestrátor čte režim z checkpointu, ne ze scén (resume nesmí přepnout režim)", /vc\?\.mode \?\? \(captionData\.reelMode === "text"/.test(orchestratorSrc))
+check("textový reel nahrává voiceover jen když nějaký je", /if \(prepared\.voiceoverWav\)/.test(orchestratorSrc))
+check("video_source nese režim reelu (rekompozice podle něj pozná, že WAV chybět má)", /mode: reelMode/.test(orchestratorSrc))
+check("hook do obrazu je v textovém reelu první karta", /captionData\.onScreenHook/.test(orchestratorSrc))
+const scriptwriterSrc = readFileSync("instagram/reel-scriptwriter.ts", "utf-8")
+check("scriptToScenes značí textové scény, ale kartu nechává v narration (prochází branami)",
+    /textOnly: true/.test(scriptwriterSrc) && /narration: textOnly \? \(b\.card \|\| b\.narration\)/.test(scriptwriterSrc))
+check("autopilot posílá režim i hook do obrazu orchestrátoru", (() => {
+    const src = readFileSync("instagram/autopilot.ts", "utf-8")
+    return /captionData\.reelMode = script\.mode/.test(src) && /captionData\.onScreenHook = script\.onScreenHook/.test(src)
+})())
+check("textový reel má výchozí preset titulků cards, mluvený zůstává na classic",
+    resolveSubtitleStyle(undefined, { reelMode: "text" }).style.preset === "cards"
+    && resolveSubtitleStyle(undefined, { reelMode: "voiceover" }).style.preset === "classic"
+    && resolveSubtitleStyle({ preset: "minimal" }, { reelMode: "text" }).style.preset === "minimal")
+check("povolené režimy mají default obojí a prázdný výběr padá na hlas", (() => {
+    const both = clampReelModes(undefined)
+    return both.length === 2 && both.includes("text") && clampReelModes([]).join() === "voiceover" && clampReelModes(["text", "nesmysl"]).join() === "text"
+})())
+
 console.log("\n🔇 TICHO V TTS KLIPECH\n")
 const tone = (seconds: number) => {
     const n = Math.round(seconds * 24_000)
@@ -202,7 +260,9 @@ check("prázdná i obrácená karta se zahodí (nesmyslné časy do ASS nepatř�
 const subsSrc = readFileSync("instagram/reel-subtitles.ts", "utf-8")
 const configIdxSrc = readFileSync("instagram/configs/index.ts", "utf-8")
 check("subtitleStyle má default ve validateConfig (clamp, ne default-through)", /subtitleStyle: clampSubtitleStyle\(config\.subtitleStyle\)/.test(configIdxSrc))
-check("orchestrátor styl SKUTEČNĚ předává do chunkForSubtitles i buildAss", /resolveSubtitleStyle\(config\)/.test(orchestratorSrc) && /chunkForSubtitles\(vc\.timeline, subtitles\.chunkOpts\)/.test(orchestratorSrc) && /buildAss\(cards, subtitles\.assStyle\)/.test(orchestratorSrc))
+// Styl se od textového režimu (R4) předává i s režimem: textový reel má jiný
+// výchozí preset (`cards`), protože karta tam nese sdělení, ne doprovod řeči.
+check("orchestrátor styl SKUTEČNĚ předává do chunkForSubtitles i buildAss", /resolveSubtitleStyle\(config, \{ reelMode \}\)/.test(orchestratorSrc) && /chunkForSubtitles\(vc\.timeline, subtitles\.chunkOpts\)/.test(orchestratorSrc) && /buildAss\(cards, subtitles\.assStyle\)/.test(orchestratorSrc))
 check("titulky sahají jen po bundlovaný font", /fontName: "Inter"/.test(subsSrc) && !/fontName: "(?!Inter)/.test(subsSrc))
 
 check("orchestrátor ukládá surové video a voiceover po kompozici NEMAŽE",
@@ -288,6 +348,14 @@ const silent = buildComposeArgs({ inputVideo: "a", inputVoiceover: "b", fontsDir
 check("kompozice: němé video nemapuje [0:a]", !silent.join(" ").includes("[0:a]") && silent.join(" ").includes("[1:a]"))
 const noAudio = buildComposeArgs({ inputVideo: "a", fontsDir: "f", hasVideoAudio: false, atempo: 1, durationSeconds: 8, output: "o", voiceoverGainDb: 2, ambientLevel: 0.6 })
 check("kompozice: bez zvuku vůbec → -an", noAudio.includes("-an"))
+// Textový reel jde do ffmpegu BEZ voiceoveru: zvuk videa (hudba a atmosféra ze
+// Seedance) je celá stopa — žádný sidechain, jen loudnorm, jinak by se ducking
+// pokoušel stlačit hudbu pod řečí, která neexistuje.
+const textCompose = buildComposeArgs({ inputVideo: "a", assPath: "/t/subs.ass", fontsDir: "f", hasVideoAudio: true, atempo: 1, durationSeconds: 8, output: "o", voiceoverGainDb: 2, ambientLevel: 1 })
+const textFc = textCompose[textCompose.indexOf("-filter_complex") + 1]
+check("kompozice textového reelu: titulky, loudnorm, žádný sidechain ani mix", /ass='\/t\/subs\.ass'/.test(textFc) && /loudnorm/.test(textFc) && !/sidechaincompress/.test(textFc) && !/amix/.test(textFc) && !/\[1:a\]/.test(textFc))
+check("kompozice textového reelu: zvuk videa se mapuje a nejede -an", textCompose.includes("-map") && !textCompose.includes("-an"))
+check("hlasitost atmosféry: pod řečí 0,6, bez řeči naplno", /volume=0\.60/.test(fc) && !/volume=1\.00/.test(textFc))
 check("kompozice: délka, faststart, yuv420p", args.includes("-t") && args[args.indexOf("-t") + 1] === "8" && args.includes("+faststart") && args.includes("yuv420p"))
 check("escapeFilterPath: dvojtečka i čárka", escapeFilterPath("C:/a,b") === "C\\:/a\\,b")
 

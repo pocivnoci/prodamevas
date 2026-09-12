@@ -14,6 +14,7 @@ import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
 import { castVoice, isKnownVoice, type TtsProviderId } from "../../lib/voice-library"
 import { clampSubtitleStyle } from "../reel-subtitles"
+import { clampReelModes } from "../../lib/reel-media"
 import { industryRiskFamily } from "../../lib/industry-risk"
 import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
@@ -312,6 +313,11 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // Default `classic` dole uprostřed ve střední velikosti = dnešní vzhled, takže
         // značka, která o poli neví, dostane přesně to, co dostávala dosud.
         subtitleStyle: clampSubtitleStyle(config.subtitleStyle),
+        // Povolené režimy reelu. Default OBOJÍ: textový reel (karty + hudba, bez TTS)
+        // je rovnocenný formát, ne experiment — u vizuálních oborů vychází líp než
+        // vypravěč nad obrazem. Clamp, ne default-through: scenárista podle seznamu
+        // větví prompt a orchestrátor podle režimu vynechává TTS.
+        reelModes: clampReelModes(config.reelModes),
         // Kolik smí být na obrázcích vymyšleno. Clamp, ne default-through: engine
         // podle hodnoty větví prompt i roli referenčních fotek, takže se k němu
         // nesmí dostat nic mimo tři známé stavy.

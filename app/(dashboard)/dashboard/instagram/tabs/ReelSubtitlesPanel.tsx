@@ -30,7 +30,9 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
     onDone: (imageUrl: string, cards: ReelSubtitleCard[]) => void
 }) {
     const source = post.video_source ?? null
-    const canRecompose = !!source?.rawVideoPath && !!source?.voiceoverPath
+    // Textový reel voiceover nikdy neměl — chybějící WAV u něj není chybějící zdroj.
+    const textOnly = source?.mode === "text"
+    const canRecompose = !!source?.rawVideoPath && (textOnly || !!source?.voiceoverPath)
     const locked = post.status === "posted" || post.status === "posting"
 
     const [cards, setCards] = useState<ReelSubtitleCard[]>(() => source?.cards ?? [])
@@ -101,6 +103,9 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
             <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-white/60">Titulky</span>
                 <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/70">bez kreditů</span>
+                {textOnly && (
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-sky-400/70">Textový reel (bez hlasu)</span>
+                )}
                 <span className="text-[10px] text-white/30">· vypálené do videa, mění se přerenderováním</span>
             </div>
 
@@ -167,7 +172,9 @@ export function ReelSubtitlesPanel({ post, projectId, onDone }: {
 
                     {error && <p className="text-[10px] text-red-400/80 leading-relaxed">{error}</p>}
                     <p className="text-[9px] text-white/25 leading-relaxed">
-                        Časy sedí na namluvené řeči a měnit je nejde — jinak by se titulek rozešel s hlasem.
+                        {textOnly
+                            ? "Časy vycházejí ze čtecího tempa karet a měnit je nejde — kratší karta by se nestihla přečíst."
+                            : "Časy sedí na namluvené řeči a měnit je nejde — jinak by se titulek rozešel s hlasem."}{" "}
                         Nové video nahradí staré; předchozí verzi vrátí „Vrátit zpět&ldquo;.
                     </p>
                 </>

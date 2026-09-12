@@ -17,6 +17,7 @@
 
 import type { TimedLine } from "./reel-audio"
 import type { SubtitleStyleConfig, SubtitlePreset, SubtitlePosition, SubtitleSize } from "./configs/types"
+import type { ReelMode } from "../lib/reel-media"
 
 export interface SubtitleCard {
     start: number
@@ -299,11 +300,18 @@ export interface ResolvedSubtitleStyle {
  */
 export function resolveSubtitleStyle(
     source: { subtitleStyle?: SubtitleStyleConfig } | SubtitleStyleConfig | undefined,
+    opts: { reelMode?: ReelMode } = {},
 ): ResolvedSubtitleStyle {
     const raw = source && "subtitleStyle" in source
         ? (source as { subtitleStyle?: SubtitleStyleConfig }).subtitleStyle
         : (source as SubtitleStyleConfig | undefined)
-    const style = clampSubtitleStyle(raw)
+    // Textový reel nemá hlas — karta JE sdělení, ne doprovod řeči, a `classic`
+    // (tenký text u spodní hrany) se na neklidném videu ztratí. Proto je u něj
+    // výchozí preset `cards`. Přepisuje se jen globální default: jakmile si značka
+    // vybrala něco jiného, platí její volba i v textovém reelu.
+    const style = opts.reelMode === "text" && (raw?.preset ?? SUBTITLE_STYLE_DEFAULT.preset) === SUBTITLE_STYLE_DEFAULT.preset
+        ? clampSubtitleStyle({ ...raw, preset: "cards" })
+        : clampSubtitleStyle(raw)
     const preset = SUBTITLE_PRESETS[style.preset]
     const scale = SIZE_SCALE[style.size ?? "m"]
 
