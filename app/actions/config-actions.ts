@@ -8,6 +8,7 @@ import { FORMAT_BRIEF_LIMITS } from "@/instagram/configs/types"
 import { stripFinishedCopy } from "@/instagram/configs/format-brief"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { isReelMedium } from "@/lib/reel-media"
+import { contentLanguage } from "@/instagram/language"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -189,6 +190,7 @@ async function suggestPostFormatInner(
             .join("\n")
         const productNames = (config.products || []).map((p: any) => p?.name).filter(Boolean).slice(0, 8).join(", ")
 
+        const L = contentLanguage(config)
         const prompt = `Jsi Instagram stratég. Uživatel chce PŘIDAT jeden formát příspěvku (šablonu) a napsal jen klíčové slovo.
 
 ⚠️ FORMÁT NENÍ PŘÍSPĚVEK. Je to ŠABLONA, kterou značka použije na DESÍTKY různých témat.
@@ -211,11 +213,11 @@ ${pillarList}
 
 Vrať POUZE JSON objekt (bez markdownu):
 {
-  "display_name": "krátký název formátu, česky",
+  "display_name": "krátký název formátu, ${L.adverbCs}",
   "emoji": "1 emoji vystihující formát",
-  "description": "1 věta česky: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
-  "structure": "sled beatů, česky, ABSTRAKTNĚ. Pro carousel beaty vč. coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
-  "visual_style": "1 věta česky: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
+  "description": "1 věta ${L.adverbCs}: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
+  "structure": "sled beatů, ${L.adverbCs}, ABSTRAKTNĚ. Pro carousel beaty vč. coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
+  "visual_style": "1 věta ${L.adverbCs}: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
   "pillar": "přesně jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",
   "aspectRatio": "1:1 | 4:5 | 3:4 | 9:16",
@@ -575,7 +577,7 @@ async function recommendFeedPatternInner(projectSlug: string): Promise<FeedPatte
         }
 
         const { analyzeFeedVisuals } = await import("@/instagram/feed-vision")
-        const visuals = await analyzeFeedVisuals(profile.recentPosts, cfg.name || projectSlug)
+        const visuals = await analyzeFeedVisuals(profile.recentPosts, cfg.name || projectSlug, cfg.language)
         if (!visuals) {
             return { success: false, error: "Vizuální analýza feedu selhala — zkuste to prosím znovu." }
         }
@@ -747,6 +749,7 @@ export async function rescanClientWebsite(
                 taggedNew = await tagBrandImages(
                     newImages.map(img => ({ url: img.url, buffer: img.buffer, mimeType: img.mimeType })),
                     currentConfig.name || projectSlug,
+                    currentConfig.language,
                 )
             } catch (tagErr) {
                 console.warn(`⚠️ Tagging failed: ${(tagErr as Error).message}`)
@@ -800,7 +803,7 @@ export async function suggestBrandFacts(
         }
 
         const { suggestFactsFromSite, mergeFacts } = await import("@/lib/brand-facts")
-        const found = await suggestFactsFromSite(config.name || projectSlug, config.website, { clientId })
+        const found = await suggestFactsFromSite(config.name || projectSlug, config.website, { clientId, language: config.language })
         // Vrací se jen to, co v seznamu ještě není — uživatel má vidět přírůstek,
         // ne znovu přečíst, co už schválil.
         const fresh = mergeFacts(config.brandFacts || [], found).slice((config.brandFacts || []).length)

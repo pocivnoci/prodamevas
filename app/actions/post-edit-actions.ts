@@ -34,6 +34,7 @@ import { parsePostMedia } from "@/lib/media-urls"
 import type { IGPost, PostEditHistoryEntry } from "@/lib/types/database"
 import type { ClientConfig, SubtitleStyleConfig } from "@/instagram/configs/types"
 import { isReelMedium } from "@/lib/reel-media"
+import { contentLanguage, exactTextRule } from "@/instagram/language"
 
 /** How many undo steps a post keeps. Beyond this the oldest are dropped — jsonb on a
  *  hot table, and nobody undoes eleven edits back. */
@@ -235,6 +236,7 @@ async function editPostInner(
                 preserve: edit.preserve,
                 region: normalizeEditRegion(edit.region),
                 hook: renderedHook,
+                language: config.language,
             })
 
             // mimeType matters: stored post images are WebP (uploadPostImage compresses
@@ -256,6 +258,7 @@ async function editPostInner(
                     subtext: brief?.typography?.subtextText || undefined,
                     logoExpected: brief?.logoPlacement !== "none",
                     safeZone: media.kind === "story",
+                    language: config.language,
                 })
                 // Gated on textAccurate, not on severity alone: the fix prompt below can only
                 // repair typography, and QA also reports things the edit never caused. A real
@@ -268,7 +271,7 @@ async function editPostInner(
                         const fixed = await editExistingImage(
                             edited,
                             `Fix ONLY the text rendering problems in this image — keep the composition, photo, style, colors and layout EXACTLY the same.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${expectedHeadline}"
+Render the headline as this ${exactTextRule(contentLanguage(config))}: "${expectedHeadline}"
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                             { mimeType: "image/png", aspectRatio },
                         )
@@ -276,6 +279,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                             headline: expectedHeadline,
                             subtext: brief?.typography?.subtextText || undefined,
                             logoExpected: brief?.logoPlacement !== "none",
+                            language: config.language,
                         })
                         // Ship whichever attempt is closer — same ship-best doctrine as the
                         // orchestrator, minus the regeneration rung.

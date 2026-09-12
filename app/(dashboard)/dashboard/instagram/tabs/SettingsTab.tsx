@@ -23,6 +23,7 @@ import { getPublishOutlook, armAutoPublishNow, type PublishOutlook } from "@/app
 import { cancelClientHandoff, getClientAccess, isCurrentUserSuperAdmin, transferClientToUser, type ClientAccessRow, type ClientPendingHandoff } from "@/app/actions/admin-actions"
 import { useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 import { Ban, CalendarDays, Camera, ClipboardList, Copy, Hand, Hash, Handshake, Landmark, Megaphone, Mic, Palette, Puzzle, RefreshCw, Send, Settings, ShoppingBag, Trash2, TriangleAlert, User, Users } from "lucide-react"
+import { languageOptions } from "@/instagram/language"
 
 // ═══════════════════════════════════════════════════════════
 // SETTINGS TAB
@@ -401,6 +402,17 @@ function BasicSection({ config, updateField }: { config: any; updateField: (p: s
                     <FieldLabel hint="Krátký popis zaměření obsahu">O čem tvoříme obsah</FieldLabel>
                     <input value={config.contentFocus || ""} onChange={(e) => updateField(["contentFocus"], e.target.value)}
                         placeholder="Např. O penzionu a cestování do přírody" className={inputClass} />
+                </div>
+                <div>
+                    {/* Jazyk ZNAČKY, ne dashboardu: řídí texty postů, hashtagy, typografii
+                        v obraze, voiceover i to, co si AI o značce ukládá. Onboarding ho
+                        odhadl z webu; tady se dá přepnout. */}
+                    <FieldLabel hint="Jazyk, kterým značka mluví k publiku — posty, hashtagy, text v obrázcích i voiceover. Nemění jazyk dashboardu.">Jazyk obsahu</FieldLabel>
+                    <select value={config.language || "cs"} onChange={(e) => updateField(["language"], e.target.value)} className={inputClass}>
+                        {languageOptions().map(o => (
+                            <option key={o.code} value={o.code}>{o.nativeName} ({o.code})</option>
+                        ))}
+                    </select>
                 </div>
             </div>
             <div>
@@ -1868,7 +1880,7 @@ function HashtagsSection({ config, updateArrayField }: { config: any; updateArra
         { key: "niche", label: "Niche", description: "Úzce cílené pro vaše publikum", emoji: "🎯" },
         { key: "broad", label: "Broad", description: "Široce dosahové hashtagy", emoji: "🌍" },
         { key: "trending", label: "Trending", description: "Aktuální trendy a sezónní", emoji: "📈" },
-        { key: "czech", label: "České", description: "České a lokální hashtagy", emoji: "🇨🇿" },
+        { key: "czech", label: "Lokální", description: "Hashtagy v jazyce a trhu značky (klíč „czech“ zůstává kvůli uloženým datům)", emoji: "📍" },
     ]
 
     return (

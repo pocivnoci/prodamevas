@@ -45,6 +45,7 @@ import { composeReel } from "../reel-compositor"
 import { loadLogo } from "../logo-loader"
 import type { RenderContext, RenderResult, VideoCheckpoint } from "./types"
 import { rethrowIfQualityUnavailable } from "./types"
+import { contentLanguage, exactTextRule } from "../language"
 
 const RESOLUTION = "480p" as const
 /** Hlasitost zvuku ze Seedance v textovém reelu. Pod voiceoverem jede atmosféra na
@@ -97,7 +98,7 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
 
         // ── 2. Časová osa: z naměřené řeči, nebo ze čtecího tempa karet ──
         const prepared = reelMode === "text"
-            ? await prepareTextTimeline(lines, limits, report)
+            ? await prepareTextTimeline(lines, limits, report, contentLanguage(ctx.config).code)
             : await prepareVoiceoverTimeline(ctx, lines, limits, report)
         cost += prepared.cost
         const durationSeconds = prepared.durationSeconds
@@ -337,7 +338,8 @@ async function prepareVoiceoverTimeline(
     let cost = 0
     await report("video", 40, `🎙️ Namlouvám narraci (${lines.length} vět)…`)
     console.log(`🎙️ TTS po větách (${lines.length}) — délka videa se odvodí z řeči…`)
-    let tts = await synthesizeNarration(lines, ttsOpts)
+    const language = contentLanguage(config).code
+    let tts = await synthesizeNarration(lines, ttsOpts, language)
     cost += COSTS.ttsVoiceover
     let timeline = buildTimeline(lines, tts.durations, limits)
     const maxCondenseRounds = 2
@@ -350,9 +352,9 @@ async function prepareVoiceoverTimeline(
         })
         console.log(`   ✂️ Narrace ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
         await report("video", 44, "✂️ Narrace je delší než strop reelu — zkracuji…")
-        lines = await condenseNarration(lines, maxWords)
+        lines = await condenseNarration(lines, maxWords, language)
         cost += COSTS.reelDirector / 2
-        tts = await synthesizeNarration(lines, ttsOpts)
+        tts = await synthesizeNarration(lines, ttsOpts, language)
         cost += COSTS.ttsVoiceover
         timeline = buildTimeline(lines, tts.durations, limits, { maxTempo: REEL_TIMELINE.condensedMaxTempo })
     }
@@ -385,6 +387,7 @@ async function prepareTextTimeline(
     initialCards: string[],
     limits: { minSeconds: number; maxSeconds: number },
     report: RenderContext["report"],
+    language: ReturnType<typeof contentLanguage>["code"],
 ): Promise<PreparedTimeline> {
     let lines = initialCards
     let cost = 0
@@ -396,7 +399,7 @@ async function prepareTextTimeline(
         const maxWords = textCardWordBudget({ words: wordCount(lines), cards: lines.length, maxSeconds: limits.maxSeconds })
         console.log(`   ✂️ Karty ${timeline.totalSeconds.toFixed(1)}s > strop ${limits.maxSeconds}s — zkracuji na ~${maxWords} slov (kolo ${round}/${maxCondenseRounds})`)
         await report("video", 44, "✂️ Textu je na reel moc — zkracuji karty…")
-        lines = await condenseNarration(lines, maxWords)
+        lines = await condenseNarration(lines, maxWords, language)
         cost += COSTS.reelDirector / 2
         timeline = buildTextTimeline(lines, limits)
     }
@@ -578,12 +581,13 @@ This is an Instagram REEL COVER — 9:16 vertical, bold and readable even as a s
     const qaExpectation = {
         headline: captionData.hook,
         logoExpected: refs.length > 0,
+        language: contentLanguage(ctx.config).code,
     }
     const qa = await verifyNativeImage(coverBuffer, qaExpectation)
     if (!qa.ok) {
         console.log(`   ⚠️ Cover QA: ${qa.issues.join("; ")} → korektivní edit`)
         const fixed = await editExistingImage(coverBuffer, `Fix ONLY the text and logo problems — keep composition, photo, style and layout EXACTLY the same.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${captionData.hook}"
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`, {
             mimeType: "image/png",
             aspectRatio: "9:16",

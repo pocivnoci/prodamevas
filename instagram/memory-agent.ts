@@ -18,6 +18,8 @@ import supabaseAdmin from "../supabase/admin"
 import { ai } from "./gemini-client"
 import { getModel } from "./models"
 import { getActiveProject } from "./service"
+import { languagePack } from "./language"
+import { languageForClient } from "./configs/language-lookup"
 
 // ============================================
 // TYPES
@@ -434,6 +436,7 @@ async function analyzeVisualPatterns(
         return (p.image_prompt || "").substring(0, max)
     }
 
+    const L = languagePack(await languageForClient(clientId))
     const visualPrompt = `
 Jsi specialista na vizuální analýzu Instagramu. Analyzuj, jak tyhle posty vypadaly.
 Každý řádek popisuje SKUTEČNÉ zadání pro renderer: layout, umístění a styl typografie,
@@ -451,7 +454,7 @@ Např.: "Tmavé pozadí s neon reflexy má 2x vyšší saves než světlé scén
 
 Vrať POUZE validní JSON pole:
 [
-  { "content": "pravidlo česky", "confidence": 0.5-0.9 }
+  { "content": "pravidlo ${L.adverbCs}", "confidence": 0.5-0.9 }
 ]
 `
 
@@ -615,6 +618,7 @@ export async function analyzeAndLearn(
     }
 
     // === Phase 1: Text pattern analysis ===
+    const L = languagePack(await languageForClient(clientId))
     const analysisPrompt = `
 Jsi analytik Instagramu. Analyzuj tyto posty a identifikuj KONKRÉTNÍ vzorce.
 
@@ -630,11 +634,11 @@ Když má post málo zhlédnutí, nízký engagement o obsahu nic neříká — 
 Extrahuj max 3 pravidla. Každé pravidlo musí být:
 - Konkrétní a akcionovatelné (ne obecné "buď kreativní")
 - Založené na datech výše
-- V češtině
+- V jazyce značky (${L.adverbCs})
 
 Vrať POUZE validní JSON pole:
 [
-  { "type": "pattern"|"preference"|"avoid", "content": "pravidlo česky", "confidence": 0.5-1.0 }
+  { "type": "pattern"|"preference"|"avoid", "content": "pravidlo ${L.adverbCs}", "confidence": 0.5-1.0 }
 ]
 `
 
@@ -762,6 +766,7 @@ export async function learnFromVariantSelection(
         return `ZAMÍTNUTÁ ${i + 1}:\n  Hook: "${hook}"\n  Body: "${body.substring(0, 100)}..."`
     }).join("\n\n")
 
+    const L = languagePack(await languageForClient(clientId))
     const prompt = `
 Jsi analytik A/B testování pro Instagram. Uživatel vybral VÍTĚZE z variant.
 
@@ -784,7 +789,7 @@ Extrahuj 1-2 konkrétní preference (ne obecné). Např.:
 
 Vrať POUZE validní JSON pole:
 [
-  { "content": "preference česky", "confidence": 0.6 }
+  { "content": "preference ${L.adverbCs}", "confidence": 0.6 }
 ]
 `
 
@@ -864,6 +869,7 @@ export async function learnFromRevision(
     const origHook = (originalCaption || "").split("\n")[0] || ""
     const newHook = (revisedCaption || "").split("\n")[0] || ""
 
+    const L = languagePack(await languageForClient(clientId))
     const prompt = `
 Jsi analytik značky pro Instagram. Uživatel ZAMÍTL původní verzi postu a dal KONKRÉTNÍ zpětnou vazbu, podle které jsme ho přepsali. Zpětná vazba uživatele je nejcennější signál — řekl nám přesně, co bylo špatně.
 
@@ -883,7 +889,7 @@ Extrahuj 1-2 konkrétní, trvalá ponaučení pro budoucí psaní — co se má 
 
 Vrať POUZE validní JSON pole:
 [
-  { "type": "avoid" | "preference", "content": "ponaučení česky", "confidence": 0.7 }
+  { "type": "avoid" | "preference", "content": "ponaučení ${L.adverbCs}", "confidence": 0.7 }
 ]
 `
 

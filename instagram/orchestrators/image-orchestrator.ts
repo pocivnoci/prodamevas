@@ -24,6 +24,7 @@ import { COSTS, getPostTypeDef } from "../caption-generator"
 import { getModel } from "../models"
 import type { RenderContext, RenderResult } from "./types"
 import { rethrowIfQualityUnavailable } from "./types"
+import { contentLanguage, exactTextRule } from "../language"
 
 type RefImage = { buffer: Buffer; mimeType?: string; label?: string }
 
@@ -252,6 +253,7 @@ async function renderImageNative(ctx: RenderContext): Promise<RenderResult | nul
         headline: captionData.hook,
         subtext: captionData.imageSubtext,
         logoExpected,
+        language: contentLanguage(ctx.config).code,
     }
     const qaProductRef = productRef && selectedProduct
         ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name }
@@ -301,8 +303,8 @@ Follow the PRODUCT FIDELITY rules exactly: the product must be a faithful reprod
             try {
                 const { editExistingImage } = await import("../gemini-client")
                 const fixPrompt = `Fix ONLY the text and logo problems in this image — keep the composition, photo, style, colors and layout EXACTLY the same.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
-${captionData.imageSubtext ? `Render the subtext as this EXACT Czech text: "${captionData.imageSubtext}"` : ""}
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${captionData.hook}"
+${captionData.imageSubtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${captionData.imageSubtext}"` : ""}
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                 let editModel = getModel("image")
                 const fixedBuffer = await editExistingImage(imageBuffer, fixPrompt, {
@@ -345,8 +347,8 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                 const { editExistingImage } = await import("../gemini-client")
                 const severeFixPrompt = `The typography in this image is overlapping, duplicated or unreadable — this is NOT publishable.
 Redraw ONLY the text cleanly, as flat legible typography — keep the same composition, photo, style, colors and layout.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${captionData.hook}"
-${captionData.imageSubtext ? `Render the subtext as this EXACT Czech text: "${captionData.imageSubtext}"` : ""}`
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${captionData.hook}"
+${captionData.imageSubtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${captionData.imageSubtext}"` : ""}`
                 let severeModel = getModel("image")
                 const severeBuffer = await editExistingImage(bestBuffer, severeFixPrompt, {
                     mimeType: "image/png",

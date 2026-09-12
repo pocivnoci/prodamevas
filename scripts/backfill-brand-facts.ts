@@ -51,7 +51,7 @@ async function main() {
 
         let merged
         try {
-            const found = await suggestFactsFromSite(config.name || slug, config.website, { clientId })
+            const found = await suggestFactsFromSite(config.name || slug, config.website, { clientId, language: config.language })
             merged = mergeFacts(config.brandFacts || [], found)
         } catch (e) {
             results.push({ slug, before, added: 0, note: `sken selhal: ${(e as Error).message}` }); continue

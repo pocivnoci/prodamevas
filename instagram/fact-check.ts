@@ -31,6 +31,7 @@ import type { ClientConfig } from "./configs/types"
 import { judgeText } from "./judge"
 import { verifyClaimsOnWeb, type FactSource, type WebCheckInput } from "./fact-web"
 import { industryRiskFamily } from "@/lib/industry-risk"
+import { contentLanguage } from "./language"
 
 export type { FactSource } from "./fact-web"
 
@@ -336,7 +337,7 @@ export function buildFactCheckPrompt(
         ? `\n## POVOLENÝ ZDROJ — UŽ DOLOŽENO NA WEBU\n${ctx.webVerified.map(v => `- ${v.claim} (${v.url})`).join("\n")}\n`
         : ""
 
-    return `Jsi faktický korektor českého marketingového textu pro značku "${config.name}" (${config.website}).
+    return `Jsi faktický korektor marketingového textu (${contentLanguage(config).adverbCs}) pro značku "${config.name}" (${config.website}).
 Nehodnotíš styl, hook ani kreativitu — jenom PRAVDIVOST. Styl řeší někdo jiný.
 
 ## POVOLENÝ ZDROJ — IDENTITA ZNAČKY (nastavení klienta, platí jako ověřené)
@@ -372,7 +373,7 @@ kdo ho může doložit.
   umí rozsoudit veřejný zdroj. Někdo si ho půjde ověřit — a půjde to. Patří sem:
   zákon, vyhláška, norma, termín platnosti; parametr, složení nebo specifikace CIZÍHO
   produktu či značky; obecný technický, přírodní nebo kalendářní údaj.
-  Přidej "query" — co se má vyhledat, česky nebo v jazyce výrobce.
+  Přidej "query" — co se má vyhledat, v jazyce textu nebo v jazyce výrobce.
   ⚠️ I tak vrať find/replace jako u risk. Když se tvrzení nepotvrdí, oprava se použije.
 - **risk** = všechno ostatní, a **VŽDYCKY tvrzení o samotné značce** — o její historii,
   velikosti, zákaznících, výsledcích, cenách, dodání či zárukách („25 let na trhu",

@@ -35,6 +35,7 @@ import { editExistingImage } from "@/instagram/gemini-client"
 import { upsertMemory } from "@/instagram/memory-agent"
 // Shared with editPost — one definition of "download a shipped image back into bytes"
 import { fetchImageBuffer as fetchBuffer } from "@/lib/image-buffer"
+import { contentLanguage } from "@/instagram/language"
 
 const BUCKET = "product-designs"
 
@@ -266,13 +267,14 @@ async function editPrintDesignInner(
         if (!category) return { success: false, error: "Kategorie designu neexistuje." }
         const geo = resolvePrintGeometry(category)
 
+        const config = await loadConfig(projectSlug)
         const original = await fetchBuffer(design.artwork_url)
         const edited = await editExistingImage(
             original,
             `${instruction}
 
 Keep everything else identical: same flat artwork, same composition, same colors, same background.
-Any Czech text must keep its exact spelling and diacritics. Do not turn this into a photograph or a product mockup.`,
+Any ${contentLanguage(config).englishName} text must keep its exact spelling and diacritics. Do not turn this into a photograph or a product mockup.`,
             { mimeType: "image/png", aspectRatio: geo.ratio },
         )
 

@@ -17,6 +17,7 @@ import { getPillarForType, createPillarMapper } from "./service"
 import { buildPsychologistSection } from "./psychologist"
 import { getMechanism } from "./mechanisms"
 import { resolveCtaPolicy, buildCtaPolicySection, buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
+import { contentLanguage, languageSectionCs, writeRuleCs } from "./language"
 
 // ============================================
 // COSTS
@@ -498,12 +499,13 @@ export function resolveCtaPolicyForPost(
 // ============================================
 
 export function buildCaptionSchema(config: ClientConfig) {
+    const L = contentLanguage(config)
     return {
         type: Type.OBJECT,
         properties: {
             angle: {
                 type: Type.STRING,
-                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+                description: `PRVNÍ krok: 1 věta ${L.adverbCs} — jaký úhel volíš a čím se liší od nedávných postů`,
             },
             hook: {
                 type: Type.STRING,
@@ -528,12 +530,12 @@ export function buildCaptionSchema(config: ClientConfig) {
             },
             imageSubtext: {
                 type: Type.STRING,
-                description: `Subtext below hook (benefit, max ${PROMPT_LIMITS.coverSubtextWords} words, Czech)`,
+                description: `Subtext below hook (benefit, max ${PROMPT_LIMITS.coverSubtextWords} words, ${L.englishName})`,
             },
             accentWords: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, Czech, must be exact substring of hook)",
+                description: `2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, ${L.englishName}, must be exact substring of hook)`,
             },
         },
         required: ["angle", "hook", "body", "cta", "hashtags", "imagePrompt", "imageSubtext", "accentWords"],
@@ -542,16 +544,17 @@ export function buildCaptionSchema(config: ClientConfig) {
 }
 
 export function buildVideoSchema(config: ClientConfig) {
+    const L = contentLanguage(config)
     return {
         type: Type.OBJECT,
         properties: {
             angle: {
                 type: Type.STRING,
-                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+                description: `PRVNÍ krok: 1 věta ${L.adverbCs} — jaký úhel volíš a čím se liší od nedávných postů`,
             },
             hook: {
                 type: Type.STRING,
-                description: "Opening problem/question (2-4 words, punchy, Czech). NO EMOJI.",
+                description: `Opening problem/question (2-4 words, punchy, ${L.englishName}). NO EMOJI.`,
             },
             scenes: {
                 type: Type.ARRAY,
@@ -582,7 +585,7 @@ export function buildVideoSchema(config: ClientConfig) {
                         // v reel-orchestrator.ts se přeskočil. Reel odjel němý a bez titulků.
                         narration: {
                             type: Type.STRING,
-                            description: "Český text pro voiceover téhle scény (1-2 věty, přirozená mluvená řeč). Čte se nahlas — piš, jak se mluví, ne jak se píše.",
+                            description: `Text pro voiceover téhle scény ${L.adverbCs} (1-2 věty, přirozená mluvená řeč). Čte se nahlas — piš, jak se mluví, ne jak se píše.`,
                         },
                         soundEffect: {
                             type: Type.STRING,
@@ -591,7 +594,7 @@ export function buildVideoSchema(config: ClientConfig) {
                     },
                     required: ["timeRange", "visual", "camera", "mood", "narration", "soundEffect"],
                 },
-                description: "3-6 detailed scenes for AI video generation (3-4 for a short reel, 4-6 for a long one). Each scene must specify what happens, camera movement, mood, Czech narration and a sound effect.",
+                description: `3-6 detailed scenes for AI video generation (3-4 for a short reel, 4-6 for a long one). Each scene must specify what happens, camera movement, mood, ${L.englishName} narration and a sound effect.`,
             },
             videoScript: {
                 type: Type.STRING,
@@ -599,7 +602,7 @@ export function buildVideoSchema(config: ClientConfig) {
             },
             caption: {
                 type: Type.STRING,
-                description: "Instagram caption for the Reel (max 100 words, Czech)",
+                description: `Instagram caption for the Reel (max 100 words, ${L.englishName})`,
             },
             cta: {
                 type: Type.STRING,
@@ -617,25 +620,26 @@ export function buildVideoSchema(config: ClientConfig) {
 }
 
 export function buildCarouselSchema(config: ClientConfig) {
+    const L = contentLanguage(config)
     return {
         type: Type.OBJECT,
         properties: {
             angle: {
                 type: Type.STRING,
-                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+                description: `PRVNÍ krok: 1 věta ${L.adverbCs} — jaký úhel volíš a čím se liší od nedávných postů`,
             },
             hook: {
                 type: Type.STRING,
-                description: `Cover slide headline (max ${PROMPT_LIMITS.coverHeadlineWords} words, Czech, punchy). ZADNE EMOJI.`,
+                description: `Cover slide headline (max ${PROMPT_LIMITS.coverHeadlineWords} words, ${L.englishName}, punchy). NO EMOJI.`,
             },
             accentWords: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, Czech, must be exact substring of hook)",
+                description: `2-3 key words/phrases FROM the hook that should be visually highlighted (each 1-2 words, ${L.englishName}, must be exact substring of hook)`,
             },
             imageSubtext: {
                 type: Type.STRING,
-                description: `Cover slide subtext - brief benefit or teaser (max ${PROMPT_LIMITS.coverSubtextWords} words, Czech, e.g. 'Navod krok za krokem')`,
+                description: `Cover slide subtext - brief benefit or teaser (max ${PROMPT_LIMITS.coverSubtextWords} words, ${L.englishName}${L.code === "cs" ? ", e.g. 'Navod krok za krokem'" : ""})`,
             },
             slides: {
                 type: Type.ARRAY,
@@ -647,8 +651,8 @@ export function buildCarouselSchema(config: ClientConfig) {
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        headline: { type: Type.STRING, description: `Step headline (max ${PROMPT_LIMITS.slideHeadlineWords} words, Czech, e.g. 'Krok 1: Otevri Nastaveni')` },
-                        subtext: { type: Type.STRING, description: `Step detail - exact path or explanation (max ${PROMPT_LIMITS.slideSubtextWords} words, Czech)` },
+                        headline: { type: Type.STRING, description: `Step headline (max ${PROMPT_LIMITS.slideHeadlineWords} words, ${L.englishName}${L.code === "cs" ? ", e.g. 'Krok 1: Otevri Nastaveni'" : ""})` },
+                        subtext: { type: Type.STRING, description: `Step detail - exact path or explanation (max ${PROMPT_LIMITS.slideSubtextWords} words, ${L.englishName})` },
                         imagePrompt: { type: Type.STRING, description: "English image prompt for this step - MUST share the same environment/setting as all other slides. NO TEXT, NO WORDS, NO LETTERS in image. Pure background photo." },
                     },
                     required: ["headline", "subtext", "imagePrompt"],
@@ -657,7 +661,7 @@ export function buildCarouselSchema(config: ClientConfig) {
             },
             body: {
                 type: Type.STRING,
-                description: `Full caption for the post (max ${PROMPT_LIMITS.bodyWords} words, Czech)`,
+                description: `Full caption for the post (max ${PROMPT_LIMITS.bodyWords} words, ${L.englishName})`,
             },
             cta: {
                 type: Type.STRING,
@@ -753,24 +757,25 @@ export const CAROUSEL_MAX_TOTAL_SLIDES = PROMPT_LIMITS.carouselInnerMax + 1
  * design brief uses for typography.
  */
 export function buildStorySchema(config: ClientConfig) {
+    const L = contentLanguage(config)
     return {
         type: Type.OBJECT,
         properties: {
             angle: {
                 type: Type.STRING,
-                description: "PRVNÍ krok: 1 česká věta — jaký úhel volíš a čím se liší od nedávných postů",
+                description: `PRVNÍ krok: 1 věta ${L.adverbCs} — jaký úhel volíš a čím se liší od nedávných postů`,
             },
             hook: {
                 type: Type.STRING,
-                description: "Headline of frame 1 — the thumb-stopper (max 5 words, Czech). NO EMOJI, NO hashtags.",
+                description: `Headline of frame 1 — the thumb-stopper (max 5 words, ${L.englishName}). NO EMOJI, NO hashtags.`,
             },
             frames: {
                 type: Type.ARRAY,
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        headline: { type: Type.STRING, description: "Frame headline (max 5 words, Czech). Read at arm's length in under 2 seconds — short beats clever." },
-                        subtext: { type: Type.STRING, description: "One supporting line (max 10 words, Czech). May be empty for a pure-statement frame." },
+                        headline: { type: Type.STRING, description: `Frame headline (max 5 words, ${L.englishName}). Read at arm's length in under 2 seconds — short beats clever.` },
+                        subtext: { type: Type.STRING, description: `One supporting line (max 10 words, ${L.englishName}). May be empty for a pure-statement frame.` },
                         imagePrompt: { type: Type.STRING, description: "English image prompt for this frame's background. Vertical 9:16 composition. NO TEXT, NO WORDS, NO LETTERS in image — the typography is rendered separately." },
                     },
                     required: ["headline", "subtext", "imagePrompt"],
@@ -779,7 +784,7 @@ export function buildStorySchema(config: ClientConfig) {
             },
             body: {
                 type: Type.STRING,
-                description: `Shrnutí storky pro majitele účtu — co říká a proč, jedním odstavcem (max 60 slov, česky). Tento text se na Instagram NEPOSÍLÁ (stories nemají popisek); slouží do přehledu v aplikaci, do e-mailu s kampaní a pro ruční sdílení.`,
+                description: `Shrnutí storky pro majitele účtu — co říká a proč, jedním odstavcem (max 60 slov, ${L.adverbCs}). Tento text se na Instagram NEPOSÍLÁ (stories nemají popisek); slouží do přehledu v aplikaci, do e-mailu s kampaní a pro ruční sdílení.`,
             },
             cta: {
                 type: Type.STRING,
@@ -1046,6 +1051,7 @@ ${policy.productMention === "link"
     // No product → AI generates generic branded content (no product list dump)
 
 
+    const L = contentLanguage(config)
     const postFormat = formatOverride || getPostFormat(config, postType.name)
     // Config def = source of truth for the format's creative brief (description /
     // structure / visualStyle); the DB row is a drift-prone copy kept for the picker.
@@ -1078,15 +1084,15 @@ ${buildFactsSection(config)}
 ${bv.voiceTraits.map(t => `- ${t}`).join("\n")}
 
 ### JAZYK
-Piš česky, moderní hovorovou češtinou. Krátké věty. Přímé. Bez keců.
+${languageSectionCs(L)}
 
 ### ZAKÁZÁNO
 ${bv.antiPatterns.map(p => p).join("\n")}
 
-### ⚠️ NIKDY NEPŘEKLÁDEJ ANGLICKÉ NÁZVY!
-Názvy produktů, kolekcí a brand names ponechej V ANGLIČTINĚ! Příklady:
+### ⚠️ NIKDY NEPŘEKLÁDEJ CIZOJAZYČNÉ NÁZVY!
+Názvy produktů, kolekcí a brand names ponechej V ORIGINÁLE (typicky anglicky)! Příklady:
 - ✅ "Zero Fucks Given" — SPRÁVNĚ (originální název)
-- ❌ "Nula fucků na rozdávání" — ŠPATNĚ (přeložený do CZ)
+- ❌ "Nula fucků na rozdávání" — ŠPATNĚ (přeložený název)
 
 ${toneDesc ? `## TÓN: ${toneDesc}` : ""}
 
@@ -1142,18 +1148,18 @@ ${recentCaptions.map((c, i) => {
 - Pokud existující posty pokrývají určitá témata, přijď s ÚPLNĚ jiným úhlem pohledu
 
 ## 🎯 ÚHEL (ANGLE COMMIT — PRVNÍ KROK)
-Než napíšeš první slovo: vyber JEDEN úhel a zapiš ho do pole "angle" (1 česká věta — jaký úhel volíš a čím se liší od postů výše). Celý post pak drž V TOMTO úhlu.
+Než napíšeš první slovo: vyber JEDEN úhel a zapiš ho do pole "angle" (1 věta ${L.adverbCs} — jaký úhel volíš a čím se liší od postů výše). Celý post pak drž V TOMTO úhlu.
 
 ${isReelMedium(postFormat.medium) ? `
 ## 🎬 INSTAGRAM REEL — FULL VIDEO PRODUCTION
 Toto je Instagram Reel (${postFormat.medium === "reel_long" ? "delší" : "krátké"} video, ${postFormat.reelDuration || 8} sekund).
-Video bude generováno AI (Seedance) s nativní atmosférou + český voiceover z narrace + české titulky.
-Délku videa určuje NAMLUVENÝ text. Česky se namluví jen ~${String(SPOKEN_WORDS_PER_SECOND).replace(".", ",")} slova za vteřinu a část videa zabere nádech na začátku, pauzy mezi scénami a dojezd — narrace všech scén dohromady má tedy NEJVÝŠ ${plannedNarrationWords(postFormat.reelDuration || 8)} slov. Delší narraci engine po namluvení zkracuje, napiš ji rovnou krátce.
+Video bude generováno AI (Seedance) s nativní atmosférou + voiceover z narrace a titulky (${L.adverbCs}).
+Délku videa určuje NAMLUVENÝ text. V jazyce publika se namluví jen ~${String(SPOKEN_WORDS_PER_SECOND).replace(".", ",")} slova za vteřinu a část videa zabere nádech na začátku, pauzy mezi scénami a dojezd — narrace všech scén dohromady má tedy NEJVÝŠ ${plannedNarrationWords(postFormat.reelDuration || 8)} slov. Delší narraci engine po namluvení zkracuje, napiš ji rovnou krátce.
 
 ### PRAVIDLA PRO REELS:
 - **HOOK** musí být v prvních 1.5 sekundách — vizuálně i textově zaujmout
 - **PACING** musí být dynamický — žádné statické záběry delší než 3s
-- Každá scéna MUSÍ mít narration text (bude přečtený česky jako voiceover a zobrazený jako titulek)
+- Každá scéna MUSÍ mít narration text (bude přečtený ${L.adverbCs} jako voiceover a zobrazený jako titulek)
 - Narration piš krátkými mluvenými větami — každá scéna 1–2 věty, žádné závorky ani výčty
 - Camera movements musí být plynulé a profesionální
 - Poslední scéna MUSÍ obsahovat CTA${policy.allowWebsite ? ` s ${config.website}` : " — engagement výzvu (otázka / uložit / sdílet), BEZ webu"}
@@ -1199,19 +1205,19 @@ ${config.videoFocus ? `### BRAND VIDEO STYLE:\n${config.videoFocus}\n` : ""}
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
-  "hook": "Opening problem/question (2-4 slova, punchy, česky). ŽÁDNÉ EMOJI.",
+  "hook": "Opening problem/question (2-4 slova, punchy, ${L.adverbCs}). ŽÁDNÉ EMOJI.",
   "scenes": [
     {
       "timeRange": "0-2s",
       "visual": "Detailed English description of what happens visually",
       "camera": "camera movement type",
       "mood": "lighting and mood description", 
-      "narration": "Český text pro voiceover (1-2 věty, přirozená řeč)",
+      "narration": "Text pro voiceover ${L.adverbCs} (1-2 věty, přirozená řeč)",
       "soundEffect": "ambient sound or effect for this scene"
     }
   ],
   "videoScript": "Fallback: single summary of all scenes in English",
-  "caption": "Instagram caption pro Reel (max 100 slov, česky).",
+  "caption": "Instagram caption pro Reel (max 100 slov, ${L.adverbCs}).",
   "cta": "${policy.allowWebsite ? `MUSÍ obsahovat ${config.website}` : "engagement CTA — BEZ webu a BEZ URL"}",
   "hashtags": ["8-10", "relevantních", "hashtagů"]
 }
@@ -1241,7 +1247,7 @@ ${typeDef?.structure
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
-  "hook": "Cover headline (max ${PROMPT_LIMITS.coverHeadlineWords} slov, česky). ŽÁDNÉ EMOJI.",
+  "hook": "Cover headline (max ${PROMPT_LIMITS.coverHeadlineWords} slov, ${L.adverbCs}). ŽÁDNÉ EMOJI.",
   "accentWords": ["2-3 klíčová slova Z HOOKU k vizuálnímu zvýraznění (přesný podřetězec hooku)"],
   "slides": [
     { "headline": "max ${PROMPT_LIMITS.slideHeadlineWords} slov...", "subtext": "max ${PROMPT_LIMITS.slideSubtextWords} slov...", "imagePrompt": "English prompt..." },
@@ -1289,7 +1295,7 @@ co storka říká a proč. Zobrazí se v přehledu appky a v e-mailu s kampaní.
 ## VÝSTUP — vrať POUZE validní JSON:
 {
   "angle": "1 věta — zvolený úhel a čím se liší od nedávných postů",
-  "hook": "Headline PRVNÍHO snímku (max 5 slov, česky). ŽÁDNÉ EMOJI.",
+  "hook": "Headline PRVNÍHO snímku (max 5 slov, ${L.adverbCs}). ŽÁDNÉ EMOJI.",
   "frames": [
     { "headline": "max 5 slov — shodný s hookem", "subtext": "max 10 slov", "imagePrompt": "English prompt, vertical 9:16, NO TEXT" },
     { "headline": "...", "subtext": "...", "imagePrompt": "English prompt..." }
@@ -1329,7 +1335,7 @@ ${(() => {
   "cta": "CTA podle CTA POLITIKY výše",
   "hashtags": ["8-10", "relevantních", "hashtagů"],
   "imagePrompt": "English prompt for AI image generation. NO TEXT in image!",
-  "imageSubtext": "Podtext dole pod hookem (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
+  "imageSubtext": "Podtext dole pod hookem (max ${PROMPT_LIMITS.coverSubtextWords} slov, ${L.adverbCs})"
 }
 `}
 `.trim()
@@ -1393,6 +1399,7 @@ export async function scorePost(
     }
 
     const goldSection = buildGoldExamplesSection(config, postTypeName ?? "", 2, 250)
+    const L = contentLanguage(config)
 
     const scorePrompt = `
 Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
@@ -1427,8 +1434,8 @@ ${SCORE_ANCHORS}
   "bodyScore": <číslo 0-3>,
   "ctaScore": <číslo 0-2>,
   "originalityScore": <číslo 0-2>,
-  "keep": ["co je dobré a NESMÍ se měnit, česky, max 2 položky"],
-  "fix": ["co je špatně a MUSÍ se opravit, česky, max 2 položky. Prázdné pole pokud je vše OK."]
+  "keep": ["co je dobré a NESMÍ se měnit, ${L.adverbCs}, max 2 položky"],
+  "fix": ["co je špatně a MUSÍ se opravit, ${L.adverbCs}, max 2 položky. Prázdné pole pokud je vše OK."]
 }
 `
 
@@ -1507,6 +1514,7 @@ export async function rankDrafts(
     }
 
     const goldSection = buildGoldExamplesSection(config, postTypeName ?? "", 2, 250)
+    const L = contentLanguage(config)
 
     const rankPrompt = `
 Jsi přísný Instagram content reviewer pro značku "${config.name}" (${config.website}).
@@ -1536,15 +1544,15 @@ ${SCORE_ANCHORS}
 ## VÝSTUP — vrať POUZE validní JSON (rubrika a keep/fix se týkají VÍTĚZE; skóre = přesný součet bodů za 4 kritéria):
 {
   "winner": "A" | "B",
-  "reason": "proč vyhrál, česky, 1 věta",
+  "reason": "proč vyhrál, ${L.adverbCs}, 1 věta",
   "scoreA": <číslo 1-10>,
   "scoreB": <číslo 1-10>,
   "hookScore": <číslo 0-3>,
   "bodyScore": <číslo 0-3>,
   "ctaScore": <číslo 0-2>,
   "originalityScore": <číslo 0-2>,
-  "keep": ["co je na vítězi dobré a NESMÍ se měnit, česky, max 2 položky"],
-  "fix": ["co je na vítězi špatně a MUSÍ se opravit, česky, max 2 položky. Prázdné pole pokud je vše OK."]
+  "keep": ["co je na vítězi dobré a NESMÍ se měnit, ${L.adverbCs}, max 2 položky"],
+  "fix": ["co je na vítězi špatně a MUSÍ se opravit, ${L.adverbCs}, max 2 položky. Prázdné pole pokud je vše OK."]
 }
 `
 
@@ -1622,6 +1630,7 @@ export interface RevisedCaption {
  */
 export async function reviseCaption(config: ClientConfig, input: ReviseCaptionInput): Promise<RevisedCaption> {
     const bv = config.brandVoice
+    const L = contentLanguage(config)
     const policy = input.postTypeName ? resolveCtaPolicyForPost(config, input.postTypeName, input.product) : undefined
     const productSection = input.product
         ? (policy?.productMention === "natural"
@@ -1661,8 +1670,9 @@ ${hashtagSection}
 3. ${policy && !policy.allowWebsite ? "CTA zůstává engagement (komentář / uložení / sdílení) — NEPŘIDÁVEJ web ani URL" : `CTA musí směřovat na ${config.website || "web značky"}`}
 4. Zachovej strukturu: hook → body → CTA → hashtags
 5. Pokud feedback říká "zkrátit" — zkrať. Pokud "přidat humor" — přidej. Buď DOSLOVNÝ.
-6. NIKDY nepřekládej anglické názvy produktů/kolekcí do češtiny
+6. NIKDY nepřekládej cizojazyčné názvy produktů/kolekcí — ponech je v originále
 7. Měň POUZE to, co feedback žádá. Co feedback nezmiňuje, zůstává beze změny.
+8. JAZYK: ${writeRuleCs(L)} Feedback může být v jiném jazyce než post — výstup je vždy v jazyce značky.
 
 ## VÝSTUP — vrať POUZE validní JSON:
 ${input.keepHook
@@ -1676,7 +1686,7 @@ ${input.keepHook
   "hashtags": ["#hashtag1", "#hashtag2", "..."],
   "hook": "první řádek captiony — hook text pro overlay na obrázku (ideál 3–7 slov, max ${PROMPT_LIMITS.hookWords}, bez emoji)",
   "imagePrompt": "English prompt for AI image generation — describe the background photo. NO TEXT in image. Photorealistic, editorial quality.",
-  "imageSubtext": "krátký podtext pod hook na obrázku (max ${PROMPT_LIMITS.coverSubtextWords} slov, česky)"
+  "imageSubtext": "krátký podtext pod hook na obrázku (max ${PROMPT_LIMITS.coverSubtextWords} slov, ${L.adverbCs})"
 }`}`
 
     // Copywriter = ~80% of text quality, so it runs the QUALITY LADDER: top Pro

@@ -12,6 +12,7 @@
  * same contract as the rest of the IG scraping path.
  */
 
+import { languagePack, type ContentLanguage } from "./language"
 import { Type } from "@google/genai"
 import { analyzeImagesWithText } from "./gemini-client"
 import { LAYOUT_ARCHETYPES } from "./image-pipeline"
@@ -29,13 +30,13 @@ export interface FeedVisualProfile {
     accentColorHex?: string
     /** Only set when the feed shows a consistent habit; otherwise undefined → "auto" */
     logoPlacementHabit?: "top-left" | "top-right" | "bottom-left" | "bottom-right"
-    /** 1–2 Czech sentences describing the real visual style → customInstructions */
+    /** 1–2 sentences (brand language) describing the real visual style → customInstructions */
     visualStyleSummary: string
     /** Subset of LAYOUT_ARCHETYPES the brand already uses */
     dominantArchetypes: string[]
-    /** 2–4 Czech observations of what visually works → seed 'visual' brand memories */
+    /** 2–4 observations (brand language) of what visually works → seed 'visual' brand memories */
     visualStrengths: string[]
-    /** 2–4 concrete Czech recommendations (keep/improve) → customInstructions */
+    /** 2–4 concrete recommendations (brand language, keep/improve) → customInstructions */
     visualRecommendations: string[]
 }
 
@@ -76,8 +77,11 @@ async function fetchImage(url: string): Promise<{ buffer: Buffer; mimeType: stri
  */
 export async function analyzeFeedVisuals(
     posts: { mediaUrl?: string; likeCount: number; commentCount?: number; mediaType: string }[],
-    brandName: string
+    brandName: string,
+    /** Jazyk značky — shrnutí a doporučení čte copywriter i uživatel v tomhle jazyce. */
+    language?: ContentLanguage,
 ): Promise<FeedVisualProfile | null> {
+    const L = languagePack(language)
     try {
         const candidates = posts.filter(p => p.mediaUrl).slice(0, MAX_IMAGES)
         if (candidates.length === 0) return null
@@ -104,10 +108,10 @@ Return a JSON visual profile:
 - typographyStyle: the typography style actually used on the feed, as design guidance in English (e.g. "bold condensed grotesque, uppercase, tight tracking"). If posts have no text, describe what WOULD fit this imagery.
 - accentColorHex: the dominant accent/brand color visible across posts as a #hex value. Omit if there is no consistent accent.
 - logoPlacementHabit: where the logo/watermark consistently sits ("top-left"|"top-right"|"bottom-left"|"bottom-right"), or "none" if absent/inconsistent.
-- visualStyleSummary: 1–2 sentences IN CZECH describing the real visual style of the feed (photography, grading, mood, composition habits).
+- visualStyleSummary: 1–2 sentences IN ${L.englishName.toUpperCase()} describing the real visual style of the feed (photography, grading, mood, composition habits).
 - dominantArchetypes: which of these layout archetypes the feed already uses: ${LAYOUT_ARCHETYPES.join(", ")}.
-- visualStrengths: 2–4 observations IN CZECH of what visually works (tie to the high-engagement posts).
-- visualRecommendations: 2–4 concrete recommendations IN CZECH — what to keep and what to improve for a stronger, more consistent feed.
+- visualStrengths: 2–4 observations IN ${L.englishName.toUpperCase()} of what visually works (tie to the high-engagement posts).
+- visualRecommendations: 2–4 concrete recommendations IN ${L.englishName.toUpperCase()} — what to keep and what to improve for a stronger, more consistent feed.
 
 Return ONLY the JSON.`
 

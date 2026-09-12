@@ -42,6 +42,7 @@ import {
 import { engagementScore } from "@/lib/engagement"
 import { industryRiskFamily, type IndustryRiskFamily } from "@/lib/industry-risk"
 import { clampReelModes, plannedNarrationSentences, plannedNarrationWords, type ReelMedium, type ReelMode } from "@/lib/reel-media"
+import { contentLanguage } from "./language"
 
 // ─── Typy ───────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,8 @@ export function buildReelScriptPrompt(input: ReelScriptInput): string {
         ? `Poslední beat MUSÍ vyzvat na ${config.website}.`
         : `Poslední beat MUSÍ být engagement výzva (otázka / ulož si / pošli dál) — BEZ webu, BEZ URL, BEZ adresy.`
 
-    return `Jsi SCENÁRISTA krátkých videí pro Instagram. Píšeš česky, pro značku „${config.name}" (${config.industry || "—"}${config.city ? `, ${config.city}` : ""}).
+    const L = contentLanguage(config)
+    return `Jsi SCENÁRISTA krátkých videí pro Instagram. Píšeš ${L.adverbCs}, pro značku „${config.name}" (${config.industry || "—"}${config.city ? `, ${config.city}` : ""}).${L.nativeRule ? `\n${L.nativeRule} Všechno, co divák uslyší nebo uvidí (hook, narration, card, cta, onScreenHook), je ${L.adverbCs}; pole visual/camera/mood/sfx zůstávají anglicky.` : ""}
 
 Reel má jediný cíl: **zastavit palec v první vteřině a udržet diváka až do výzvy na konci.** Všechno ostatní — obraz, hlas, střih — je až prostředek. Píšeš hook, beaty a narraci; caption a hashtagy NEPÍŠEŠ, ty už existují.
 
@@ -254,7 +256,7 @@ Nabídka je vážená podle toho, co téhle značce měřitelně funguje. Vyber 
 ${formatHookPatterns(patterns)}
 
 ## ROZPOČET (tvrdé meze)
-- Video má ${durationSeconds} s. Česky se namluví ~2,2 slova za vteřinu a část stopáže sežere nádech, mezery a dojezd.
+- Video má ${durationSeconds} s. V jazyce publika se namluví ~2,2 slova za vteřinu a část stopáže sežere nádech, mezery a dojezd.
 - **Narrace VŠECH beatů dohromady má NEJVÝŠ ${wordBudget} slov.** Delší text engine po namluvení zkracuje — piš rovnou krátce.
 - Beatů napiš ${sentences}${durationSeconds >= 10 ? "–6" : "–4"}. Každý beat = jedna až dvě krátké mluvené věty, žádné závorky ani výčty.
 - Hook musí zaznít v první 1,5 s a zároveň být vidět: "onScreenHook" je titulková karta, **nejvýš 2 řádky po 18 znacích** (tedy ≤ 36 znaků včetně mezer).
@@ -266,18 +268,18 @@ ${modeRules}
 ## VÝSTUP — vrať POUZE validní JSON, bez markdownu:
 {
   "hookPattern": "id vybraného vzoru",
-  "hook": "mluvený hook — první věta, česky, 2–8 slov",
+  "hook": "mluvený hook — první věta, ${L.adverbCs}, 2–8 slov",
   "mode": "${modes[0]}",
   "beats": [
     {
-      "narration": "Česká věta pro voiceover (v režimu text místo toho \\"card\\").",
+      "narration": "Věta pro voiceover ${L.adverbCs} (v režimu text místo toho \\"card\\").",
       "visual": "English, concrete description of the shot",
       "camera": "dolly in / slow pan / static close-up / handheld tracking …",
       "mood": "lighting and mood in English",
       "sfx": "ambient sound or effect"
     }
   ],
-  "cta": "Poslední výzva česky${ctaPolicy.allowWebsite ? ` — musí obsahovat ${config.website}` : " — BEZ webu a BEZ URL"}",
+  "cta": "Poslední výzva ${L.adverbCs}${ctaPolicy.allowWebsite ? ` — musí obsahovat ${config.website}` : " — BEZ webu a BEZ URL"}",
   "onScreenHook": "Hook do obrazu (≤ 36 znaků)"
 }`
 }

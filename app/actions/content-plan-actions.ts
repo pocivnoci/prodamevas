@@ -8,6 +8,7 @@ import { computeSlotIntents, ghostRolesForPreview, getPatternDef, type SlotInten
 import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 import type { CatalogProduct } from "@/instagram/service"
 import type { ClientConfig } from "@/instagram/configs/types"
+import { contentLanguage, writeRuleCs } from "@/instagram/language"
 
 // ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
 
@@ -616,6 +617,7 @@ ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
             typeList,
             recentHooks,
             mediums: effectiveMediums,
+            language: config.language,
             onStage: (progress, message) => planBreadcrumb({ progress, agent_message: message }),
         })
         const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number; productIndex?: number; categoryId?: string }[] = pipelineResult.concepts
@@ -1078,6 +1080,7 @@ async function generateCategoryPromptInner(
         const { generateText } = await import("@/instagram/gemini-client")
         const config = await loadConfig(projectSlug)
 
+        const L = contentLanguage(config)
         const raw = await generateText(`Jsi content stratég pro značku "${config.name}" (${config.website}).
 
 ## KONTEXT
@@ -1085,13 +1088,13 @@ Pilíř: "${pillarLabel}" — ${pillarDescription}
 Kategorie: "${categoryLabel}"
 
 ## ÚKOL
-Napiš STRUČNÝ prompt hint (1-2 věty, česky) pro tuto kategorii.
+Napiš STRUČNÝ prompt hint (1-2 věty, ${L.adverbCs}) pro tuto kategorii.
 Prompt hint říká AI generátoru obsahu JAKÝ typ příspěvků a Z JAKÉHO ÚHLU má pro tuto kategorii tvořit.
 
 ## PRAVIDLA
 - Max 2 věty, konkrétní a akční
 - Zaměř se na: jaká témata, jaký tón, jaké formáty fungují
-- Piš česky
+- ${writeRuleCs(L)}
 - Vrať POUZE text promptu, nic jiného
 
 Příklad pro kategorii "Tipy" v pilíři "Edukace":
@@ -1173,6 +1176,7 @@ async function regeneratePlanItemInner(
             ? `## PRODUKTY (${regenProducts.length})\n${regenProducts.map((p, i) => `${i + 1}. ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n⚠️ Když post staví na některém z nich, vrať jeho ČÍSLO v poli "productIndex" (jinak pole vynech).\n`
             : ""
 
+        const L = contentLanguage(config)
         const prompt = `Jsi content stratég pro "${config.name}" (${config.website}).
 
 ## BRAND PERSONA
@@ -1197,13 +1201,13 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 ## PRAVIDLA:
 - Hook musí zastavit scrollování — provokativní, překvapivý, specifický pro "${config.name}"
 - ŽÁDNÉ emoji v hooku
-- Hook max 8 slov, česky
+- Hook max 8 slov, ${L.adverbCs}
 - Angle musí být konkrétní — ne "zajímavý pohled" ale "srovnání cen s konkurencí"
 - Topic: 3-5 slov shrnující o čem post bude
 ${medium && !isReelMedium(medium) ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
-{ "hookPreview": "český hook max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenCategories.length ? `, "categoryId": "id kategorie pilíře"` : ""}${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
+{ "hookPreview": "hook ${L.adverbCs} max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenCategories.length ? `, "categoryId": "id kategorie pilíře"` : ""}${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
 
         // Single-item regen goes through the same Pro ladder as the plan itself —
         // a regenerated hook must not be weaker than the plan it replaces an item of.

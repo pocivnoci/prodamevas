@@ -5,6 +5,7 @@ import { DEFAULT_IDEA_COOLDOWN_DAYS } from "./service"
 import supabaseAdmin from "../supabase/admin"
 import { buildFactsSection } from "./caption-generator"
 import { prescribesFormat, formatWordsList, findMiscategorized, categoryLine } from "./idea-rules"
+import { contentLanguage } from "./language"
 
 /**
  * Generování nápadů — měřená obálka.
@@ -269,7 +270,7 @@ Ke každému nápadu vrať nový 'title' a 'content':
 - zachovej téma, úhel, humor, konkrétní produkty, čísla a jména,
 - odstraň formátová slova, která říkají JAK se nápad natočí či poskládá (video, reel, natočíme, záběry, klip, karusel, slide, story…) — nenahrazuj je „příspěvek", prostě popiš, co se ukáže a řekne,
 - když je video/reel/karusel TÉMATEM nápadu (značka o něm mluví, prodává ho nebo ho učí), slovo NECH a vrať nápad beze změny,
-- česky, 'title' max 70 znaků bez uvozovek, 'content' 1–3 věty.
+- ${contentLanguage(config).adverbCs}, 'title' max 70 znaků bez uvozovek, 'content' 1–3 věty.
 
 ## NÁPADY
 ${ideas.map((idea, i) => `${i + 1}. ${idea.title}\n   ${idea.content}`).join("\n")}

@@ -17,6 +17,7 @@
  * tam se seed zapíše rovnou a zůstává editovatelný.
  */
 
+import { languagePack, type ContentLanguage } from "@/instagram/language"
 import { generateTextQuality } from "@/instagram/gemini-client"
 import { trackSpend } from "@/instagram/spend-tracker"
 import { getModel, hasFallback } from "@/instagram/models"
@@ -36,7 +37,7 @@ export interface FactSourcePage {
  * pravidlo „jen to, co na stránce doslova stojí“ je celý rozdíl mezi rešerší a
  * halucinací s razítkem „ověřeno“ — a takové pravidlo se hlídá, ne doufá.
  */
-export function buildFactExtractionPrompt(brandName: string, usable: FactSourcePage[]): string {
+export function buildFactExtractionPrompt(brandName: string, usable: FactSourcePage[], language?: ContentLanguage): string {
     return `Jsi rešeršista. Ze stránek značky "${brandName}" vypiš OVĚŘITELNÁ FAKTA, která tam
 stojí DOSLOVA napsaná. Nepíšeš marketing, píšeš seznam toho, čím se dá tvrzení podložit.
 
@@ -59,7 +60,7 @@ Konkrétní údaj, na kterém může zákazník značku chytit za slovo:
 - Tvrzení z cizí stránky (reference, partneři, citace v médiích).
 
 ## JAK TO NAPÍŠEŠ
-- Jedna věta česky, tak, jak by to mohlo zaznít v příspěvku, ale bez ozdob.
+- Jedna věta ${languagePack(language).adverbCs}, tak, jak by to mohlo zaznít v příspěvku, ale bez ozdob.
 - \`source\` = URL stránky, ze které to je. Beze změny, tak jak stojí výš.
 - Radši 5 faktů, kterými jsi si jistý, než 15 natažených. Když web žádné konkrétní
   údaje neuvádí, vrať prázdné pole — to je legitimní výsledek, ne selhání.
@@ -74,11 +75,11 @@ Konkrétní údaj, na kterém může zákazník značku chytit za slovo:
  * levná, ale špatně vytažený „fakt" se stane licencí ke lži ve VŠECH budoucích
  * postech, takže na ni flash nestačí.
  */
-export async function extractFactsFromPages(brandName: string, pages: FactSourcePage[], opts: { clientId?: string | null } = {}): Promise<BrandFact[]> {
+export async function extractFactsFromPages(brandName: string, pages: FactSourcePage[], opts: { clientId?: string | null; language?: ContentLanguage } = {}): Promise<BrandFact[]> {
     const usable = pages.filter(p => p.text?.trim().length > 80).slice(0, 8)
     if (usable.length === 0) return []
 
-    const prompt = buildFactExtractionPrompt(brandName, usable)
+    const prompt = buildFactExtractionPrompt(brandName, usable, opts.language)
 
     const models = [getModel("textPro")]
     if (hasFallback("textPro")) models.push(getModel("textPro", "fallback"))
@@ -125,7 +126,7 @@ export async function extractFactsFromPages(brandName: string, pages: FactSource
  * Načte web značky (homepage + stránky, kde fakta obvykle bývají) a vytáhne z nich
  * kandidáty. Používá to tlačítko v Nastavení i backfill skript.
  */
-export async function suggestFactsFromSite(brandName: string, websiteUrl: string, opts: { clientId?: string | null } = {}): Promise<BrandFact[]> {
+export async function suggestFactsFromSite(brandName: string, websiteUrl: string, opts: { clientId?: string | null; language?: ContentLanguage } = {}): Promise<BrandFact[]> {
     const baseUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`
     const homepage = await fetchPage(baseUrl)
 

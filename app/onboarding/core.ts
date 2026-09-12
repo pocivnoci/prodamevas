@@ -33,6 +33,7 @@ import { Type } from '@google/genai'
 import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion, QuestionAxis } from './types'
 import { REQUIRED_AXES } from './types'
 import { CLIENT_BUCKET_MIME_TYPES, CLIENT_BUCKET_SIZE_LIMIT } from '@/lib/storage-buckets'
+import { languagePack, contentLanguage, writeRuleCs, detectContentLanguage, type ContentLanguage } from '@/instagram/language'
 
 // ============================================
 // TYPES
@@ -351,6 +352,7 @@ Vrať POUZE platný JSON.`
 
     const analysis: WebsiteAnalysis = {
         companyName: info.businessName,
+        language: info.language,
         description: info.description,
         industry: categoryDefaults.industry,
         products,
@@ -472,7 +474,7 @@ ${analysis.igInsights ? `UŽ POSTUJE NA IG: engagement ${(analysis.igInsights.av
 - Ptej se KONKRÉTNĚ na tuhle firmu. „Jaký je tvůj cíl?" umí položit kdokoli — zeptej se tak, aby bylo poznat, že jsi četl, co dělají.
 - Každá otázka musí měnit, jak budou vypadat příspěvky. Na co neumíš navázat obsah, se neptej.
 - Ptej se na to, co z webu NEJDE zjistit: sezónnost, tabu, kdo doopravdy nakupuje, čím se liší od konkurence, co v minulosti nefungovalo.
-- Přesně 5 otázek, česky, tykáním.
+- Přesně 5 otázek, česky, tykáním. (Otázky jsou rozhovor s UŽIVATELEM, ne obsah značky — jdou v jazyce dashboardu, ne v jazyce značky.)
 
 ## CO MUSÍ ZAZNÍT
 Každá odpověď sytí konkrétní pole konfigurace, takže se musí ptát právě jedna otázka na každou z těchto os. Formulaci si ale vymysli pro TUHLE firmu — osa říká, NA CO se ptáš, ne JAK.
@@ -577,6 +579,7 @@ export async function generateConfigCore(
     onProgress?: ProgressFn
 ): Promise<ClientConfig> {
     const say = async (p: number, m: string) => { await onProgress?.(p, m) }
+    const L = languagePack(analysis.language)
     // Otázky píše AI, takže `id` je neprůhledné („q3") a modelu při skládání configu
     // samo o sobě neřekne nic. Spáruj ho zpátky s textem otázky — jinak jsou odpovědi
     // jen hodnoty bez kontextu.
@@ -642,7 +645,7 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
   "website": "${websiteUrl}",
   "instagram": "${igHandle}",
   "brandVoice": {
-    "persona": "... (2-3 věty popisující personu značky na Instagramu, česky)",
+    "persona": "... (2-3 věty popisující personu značky na Instagramu, ${L.adverbCs})",
     "values": ["... (3-5 hodnot značky)"],
     "voiceTraits": ["... (4-6 charakteristik hlasu, např. 'drzý ale přátelský')"],
     "antiPatterns": ["... (5-8 věcí, které značka NIKDY nepoužívá)"],
@@ -676,7 +679,7 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
   - Fitness: cviceni, motivace, vyziva, challenge, vysledky
   - Služby/řemeslo: pred_po, tip, faq, proces, reference
   - Poradenství: tip, case_study, myt_vs_realita, statistika, qa
-- prompt field = 1 věta co AI generuje pro tuto kategorii (česky)
+- prompt field = 1 věta co AI generuje pro tuto kategorii (${L.adverbCs})
   "ctaStrategies": {
     "soft": ["... (3-4 jemné CTA)"],
     "medium": ["... (3-4 střední CTA)"],
@@ -699,7 +702,7 @@ Vygeneruj kompletní ClientConfig JSON. Buď kreativní ale přesný.
     "niche": ["... (5-8 niche hashtagů pro ${analysis.industry})"],
     "broad": ["... (4-6 širokých hashtagů)"],
     "trending": ["... (2-3 trending hashtagy)"],
-    "czech": ["... (3-5 českých hashtagů)"]
+    "czech": ["... (3-5 ${L.localCs} hashtagů — lokální pro trh značky)"]
   },
   "contentFocus": "... (O čem značka je, 1 věta)",
   "postTypes": ["tip", "meme", "carousel", "behind_scenes", "product_drop", "recenze", "challenge"],
@@ -717,7 +720,7 @@ Odpovědi výše nejsou kontext na okrasu — jsou to jediné věci, které se z
 - Když klient na něco neodpověděl nebo zvolil „nic z toho", nic si nevymýšlej a řiď se analýzou webu.
 
 DŮLEŽITÉ:
-- Všechny texty psány česky, moderní hovorovou češtinou
+- Všechny texty: ${writeRuleCs(L)}
 - Obsah musí odpovídat analýze webu a odpovědím
 - Post types přizpůsobené oboru (${analysis.industry})
 - Hook templates kreativní a specificke pro tuto značku
@@ -741,6 +744,9 @@ DŮLEŽITÉ:
     // Ensure critical fields
     const slug = slugify(analysis.companyName)
     config.id = slug
+    // Jazyk značky = jazyk jejího webu (nebo ruční volba). Nikdy z modelu: kdyby si
+    // ho JSON vymyslel, propadl by v validateConfig na češtinu a nikdo by nevěděl proč.
+    config.language = L.code
     config.website = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
     // industry/city se doteď nikdy nepropsaly do configu — žily jen jako řetězec
     // v onboardingových promptech. Kontextový agent (svátky, sezóna) i počasí je
@@ -866,7 +872,7 @@ DŮLEŽITÉ:
             }
             if (imagesToTag.length > 0) {
                 await say(55, 'Popisuju, co je na obrázcích…')
-                const tagged = await tagBrandImages(imagesToTag, analysis.companyName)
+                const tagged = await tagBrandImages(imagesToTag, analysis.companyName, analysis.language)
                 config.brandReferenceImages = tagged
             } else {
                 config.brandReferenceImages = imageUrls
@@ -887,7 +893,7 @@ Cílová skupina: ${analysis.targetAudience || 'obecná'}
 Vrať JSON pole s 3 objekty:
 [
   {
-    "label": "krátký název persony (česky, 1-2 slova)",
+    "label": "krátký název persony (${L.adverbCs}, 1-2 slova)",
     "ageRange": "XX-XX",
     "painPoints": ["3 konkrétní problémy/potřeby"],
     "triggers": ["3 typy obsahu co na ně fungují"],
@@ -941,7 +947,7 @@ Tón: ${(config.brandVoice?.voiceTraits || []).join(', ') || '—'}
 
 Vrať POUZE platný JSON objekt:
 {
-  "headline": "krátký název stylu, 3-6 slov česky (např. 'Přátelský expert s lidským tónem')",
+  "headline": "krátký název stylu, 3-6 slov ${L.adverbCs} (např. 'Přátelský expert s lidským tónem')",
   "rationale": "2-3 věty PROČ tenhle styl sedí právě téhle firmě a jejím zákazníkům",
   "dos": ["3-4 konkrétní věci, které dělat (specifické pro tenhle obor a publikum)"],
   "donts": ["3-4 konkrétní věci, kterým se vyhnout"]
@@ -980,6 +986,7 @@ Pravidla: buď konkrétní, ne generický. Žádné prázdné fráze typu 'buďt
  * re-maps contentPillars; ensurePostTypes() later persists them to ig_post_types.
  */
 export async function generateCustomFormats(analysis: WebsiteAnalysis, config: ClientConfig): Promise<void> {
+    const L = contentLanguage(config)
     try {
         const pillarKeys = Object.keys(config.contentPillars || {})
         if (pillarKeys.length === 0) {
@@ -1022,11 +1029,11 @@ Pilíře obsahu (povolené klíče): ${pillarKeys.join(', ')}
 Vrať POUZE JSON pole 7 objektů:
 [{
   "name": "snake_case slug bez diakritiky (např. dva_proti_sobe)",
-  "display_name": "krátký název formátu, česky (např. Souboj dvou)",
+  "display_name": "krátký název formátu, ${L.adverbCs} (např. Souboj dvou)",
   "emoji": "1 emoji",
-  "description": "1 věta česky: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
-  "structure": "sled beatů, česky, ABSTRAKTNĚ. Pro carousel nejvýš ${CAROUSEL_MAX_TOTAL_SLIDES} beatů včetně coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
-  "visual_style": "1 věta česky: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
+  "description": "1 věta ${L.adverbCs}: JAK formát funguje a proč zabírá. Mechanismus, ne obsah. MAX 160 znaků.",
+  "structure": "sled beatů, ${L.adverbCs}, ABSTRAKTNĚ. Pro carousel nejvýš ${CAROUSEL_MAX_TOTAL_SLIDES} beatů včetně coveru. NIKDY konkrétní scéna, jméno, místo ani znění věty. MAX 220 znaků.",
+  "visual_style": "1 věta ${L.adverbCs}: produkční kvality — kompozice, světlo, tempo, odstup kamery. NIKDY konkrétní rekvizita ani lokace. MAX 160 znaků.",
   "pillar": "jeden z povolených klíčů pilířů výše",
   "medium": "image | carousel | reel",
   "aspectRatio": "1:1 | 4:5 | 9:16",
@@ -1509,6 +1516,10 @@ Vrať POUZE platný JSON, bez dalšího textu.`
         const jsonMatch = rawAnalysis.match(/\{[\s\S]*\}/)
         const analysis: WebsiteAnalysis = JSON.parse(jsonMatch?.[0] || rawAnalysis)
         analysis.logoUrl = metadata.ogImage || undefined
+        // Jazyk značky se bere z webu, ne z toho, kdo ji onboarduje: česká agentura
+        // může zakládat německou značku. Uživatel volbu vidí a může ji přepnout.
+        analysis.language = detectContentLanguage(homepageHtml)
+        console.log(`   🌐 Jazyk webu: ${analysis.language}`)
 
         // Enrich colors: if AI missed them but we have CSS colors, override
         if (cssColors.length > 0 && analysis.colors.primary === '#000000') {
@@ -1535,7 +1546,7 @@ Vrať POUZE platný JSON, bez dalšího textu.`
             analysis.brandFacts = await extractFactsFromPages(analysis.companyName || baseUrl, [
                 { url: baseUrl, text: mainText },
                 ...subpageTexts.map((t, i) => ({ url: allSubUrls[i], text: t })),
-            ])
+            ], { language: analysis.language })
             console.log(`   🧾 Fakta z webu: ${analysis.brandFacts.length}`)
         } catch (e) {
             console.warn('⚠️ Extrakce faktů z webu selhala (nekritické):', (e as Error).message)
@@ -1597,8 +1608,8 @@ async function enrichWithInstagram(analysis: WebsiteAnalysis, igHandle: string):
 
         const { analyzeFeedVisuals } = await import('@/instagram/feed-vision')
         const [igInsights, feedVisuals] = await Promise.all([
-            analyzeInstagramFeed(igData),
-            analyzeFeedVisuals(igData.recentPosts, analysis.companyName),
+            analyzeInstagramFeed(igData, analysis.language),
+            analyzeFeedVisuals(igData.recentPosts, analysis.companyName, analysis.language),
         ])
         if (igInsights) analysis.igInsights = igInsights
         if (feedVisuals) analysis.feedVisuals = feedVisuals
@@ -1608,8 +1619,9 @@ async function enrichWithInstagram(analysis: WebsiteAnalysis, igHandle: string):
     }
 }
 
-async function analyzeInstagramFeed(igData: IgProfileData): Promise<IgInsights | null> {
+async function analyzeInstagramFeed(igData: IgProfileData, language?: ContentLanguage): Promise<IgInsights | null> {
     if (igData.recentPosts.length === 0) return null
+    const L = languagePack(language)
 
     const postsContext = igData.recentPosts.map((p, i) => {
         const caption = p.caption.slice(0, 300)
@@ -1632,15 +1644,15 @@ Vrať JSON s těmito poli:
 - topHashtags: pole 10-15 nejpoužívanějších hashtagů z captionů (bez #)
 - avgEngagementRate: průměrný engagement rate (likes+comments / followers), číslo 0-1
 - contentMix: objekt s poměrem typů obsahu, např. {"produkt": 0.4, "behind_scenes": 0.2, "edukace": 0.3, "lifestyle": 0.1}
-- brandToneHint: 1-2 slova popisující detekovaný tón komunikace (česky)
-- visualStyleHint: 1 věta popisující vizuální styl feedu (česky)
+- brandToneHint: 1-2 slova popisující detekovaný tón komunikace (${L.adverbCs})
+- visualStyleHint: 1 věta popisující vizuální styl feedu (${L.adverbCs})
 - bestPostingTimes: pole 2-3 optimálních časů pro posting (odhad z timestamps), formát "Po 18:00"
 - voiceProfile: objekt popisující, JAK značka v captionech skutečně mluví:
-  - voiceTraits: 3-5 pozorovaných charakteristik hlasu (česky, např. "hravý", "tyká followerům")
+  - voiceTraits: 3-5 pozorovaných charakteristik hlasu (${L.adverbCs}, např. "hravý", "tyká followerům")
   - hookExamples: 2-4 skutečné první věty z postů s NEJVYŠŠÍM engagementem (zkrať na max 60 znaků)
-  - captionStyle: 1-2 věty o stylu captionů — délka, emoji, formátování, oslovení (česky)
-  - ctaHabits: 1 věta o tom, jaké CTA reálně používají (česky)
-- provenPatterns: 2-4 pozorování co PROKAZATELNĚ funguje (z porovnání engagement vysoký vs. nízký), česky, každé max 1 věta
+  - captionStyle: 1-2 věty o stylu captionů — délka, emoji, formátování, oslovení (${L.adverbCs})
+  - ctaHabits: 1 věta o tom, jaké CTA reálně používají (${L.adverbCs})
+- provenPatterns: 2-4 pozorování co PROKAZATELNĚ funguje (z porovnání engagement vysoký vs. nízký), ${L.adverbCs}, každé max 1 věta
 
 Vrať POUZE platný JSON.`
 

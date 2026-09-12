@@ -21,6 +21,7 @@ import type { PostIdea } from "./types"
 import { COSTS } from "./caption-generator"
 import { analyzePerformance, type PerformanceInsight } from "./performance"
 import { generateOnePost, generateBatch } from "./autopilot"
+import { contentLanguage, writeRuleCs } from "./language"
 
 // Active client config
 let CLI_CONFIG: ClientConfig | null = null
@@ -189,8 +190,8 @@ function buildIdeasSchema(pillarKey?: string): object {
                 items: {
                     type: "object",
                     properties: {
-                        title: { type: "string", description: "Short title (3-6 words, Czech)" },
-                        content: { type: "string", description: "Detailed description of the idea (2-3 sentences, Czech)" },
+                        title: { type: "string", description: `Short title (3-6 words, ${contentLanguage(config).englishName})` },
+                        content: { type: "string", description: `Detailed description of the idea (2-3 sentences, ${contentLanguage(config).englishName})` },
                         category: { type: "string", description: `Category: ${categories}` },
                         subcategory: { type: "string", description: subCatDesc },
                         keywords: { type: "array", items: { type: "string" }, description: "3-5 relevant keywords" },
@@ -260,7 +261,7 @@ Každý nápad MUSÍ mít subcategory nastavený na jedno z těchto ID. Rozděl 
 ` : ""}
 ## PRAVIDLA:
 1. Všechny nápady MUSÍ odpovídat brand voice a tématu značky "${config.name}"
-2. Piš česky, moderní hovorovou češtinou
+2. ${writeRuleCs(contentLanguage(config))}
 3. Každý nápad musí být originální a relevantní pro cílovou skupinu
 4. NEDUPLIKUJ tyto existující nápady: ${existingTitles || "žádné"}
 5. CTA musí směřovat na ${config.website}

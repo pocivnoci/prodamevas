@@ -211,7 +211,7 @@ const FAQ_CATEGORIES: FaqCategory[] = [
             },
             {
                 q: "Můžu generovat obsah v jiném jazyce než češtině?",
-                a: "Aktuálně je Chrlit optimalizovaný pro češtinu. Brand voice, hook templates a CTA jsou generované česky. Podpora dalších jazyků je v plánu.",
+                a: "Značka může mluvit česky, slovensky, anglicky, německy nebo polsky — jazyk obsahu se nastavuje v Nastavení → Základní informace a při onboardingu se odhadne z webu. Řídí texty postů, hashtagy, text v obrázcích i voiceover reelů. Rozhraní Chrlitu je zatím česky.",
             },
             {
                 q: "Jak nejlépe využít Nápady?",

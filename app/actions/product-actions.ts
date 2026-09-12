@@ -18,6 +18,7 @@ import { withRetry } from "@/utils/retry"
 import { creditGuard } from "./credit-guard"
 import { getClientConfig } from "./config-actions"
 import type { ProductUrlDraft, SavableDraft } from "@/lib/product-import"
+import { contentLanguage } from "@/instagram/language"
 
 // ============================================
 // PRODUCT GENERATION ACTIONS
@@ -388,6 +389,7 @@ export async function reviseProduct(
 
         const brandName = config.name || configName
         const bv = config.brandVoice || {} as any
+        const L = contentLanguage(config)
 
         // Existing products for naming consistency — live catalog, not the frozen
         // config.products onboarding snapshot
@@ -437,7 +439,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
 {
   "name": "název produktu",
   "tagline": "tagline max 8 slov",
-  "description": "popis produktu (2-3 věty, česky)",
+  "description": "popis produktu (2-3 věty, ${L.adverbCs})",
   "variants": ["varianta 1", "varianta 2", "varianta 3"],
   "supplierMessage": "professional English message for supplier",
   "designPrompt": "Updated English prompt for AI image generator — describe the revised product visually. Product photography, studio lighting, dark background."

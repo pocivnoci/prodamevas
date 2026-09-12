@@ -31,6 +31,7 @@ import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
 import { rethrowIfQualityUnavailable } from "./types"
+import { contentLanguage, exactTextRule } from "../language"
 
 /**
  * Max corrective text-fix edits per story set — one per frame at the 3-frame cap.
@@ -171,6 +172,7 @@ Render ONLY the artwork itself: no Instagram interface of any kind (see STORY LA
                 subtext: frame.subtext || undefined,
                 logoExpected: isFirst && !!logoRef,
                 safeZone: true,
+                language: contentLanguage(ctx.config).code,
             }
             const qaProductRef = productRef && selectedProduct
                 ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name, mode: "if-present" as const }
@@ -218,8 +220,8 @@ Follow the PRODUCT FIDELITY rules exactly: any depicted product must be a faithf
                     try {
                         const { editExistingImage } = await import("../gemini-client")
                         const fixPrompt = `Fix ONLY the text problems in this image — keep composition, photo, style and layout EXACTLY the same.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${frame.headline}"
-${frame.subtext ? `Render the subtext as this EXACT Czech text: "${frame.subtext}"` : ""}
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${frame.headline}"
+${frame.subtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${frame.subtext}"` : ""}
 All text and the logo must sit between 15% and 85% of the frame HEIGHT — Instagram's story UI covers the top and bottom bands.
 Remove any drawn Instagram interface (reply bar, heart/send icons, profile row, close button, progress bars) — Instagram draws the real one on top.
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
@@ -257,8 +259,8 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                     const { editExistingImage } = await import("../gemini-client")
                     const severeFixPrompt = `The typography in this image is overlapping, duplicated or unreadable — this is NOT publishable.
 Redraw ONLY the text cleanly, as flat legible typography — keep the same composition, photo, style, colors and layout.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${frame.headline}"
-${frame.subtext ? `Render the subtext as this EXACT Czech text: "${frame.subtext}"` : ""}
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${frame.headline}"
+${frame.subtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${frame.subtext}"` : ""}
 Keep all text between 15% and 85% of the frame HEIGHT.`
                     let severeModel = getModel("image")
                     const severeBuffer = await editExistingImage(bestBuffer, severeFixPrompt, {

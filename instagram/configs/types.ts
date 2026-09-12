@@ -11,6 +11,7 @@ import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
 import type { TtsProviderId } from "../../lib/voice-library"
 import type { ReelMode } from "../../lib/reel-media"
+import type { ContentLanguage } from "../language"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -333,6 +334,16 @@ export interface ClientConfig {
     /** City for weather + local context, e.g. "Český Krumlov", "Praha" */
     city?: string
 
+    /**
+     * Jazyk, kterým značka mluví k publiku (`instagram/language.ts`). Řídí texty
+     * postů, hashtagy, typografii v obraze, narraci, titulky i to, co si AI o značce
+     * ukládá. NENÍ to jazyk dashboardu — ten patří uživateli. Chybějící = čeština
+     * (`validateConfig()` clampuje, neznámý kód nikdy nedojde do promptu).
+     * Onboarding ho odhadne z webu (`detectContentLanguage`), uživatel ho může
+     * změnit v Nastavení.
+     */
+    language?: ContentLanguage
+
     /** Brand voice configuration (persona, hooks, tones, anti-patterns) */
     brandVoice: BrandVoiceConfig
 
@@ -464,7 +475,8 @@ export interface ClientConfig {
      *  first two, a ≤daily cadence rotates through them. See lib/schedule-planner.ts. */
     postingTimes?: string[]
 
-    /** Hashtag pools */
+    /** Hashtag pools. `czech` = LOKÁLNÍ hashtagy v jazyce/trhu značky (klíč zůstává
+     *  kvůli uloženým configům — u německé značky jsou v něm německé hashtagy). */
     hashtagPools: {
         core: string[]
         niche: string[]

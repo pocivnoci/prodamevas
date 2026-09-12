@@ -17,6 +17,7 @@ import { clampSubtitleStyle } from "../reel-subtitles"
 import { clampReelModes } from "../../lib/reel-media"
 import { industryRiskFamily } from "../../lib/industry-risk"
 import { resolveIndustryVisual } from "../industry-visual-profiles"
+import { isContentLanguage, DEFAULT_CONTENT_LANGUAGE } from "../language"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
 export interface ClientMeta {
@@ -313,6 +314,10 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
         // s natvrdo psaným fallbackem v image-pipeline; NIKDY náhradní obor, protože cizí
         // žánr je horší než žádný.
         industryVisual: config.industryVisual ?? resolveIndustryVisual(config.industry),
+        // Jazyk obsahu. Clamp, ne default-through: každý prompt si z něj bere fráze
+        // („piš slovensky", „Slovak diacritics") a neznámý kód by dojel až k modelu.
+        // Chybějící = čeština, tedy přesně to, co všichni klienti dostávali dosud.
+        language: isContentLanguage(config.language) ? config.language : DEFAULT_CONTENT_LANGUAGE,
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",

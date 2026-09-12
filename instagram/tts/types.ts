@@ -9,10 +9,11 @@
  *
  * Tvar rozhraní je schválně chudý: žádné modely, žádné retry, žádné účtování —
  * to všechno si řeší implementace uvnitř, protože se poskytovatel od poskytovatele
- * liší. Nahoru jde jen „tenhle text, tímhle hlasem, česky".
+ * liší. Nahoru jde jen „tenhle text, tímhle hlasem, v jazyce značky".
  */
 
 import type { TtsProviderId } from "../../lib/voice-library"
+import type { ContentLanguage } from "../language"
 
 export type { TtsProviderId }
 
@@ -23,9 +24,10 @@ export interface TtsSynthesizeOptions {
     style?: string
     /** Tagy přednesu pro tuhle větu (`instagram/tts/delivery.ts`), např. ["warm"]. */
     tags?: string[]
-    /** Jazyk textu. Dnes vždy „cs" — pole existuje proto, že poskytovatelé mimo
-     *  Gemini (ElevenLabs) jazyk vyžadují jako parametr a neodvozují ho z textu. */
-    language: "cs"
+    /** Jazyk textu = jazyk značky (`ClientConfig.language`). Poskytovatel, který jazyk
+     *  neumí přijmout jako parametr (Gemini, ElevenLabs v3), si ho odvodí z textu —
+     *  ale pole je povinné, aby volající musel vědět, čím značka mluví. */
+    language: ContentLanguage
 }
 
 export interface TtsProvider {

@@ -4,6 +4,7 @@ import { loadConfig } from "@/instagram/configs"
 import { generateText } from "@/instagram/gemini-client"
 import { Type } from "@google/genai"
 import { creditGuard } from "./credit-guard"
+import { contentLanguage } from "@/instagram/language"
 
 // ============================================
 // PRODUCT BRIEF — AI Business Analysis
@@ -120,6 +121,7 @@ async function analyzeProductForBriefInner(
         if (!guard.ok) return { success: false, error: guard.error }
 
         const config = await loadConfig(configName)
+        const L = contentLanguage(config)
 
         const prompt = `Jsi product business analyst. Na základě produktového nápadu vygeneruj DETAILNÍ business analýzu.
 
@@ -142,7 +144,7 @@ Proč to funguje: ${idea.whyItWorks}
 ## ÚKOL
 Analyzuj tento produkt z BUSINESS hlediska. Buď REALISTICKÝ, ne optimistický.
 - Odhadni reálné náklady na kus (sourcing z Číny, doprava, clo ~12%, DPH 21%)
-- Doporuč prodejní cenu na českém trhu
+- Doporuč prodejní cenu na ${L.marketCs} trhu
 - Spočítej marži
 - Doporuč kolik kusů objednat poprvé (malý brand, testovací fáze)
 - Navrhni 3 scénáře výdělku (3 měsíce po launchi)

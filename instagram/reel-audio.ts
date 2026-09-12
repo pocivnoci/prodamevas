@@ -16,6 +16,7 @@ import { pcmToWav } from "./tts/wav"
 import type { TtsProvider } from "./tts/types"
 import { QualityUnavailableError } from "../utils/retry"
 import { REEL_TIMELINE } from "../lib/reel-media"
+import type { ContentLanguage } from "./language"
 
 export interface WavInfo {
     sampleRate: number
@@ -239,6 +240,8 @@ export interface NarrationVoice {
 export async function synthesizeNarration(
     lines: string[],
     voice: NarrationVoice,
+    /** Jazyk narrace = jazyk značky. Explicitně: engine si ho nesmí domyslet. */
+    language: ContentLanguage,
 ): Promise<{ clips: Buffer[]; durations: number[] }> {
     if (!voice?.voiceId) throw new Error("synthesizeNarration: chybí voiceId — hlas značky patří do config.voice")
     const provider: TtsProvider = getTtsProvider(voice.provider)
@@ -248,7 +251,7 @@ export async function synthesizeNarration(
         try {
             // Ticho kolem věty ořezat DŘÍV, než se měří — pauzy dává osa, ne TTS.
             const clip = trimSilence(await provider.synthesize(text, {
-                voiceId: voice.voiceId, style: voice.style, tags: voice.tags, language: "cs",
+                voiceId: voice.voiceId, style: voice.style, tags: voice.tags, language,
             }))
             const info = wavInfo(clip)
             if (info.durationSeconds < 0.2) throw new Error(`TTS vrátilo prázdný klip (${info.durationSeconds}s)`)

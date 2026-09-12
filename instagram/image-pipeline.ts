@@ -20,6 +20,7 @@ import { getBrandMemories } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
 import { buildPhotoFidelitySection } from "./photo-fidelity"
 import { ARCHETYPE_GROUPS, type SlotIntent, type VisualMode } from "../lib/feed-pattern"
+import { contentLanguage, languagePack, exactTextRule, verbatimRule, diacriticsClause, type ContentLanguage } from "./language"
 
 // ============================================
 // VISUAL MEMORY FORMATTER
@@ -112,9 +113,9 @@ export interface DesignBrief {
     /** Full scene description in English: subject, environment, camera, lighting, depth */
     composition: string
     typography: {
-        /** EXACT Czech hook text to render — copied verbatim, never paraphrased */
+        /** EXACT hook text to render (brand language) — copied verbatim, never paraphrased */
         headlineText: string
-        /** EXACT Czech subtext (optional) */
+        /** EXACT subtext (optional, brand language) */
         subtextText?: string
         /** e.g. "ultra-bold condensed sans, tight tracking, uppercase" */
         styleDescription: string
@@ -407,8 +408,8 @@ ${memSection}
 ## THIS POST:
 - Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
 ${formatBrief?.visualStyle ? `- Format visual style (mechanismus formátu + co si k němu přeje značka — drž se toho): ${formatBrief.visualStyle}` : ""}
-- Headline (Czech, render EXACTLY as written): "${captionData.hook}"
-${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${captionData.imageSubtext}"` : ""}
+- Headline (${contentLanguage(config).englishName}, render EXACTLY as written): "${captionData.hook}"
+${captionData.imageSubtext ? `- Subtext (${contentLanguage(config).englishName}, render EXACTLY as written): "${captionData.imageSubtext}"` : ""}
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
 ${captionData.imagePrompt ? `- Copywriter's raw visual idea: "${captionData.imagePrompt}"` : ""}
 ${captionData.body ? `- Post body context: "${captionData.body.substring(0, 300)}"` : ""}
@@ -429,8 +430,8 @@ changes the STRUCTURE — layout, text scale/placement, photo vs. graphic balanc
 Cohesive vibe, different skeleton.
 
 ## DESIGN RULES:
-- typography.headlineText and typography.subtextText must be the EXACT Czech strings above,
-  character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+- typography.headlineText and typography.subtextText must be the EXACT ${contentLanguage(config).englishName} strings above,
+  ${verbatimRule(contentLanguage(config))}. NEVER translate or rephrase.
 - Typography is a DESIGN ELEMENT — vary scale, weight, placement, alignment between posts.
 ${buildCompositionRules(slotIntent)}
 - Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
@@ -554,12 +555,12 @@ ${productBlock}${userPhotoBlock}${personBlock}
 ${brief.negativeSpace}
 
 ## TYPOGRAPHY (render INSIDE the image):
-- Headline text — render this EXACT Czech text, character-for-character, including all diacritics (ě š č ř ž ý á í é ů ú): "${t.headlineText}"
-${t.subtextText ? `- Subtext — render this EXACT Czech text verbatim: "${t.subtextText}"` : ""}
+- Headline text — render this ${exactTextRule(contentLanguage(config))}: "${t.headlineText}"
+${t.subtextText ? `- Subtext — render this EXACT ${contentLanguage(config).englishName} text verbatim: "${t.subtextText}"` : ""}
 - Type style: ${t.styleDescription}
 - Placement: ${t.placement}
 - Color treatment: ${t.color}
-⚠️ The Czech text must be reproduced with PERFECT spelling — every háček and čárka exactly as written. Do not add any other text, words, watermarks or labels anywhere in the image${allowedExtraText ? `, with ONE exception: a small, subtle "${allowedExtraText}" indicator styled to match the design system` : ""}.
+⚠️ The ${contentLanguage(config).englishName} text must be reproduced with PERFECT spelling — every letter and diacritic exactly as written. Do not add any other text, words, watermarks or labels anywhere in the image${allowedExtraText ? `, with ONE exception: a small, subtle "${allowedExtraText}" indicator styled to match the design system` : ""}.
 
 ## COLOR / GRADING:
 ${brief.colorTreatment}
@@ -615,7 +616,7 @@ export async function generateCarouselDesignBriefs(params: {
 
     const prompt = `
 You are a world-class Instagram art director designing a COMPLETE carousel (${allSlides.length} slides).
-The image model (Nano Banana Pro) renders each slide ENTIRELY from your briefs — photo, Czech typography AND logo.
+The image model (Nano Banana Pro) renders each slide ENTIRELY from your briefs — photo, ${contentLanguage(config).englishName} typography AND logo.
 
 ## BRAND KIT:
 - Color palette: ${fa.colorPalette}
@@ -641,8 +642,8 @@ ${buildSlotIntentSection(slotIntent, fa)}
 1. First define ONE design system: same typography style, same palette/grading, same logo treatment
    across ALL slides — the carousel must feel like one cohesive editorial piece.
 2. Same environment/lighting across slides; ONLY camera angle and framing changes (wide → medium → close-up).
-3. Each slide's typography.headlineText / subtextText must be the EXACT Czech strings above,
-   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+3. Each slide's typography.headlineText / subtextText must be the EXACT ${contentLanguage(config).englishName} strings above,
+   ${verbatimRule(contentLanguage(config))}. NEVER translate or rephrase.
 4. The COVER has the boldest typography; inner slides are calmer and consistent.
 5. Diverge hard from the recent designs (layout, type placement, concept).
 6. Set ONE layoutArchetype for the whole carousel (same value on every brief), chosen from:
@@ -758,7 +759,7 @@ export async function generateStoryDesignBriefs(params: {
 
     const prompt = `
 You are a world-class Instagram art director designing a COMPLETE story set (${frames.length} vertical frame${frames.length > 1 ? "s" : ""}).
-The image model (Nano Banana Pro) renders each frame ENTIRELY from your briefs — photo, Czech typography AND logo.
+The image model (Nano Banana Pro) renders each frame ENTIRELY from your briefs — photo, ${contentLanguage(config).englishName} typography AND logo.
 Format: 9:16 vertical, full screen on a phone, seen for under 2 seconds each.
 
 ## BRAND KIT:
@@ -786,8 +787,8 @@ ${STORY_SAFE_ZONE_RULE}
    treatment across ALL frames — the set must read as one continuous piece when tapped through.
 2. Unlike a carousel, each frame MAY cut to a different scene or subject — a story is a
    sequence of moments, not one shoot from three angles. Keep the SYSTEM constant, not the set.
-3. Each frame's typography.headlineText / subtextText must be the EXACT Czech strings above,
-   character-for-character including diacritics (ě š č ř ž ý á í é ů ú). NEVER translate or rephrase.
+3. Each frame's typography.headlineText / subtextText must be the EXACT ${contentLanguage(config).englishName} strings above,
+   ${verbatimRule(contentLanguage(config))}. NEVER translate or rephrase.
 4. Type must be noticeably LARGER than on a feed post — a story is read at arm's length, in
    daylight, in under 2 seconds. Headline ≥ 7% of frame height.
 5. Frame 1 is the hook and carries the boldest type. The LAST frame carries the CTA and must
@@ -896,7 +897,7 @@ export function normalizeEditRegion(r?: Partial<EditRegion> | null): EditRegion 
  * Pure function — tested by scripts/test-post-edit-prompt.ts.
  */
 export function buildPostEditPrompt(p: {
-    /** What the user wants changed, verbatim (Czech is fine — the model is multilingual) */
+    /** What the user wants changed, verbatim (any language — the model is multilingual) */
     instruction: string
     /** Optional "don't touch" list from the user */
     preserve?: string
@@ -904,6 +905,8 @@ export function buildPostEditPrompt(p: {
     region?: EditRegion
     /** Headline burnt into the image — must survive an edit character-for-character */
     hook?: string
+    /** Language of the burnt-in text (`ClientConfig.language`); omitted = Czech. */
+    language?: ContentLanguage
 }): string {
     const blocks: string[] = [
         `Apply this change to the image: ${p.instruction.trim()}`,
@@ -933,9 +936,9 @@ export function buildPostEditPrompt(p: {
 
     blocks.push(
         p.hook?.trim()
-            ? `All Czech text must keep its exact spelling and diacritics. The headline must read ` +
+            ? `All ${languagePack(p.language).englishName} text must keep its exact spelling and diacritics. The headline must read ` +
               `character-for-character: "${p.hook.trim()}"${/nadpis|headline|titul|text/i.test(p.instruction) ? " — unless the change above explicitly rewords it." : "."}`
-            : `All Czech text must keep its exact spelling and diacritics.`
+            : `All ${languagePack(p.language).englishName} text must keep its exact spelling and diacritics.`
     )
 
     return blocks.join("\n\n")
@@ -997,6 +1000,8 @@ export async function verifyNativeImage(
          *  (carousel "N/M"). QA must not report it as unwanted extra text — that failure
          *  is free, unfixable by an edit, and spends the shared correction budget. */
         allowedExtraText?: string
+        /** Language of the expected text (`ClientConfig.language`); omitted = Czech. */
+        language?: ContentLanguage
     },
     /** mode "require" (default): the product must appear AND match. Mode "if-present"
      *  (carousel slides): a slide may legitimately not show the product, but a
@@ -1028,9 +1033,10 @@ Instagram's own chrome covers those bands, so anything there is invisible. Photo
 run to the edges; text and the logo may not. Grade a safe-zone miss as "cosmetic" (the text
 is legible, just misplaced) unless (a) also fired.` : ""
 
-    const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in CZECH.
+    const L = languagePack(expected.language)
+    const qaPrompt = `You are a strict QA inspector for AI-designed Instagram posts in ${L.englishName.toUpperCase()}.
 
-Expected headline text (must match EXACTLY, including Czech diacritics ě š č ř ž ý á í é ů ú):
+Expected headline text (must match EXACTLY${diacriticsClause(L)}):
 "${expected.headline}"
 ${expected.subtext ? `Expected subtext (must match EXACTLY):\n"${expected.subtext}"` : ""}
 ${expected.logoExpected ? "A brand logo MUST be present somewhere in the image." : ""}

@@ -17,6 +17,7 @@
  */
 
 import { getDayContext, type DayContext } from "./signals/calendar"
+import { contentLanguage } from "./language"
 import { generateText } from "./gemini-client"
 import type { ClientConfig } from "./configs/types"
 
@@ -77,7 +78,7 @@ export async function gatherContext(
     }
 
     const now = new Date()
-    const today = getDayContext(now)
+    const today = getDayContext(now, config.language)
 
     // Scan upcoming days for holidays
     const lookAhead = mode === "plan" ? 14 : 5
@@ -85,7 +86,7 @@ export async function gatherContext(
     for (let i = 1; i <= lookAhead; i++) {
         const future = new Date(now)
         future.setDate(future.getDate() + i)
-        const futureCtx = getDayContext(future)
+        const futureCtx = getDayContext(future, config.language)
         for (const h of futureCtx.holidays) {
             upcomingHolidays.push(`${h} (za ${i} ${i === 1 ? "den" : i < 5 ? "dny" : "dní"})`)
         }
@@ -129,7 +130,7 @@ async function generatePulse(
     postType?: string,
 ): Promise<string[]> {
     const industry = config.industry || "business"
-    const city = config.city || "Česká republika"
+    const city = config.city || contentLanguage(config).regionCs
     const contentFocus = config.contentFocus || ""
 
     // Build brand context — ground the AI in what the brand actually does
@@ -157,7 +158,7 @@ Generuj kontext pro JEDEN KONKRÉTNÍ příspěvek:
 - Jaká sezónní nálada/situace je v tomto regionu?`
 
     const prompt = `
-Jsi kontextový analytik pro českou značku. Tvůj výstup použije AI copywriter jako INSPIRACI — vybere si co sedí.
+Jsi kontextový analytik pro značku z trhu, kde se mluví ${contentLanguage(config).adverbCs}. Tvůj výstup použije AI copywriter jako INSPIRACI — vybere si co sedí.
 
 ## DATUM & SEZÓNA
 - ${today.date} (${today.dayOfWeekCz}), ${today.seasonContext}
@@ -177,7 +178,7 @@ ${modeBlock}
 2. Každý bod MUSÍ být specifický pro tento obor + sezónu — NE "buďte autentičtí" nebo "sdílejte příběhy"
 3. Mix: oborový trend, sezónní angle, chování zákazníků, regionální kontext
 4. Piš FAKTA a ÚHLY — ne instrukce pro copywritera
-5. Česky, bez odrážek na začátku
+5. Piš ${contentLanguage(config).adverbCs}, bez odrážek na začátku
 
 Vrať POUZE validní JSON:
 { "pulse": ["bod 1", "bod 2", "bod 3", "bod 4"] }

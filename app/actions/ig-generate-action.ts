@@ -344,6 +344,7 @@ export async function triggerAIReviewsGeneration(options: {
 // ============================================
 
 import { createPost, setActiveProject } from "@/instagram/service"
+import { contentLanguage, writeRuleCs } from "@/instagram/language"
 
 interface PromoPostOptions {
     configName: string
@@ -403,9 +404,9 @@ ${config.brandVoice.antiPatterns?.slice(0, 5).map((p: string) => `- ${p}`).join(
 - Hook (první řádek) musí okamžitě zaujmout — max 10 slov, BEZ emoji
 - Body: 2-3 řádky popisující produkt, proč je unikátní, co zákazník získá
 - CTA: musí obsahovat ${config.website} — buď přímý odkaz nebo "🔗 ${config.website}"
-- Piš ${config.brandVoice.voiceTraits?.slice(0, 3).join(", ") || "autenticky a přirozeně"}
+- ${writeRuleCs(contentLanguage(config))} Tón: ${config.brandVoice.voiceTraits?.slice(0, 3).join(", ") || "autenticky a přirozeně"}
 - MAX 3 emoji v celém textu
-- NIKDY nepřekládej název produktu do češtiny pokud je anglicky
+- NIKDY nepřekládej název produktu — ponech ho v originále
 
 ${config.hashtagPools ? `## HASHTAG POOLS (vyber z těchto + přidej product-specific):
 - Core: ${config.hashtagPools.core?.slice(0, 5).join(", ") || ""}

@@ -12,6 +12,7 @@
 import { GoogleGenAI } from "@google/genai"
 import { BRAND_IMAGE_TAGS, isValidBrandTag, type BrandImage } from "./configs/types"
 import { getModel } from "./models"
+import { languagePack, type ContentLanguage } from "./language"
 
 /** Seznam pro prompt se skládá z BRAND_IMAGE_TAGS, ať se nemůže rozejít s UI ani
  *  s pravidly věrnosti. Přidání štítku na jednom místě stačí. */
@@ -25,6 +26,8 @@ export async function tagBrandImage(
     imageBuffer: Buffer,
     mimeType: string = "image/jpeg",
     brandName?: string,
+    /** Jazyk popisku = jazyk značky (`ClientConfig.language`); popisek čte copywriter i uživatel. */
+    language?: ContentLanguage,
 ): Promise<{ tags: string[]; description: string }> {
     try {
         const apiKey = process.env.GEMINI_API_KEY
@@ -34,7 +37,7 @@ export async function tagBrandImage(
 
         const prompt = `Analyzuj tento obrázek${brandName ? ` značky "${brandName}"` : ""}.
 
-1. Popiš jednou krátkou větou v češtině co přesně je na obrázku (max 15 slov).
+1. Popiš jednou krátkou větou (${languagePack(language).adverbCs}) co přesně je na obrázku (max 15 slov).
 2. Přiřaď 1-3 tagy z tohoto seznamu:
 
 DOSTUPNÉ TAGY:
@@ -96,6 +99,7 @@ TAGY: [tag1, tag2]`
 export async function tagBrandImages(
     images: { url: string; buffer: Buffer; mimeType?: string }[],
     brandName?: string,
+    language?: ContentLanguage,
 ): Promise<BrandImage[]> {
     const results: BrandImage[] = []
 
@@ -104,6 +108,7 @@ export async function tagBrandImages(
             img.buffer,
             img.mimeType || "image/jpeg",
             brandName,
+            language,
         )
         results.push({ url: img.url, tags, description })
         if (tags.length > 0) {

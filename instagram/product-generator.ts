@@ -15,6 +15,7 @@ import { generateText, generateImage, generateImageWithReferences } from "./gemi
 import { Type } from "@google/genai"
 import supabaseAdmin from "../supabase/admin"
 import { getProductCategories, getProductCategoryBySlug, getCatalogProducts, type ProductCategory } from "./service"
+import { contentLanguage, writeRuleCs } from "./language"
 
 // ============================================
 // INTERFACES
@@ -65,7 +66,7 @@ const PRODUCT_IDEAS_SCHEMA = {
                 type: Type.OBJECT,
                 properties: {
                     name: { type: Type.STRING, description: "Hlavní doporučený název produktu — kreativní, brandový, se slovní hříčkou" },
-                    brandingNames: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5 alternativních názvů/brandingů produktu — různé styly: wordplay, dvojsmysl, anglicko-český mix, drzý, elegantní" },
+                    brandingNames: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5 alternativních názvů/brandingů produktu — různé styly: wordplay, dvojsmysl, mix angličtiny a jazyka značky, drzý, elegantní" },
                     type: { type: Type.STRING, description: "Typ: gadget, accessory, tool, clothing, home, EDC, novelty, drinkware, atd." },
                     tagline: { type: Type.STRING, description: "Krátký tagline max 8 slov" },
                     description: { type: Type.STRING, description: "Popis produktu 2-3 věty — co to je, jak se to používá" },
@@ -96,7 +97,7 @@ const DESIGN_CONCEPT_SCHEMA = {
         placement: { type: Type.STRING, description: "Kde bude design: front, back, chest pocket, full-print, all-over" },
         colors: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Hlavní barvy designu" },
         style: { type: Type.STRING, description: "Styl: minimalist, bold graphic, vintage, neon, line art, atd." },
-        suggestedTexts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "5 krátkých vtipných textů/sloganů ke zvolenému tématu — on-brand humor, wordplay, max 5 slov každý. Česky nebo anglicky podle brandu." },
+        suggestedTexts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "5 krátkých vtipných textů/sloganů ke zvolenému tématu — on-brand humor, wordplay, max 5 slov každý. V jazyce značky (viz JAZYK v zadání) nebo anglicky podle brandu." },
     },
     required: ["name", "description", "designPrompt", "placement", "colors", "style", "suggestedTexts"],
 }
@@ -270,7 +271,7 @@ ${hasEshop ? `Tato značka prodává fyzické produkty → navrhuj NOVÉ produkt
 3. **SEED:** ${randomSeed} — každé spuštění musí generovat JINÉ nápady.
 4. **NEDUPLIKUJ** stávající produkty/služby!
 5. **NÁZVY:** Kreativní, brandové, zapamatovatelné. Můžou být vtipné pokud to sedí k tónu značky.
-6. **JAZYK:** Piš česky, v tónu odpovídajícím brand voice (viz persona výše).
+6. **JAZYK:** ${writeRuleCs(contentLanguage(config))} Tón podle brand voice (viz persona výše).
 7. **designPrompt** = anglický prompt pro AI image generator. Popiš jak produkt/nabídka VYPADÁ vizuálně. Vždy: "product photography, studio lighting, photorealistic, clean background."
 8. **supplierMessage** = anglická zpráva pro dodavatele/partnera — profesionální poptávka. U služeb/zážitků popiš co by dodavatel měl zajistit.
 

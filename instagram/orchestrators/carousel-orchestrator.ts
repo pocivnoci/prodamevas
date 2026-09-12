@@ -25,6 +25,7 @@ import { getModel } from "../models"
 import { withRetry } from "../../utils/retry"
 import type { RenderContext, RenderResult } from "./types"
 import { rethrowIfQualityUnavailable } from "./types"
+import { contentLanguage, exactTextRule } from "../language"
 
 /** Max corrective text-fix edits per carousel — keeps worst case inside the 300s budget */
 const MAX_CORRECTIVE_EDITS = 2
@@ -173,6 +174,7 @@ Place the "${slideIndicator}" indicator in a corner or at an edge, styled to mat
                 subtext: slide.subtext || undefined,
                 logoExpected: isCover && !!logoRef,
                 allowedExtraText: slideIndicator,
+                language: contentLanguage(ctx.config).code,
             }
             const qaProductRef = productRef && selectedProduct
                 ? { buffer: productRef.buffer, mimeType: productRef.mimeType, name: selectedProduct.name, mode: "if-present" as const }
@@ -220,8 +222,8 @@ Follow the PRODUCT FIDELITY rules exactly: any depicted product must be a faithf
                     try {
                         const { editExistingImage } = await import("../gemini-client")
                         const fixPrompt = `Fix ONLY the text problems in this image — keep composition, photo, style and layout EXACTLY the same.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${slide.headline}"
-${slide.subtext ? `Render the subtext as this EXACT Czech text: "${slide.subtext}"` : ""}
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${slide.headline}"
+${slide.subtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${slide.subtext}"` : ""}
 ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                         let editModel = getModel("image")
                         const fixed = await editExistingImage(imageBuffer, fixPrompt, {
@@ -259,8 +261,8 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`
                     const { editExistingImage } = await import("../gemini-client")
                     const severeFixPrompt = `The typography in this image is overlapping, duplicated or unreadable — this is NOT publishable.
 Redraw ONLY the text cleanly, as flat legible typography — keep the same composition, photo, style, colors and layout.
-Render the headline as this EXACT Czech text, character-for-character including diacritics: "${slide.headline}"
-${slide.subtext ? `Render the subtext as this EXACT Czech text: "${slide.subtext}"` : ""}`
+Render the headline as this ${exactTextRule(contentLanguage(ctx.config))}: "${slide.headline}"
+${slide.subtext ? `Render the subtext as this EXACT ${contentLanguage(ctx.config).englishName} text: "${slide.subtext}"` : ""}`
                     let severeModel = getModel("image")
                     const severeBuffer = await editExistingImage(bestBuffer, severeFixPrompt, {
                         mimeType: "image/png",

@@ -10,7 +10,8 @@ Chrlit Studio (kódové jméno „prodamevas") — multi-tenant AI engine na ins
 obsah. Uživatel zadá web → AI se naučí značku → generuje hotové příspěvky (texty,
 obrázky, karusely, stories, reely). Stack: Next.js 16 (App Router) · React 19 ·
 TypeScript 5 · Tailwind 4 · Supabase · Google Gemini · ComGate + Stripe · Fakturoid.
-Běží na Vercelu (Fluid Compute, strop funkce 800 s). **UI i dokumentace jsou česky.**
+Běží na Vercelu (Fluid Compute, strop funkce 800 s). **Dokumentace a zdrojové texty UI jsou
+česky; značka mluví k publiku svým jazykem (`config.language`, viz skill `localization`).**
 
 ## Příkazy
 
@@ -91,6 +92,12 @@ Tři vrstvy, všechny multi-tenant:
   přetrhne. Nový signál o preferenci (úprava, souboj, metrika) potřebuje konzumenta —
   matice signál × konzument je v `docs/PROPOJENI_MODULU_2026-09.md`. Detail ve skillu
   `content-engine`.
+- **Dvě jazykové osy, nikdy „česky" natvrdo.** Jazyk OBSAHU je vlastnost značky
+  (`config.language` → `contentLanguage(config)` z `instagram/language.ts`) a řídí vše,
+  co vidí publikum i co si AI o značce ukládá; jazyk UI je vlastnost uživatele. Prompty
+  zůstávají psané česky, výstupní jazyk si berou z balíčku (`writeRuleCs`, `adverbCs`,
+  `exactTextRule`). Svátky jdou po trhu značky (`getDayContext(date, language)`).
+  Nový enginový kód s `clientId` bez configu bere jazyk z `languageForClient()`.
 - **Modely** — všechna ID v `instagram/models.ts`, vždy přes `getModel()`, nikdy
   hardcoded string (env override `GEMINI_MODEL_<ACTION>[_FALLBACK]`). Pro tier používá
   alias `gemini-pro-latest`, **nepinuj Pro preview ID**.
@@ -121,6 +128,7 @@ Skilly se načtou samy, když se úkolu týkají. Když víš dopředu, sáhni p
 | `media-rendering` | obrázky, karusely, stories, reely, feed pattern, vision QA, ffmpeg, **tisk** |
 | `post-editing` | „posuň nadpis", „zkrať text" — retuš hotového postu místo přegenerování |
 | `campaigns-plans` | durable worker, drafty plánů, zásobník nápadů, produktové řady |
+| `localization` | jazyk obsahu značky vs. jazyk UI, jazykový balíček, přidání jazyka, co zůstává česky, next-intl |
 
 Průřezový audit vazeb mezi moduly (co je propojené, co ne, a proč):
 `docs/PROPOJENI_MODULU_2026-09.md`.

@@ -25,6 +25,7 @@ import { generateTextQuality } from "./gemini-client"
 import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
 import { violatesSlot, slotLabel, type SlotMedium } from "./idea-rules"
+import { languagePack, writeRuleCs, type ContentLanguage } from "./language"
 
 export interface PlanConcept {
     hookPreview: string
@@ -56,6 +57,8 @@ export interface PlanPipelineInput {
     /** Efektivní médium každého slotu (stejné pořadí jako typeList). Bez něj se médium
      *  parsuje ze štítku „Formát:" v typeList — tohle je přesnější a levnější. */
     mediums?: SlotMedium[]
+    /** Jazyk značky (`ClientConfig.language`). Hooky, úhly i témata jdou v něm. */
+    language?: ContentLanguage
     onStage?: (progress: number, message: string) => void | Promise<void>
 }
 
@@ -112,6 +115,7 @@ interface PlanStrategy {
 }
 
 async function runStrategist(input: PlanPipelineInput): Promise<PlanStrategy | null> {
+    const L = languagePack(input.language)
     const prompt = `Jsi senior content stratég pro značku "${input.brandName}" (${input.website}).
 
 ${input.contextBlock}
@@ -121,7 +125,7 @@ ${input.typeList}
 
 ## ÚKOL
 NEPIŠEŠ posty. Navrhuješ STRATEGII kampaně o ${input.count} postech, podle které je pak napíše copywriter.
-1. "arc" — kampaňová linka (2–4 věty česky): jaký příběh série vypráví, jak graduje, jak se střídá dosah/hodnota/prodej. Konkrétně pro tuhle značku, žádné obecné marketingové fráze.
+1. "arc" — kampaňová linka (2–4 věty ${L.adverbCs}): jaký příběh série vypráví, jak graduje, jak se střídá dosah/hodnota/prodej. Konkrétně pro tuhle značku, žádné obecné marketingové fráze.
 2. "postFocus" — pole PŘESNĚ ${input.count} položek. Pro každý post v sekvenci jedna věta (max 15 slov): na co se má post zaměřit a jakou roli hraje v lince. Respektuj typ i formát postu. Kde dává smysl použít nápad ze zásobníku, napiš "(nápad N)".
 
 ## PRAVIDLA
@@ -233,13 +237,14 @@ Zaměření jednotlivých postů:
 ${strategy.postFocus.slice(0, input.count).map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
         : ""
 
+    const L = languagePack(input.language)
     const conceptPrompt = `Jsi strategický content planner pro značku "${input.brandName}" (${input.website}).
 
 ## ÚKOL
 Vytvoř content plan na ${input.count} postů. Pro každý post napiš:
-- hookPreview: český hook (první věta postu, max 8 slov, poutavá, BEZ emoji)
-- angle: 1 věta popisující úhel/přístup k tématu (česky)
-- topic: krátké téma v 3-5 slovech (česky)
+- hookPreview: hook ${L.adverbCs} (první věta postu, max 8 slov, poutavá, BEZ emoji)
+- angle: 1 věta popisující úhel/přístup k tématu (${L.adverbCs})
+- topic: krátké téma v 3-5 slovech (${L.adverbCs})
 - qualityScore: 1-10 — ohodnoť kvalitu vlastního hooku (10 = zastaví scrollování, 1 = generické)
 - categoryId: id kategorie pilíře tohoto postu (viz KATEGORIE PILÍŘŮ v kontextu; vynech, když pilíř kategorie nemá)
 
@@ -255,7 +260,7 @@ ${input.typeList}
 - Posty v sérii na sebe NAVAZUJÍ — budují příběh podle strategie, ne náhodné izolované posty
 - Pro product posty: hook MUSÍ zmínit konkrétní produkt/službu
 - ⚠️ FORMÁT: hook a angle MUSÍ odpovídat formátu postu (viz "Formát:" u každého typu). Pokud je formát KARUSEL nebo JEDEN OBRÁZEK, je ZAKÁZÁNO slibovat "video", "Reel", "scénář", "za 60 sekund ti ukážu" apod. — mluv o tom, co bude na obrázcích/slidech.
-- Piš česky, moderní hovorovou češtinou
+- ${writeRuleCs(L)}
 
 ## VÝSTUP
 Vrať POUZE validní JSON pole s PŘESNĚ ${input.count} položkami:
@@ -319,7 +324,7 @@ ${weak.map((w, k) => `${k + 1}. Formát postu: ${formatLines[w.i] || "?"}
 ${concepts.map(c => `- "${c.hookPreview}"`).join("\n")}
 
 ## PRAVIDLA
-- Nový hook musí přímo řešit výtku kritika, max 8 slov, BEZ emoji, česky
+- Nový hook musí přímo řešit výtku kritika, max 8 slov, BEZ emoji, ${L.adverbCs}
 - Hook je ČISTÝ TEXT věty — NIKDY nezačínej hranatou závorkou, názvem formátu ani jiným prefixem
 - Téma a podstata postu se NEMĚNÍ — přepisuješ znění, ne obsah
 - Respektuj formát postu (obrázek/karusel nesmí slibovat video), ale formát do textu hooku NEPIŠ

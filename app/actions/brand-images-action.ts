@@ -3,6 +3,7 @@
 import supabaseAdmin from '@/supabase/admin'
 import { requireProjectAccess } from '@/lib/auth-guard'
 import { getConfigBrandImages, isValidBrandTag, BRAND_DESCRIPTION_MAX, type BrandImage } from '@/instagram/configs/types'
+import { languagePack } from '@/instagram/language'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -107,8 +108,9 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         try {
             const { tagBrandImage } = await import('@/instagram/brand-tagger')
             const { data: brandRow } = await supabaseAdmin
-                .from('clients').select('name').eq('slug', clientSlug).maybeSingle()
-            const { tags, description } = await tagBrandImage(buffer, 'image/jpeg', brandRow?.name || undefined)
+                .from('clients').select('name, config').eq('slug', clientSlug).maybeSingle()
+            // Jazyk popisku = jazyk značky (config.language), stejně jako v onboardingu.
+            const { tags, description } = await tagBrandImage(buffer, 'image/jpeg', brandRow?.name || undefined, languagePack((brandRow?.config as { language?: string } | null)?.language).code)
             brandImageObj.tags = tags
             brandImageObj.description = description
         } catch { /* bez štítků, ale uložit se musí — dají se doplnit ručně */ }
@@ -390,7 +392,7 @@ export async function retagBrandImages(
                 if (!resp.ok) { retagged.push(img); continue }
                 const buf = Buffer.from(await resp.arrayBuffer())
                 const mime = img.url.endsWith('.png') ? 'image/png' : 'image/jpeg'
-                const { tags, description } = await tagBrandImage(buf, mime, client.name)
+                const { tags, description } = await tagBrandImage(buf, mime, client.name, languagePack(config?.language).code)
                 retagged.push({
                     url: img.url,
                     tags: tags.length ? tags : img.tags,

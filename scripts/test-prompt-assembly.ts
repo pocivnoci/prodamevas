@@ -8,6 +8,9 @@
  * Spuštění: npx tsx scripts/test-prompt-assembly.ts
  */
 
+import { languagePack, contentLanguage, detectContentLanguage, detectLanguageFromText, CONTENT_LANGUAGES } from "../instagram/language"
+import { getDayContext, easterSunday } from "../instagram/signals/calendar"
+import { buildNativeImagePrompt, buildPostEditPrompt, type DesignBrief } from "../instagram/image-pipeline"
 import { buildMegaPrompt, buildVideoSchema, buildCaptionSchema, buildCarouselSchema, buildStorySchema, getPostTypeDef, buildSmartWeekPlan, PROMPT_LIMITS, CAROUSEL_MAX_TOTAL_SLIDES, sanitizeHashtags, assembleCaption, buildFactsSection } from "../instagram/caption-generator"
 import { buildFactCheckPrompt, applyFactFixes } from "../instagram/fact-check"
 import { buildWebVerifyPrompt, admissibleSource } from "../instagram/fact-web"
@@ -1182,6 +1185,112 @@ test("režisér textového reelu dostane karty, hudbu a zákaz textu v obraze", 
     assert(/background music/i.test(finalText) && /calm morning/.test(finalText), "finální prompt textového reelu žádá hudbu podle nálady")
     assert(/no speech/i.test(finalText) && /no on-screen text/i.test(finalText), "zákazy řeči i textu platí dál")
     assert(!/background music/i.test(finalizeVideoPrompt(sb, { durationSeconds: 8 })), "mluvený reel hudbu nechce")
+})
+
+// ─── L: jazyk obsahu značky ─────────────────────────────────
+// Značka mluví jazykem z `config.language`; prompt, který by si řekl o češtinu
+// natvrdo, by německé značce přepsal hashtagy a titulky do češtiny.
+
+console.log("\n🌐 L — jazyk obsahu značky (instagram/language.ts)")
+
+test("neznámý nebo chybějící kód jazyka spadne na češtinu", () => {
+    assert(languagePack(undefined).code === "cs", "chybějící = cs")
+    assert(languagePack("xx").code === "cs", "neznámý = cs")
+    assert(contentLanguage({ language: "de" }).englishName === "German", "de = German")
+    for (const code of CONTENT_LANGUAGES) assert(languagePack(code).code === code, `balíček ${code}`)
+})
+
+test("česká značka dostane mega prompt beze změny", () => {
+    const p = build(noPerf)
+    assert(p.includes("Piš česky, moderní hovorovou češtinou. Krátké věty. Přímé. Bez keců."), "sekce JAZYK zůstává, jak byla")
+    assert(!p.includes("Instrukce v tomhle zadání jsou česky jen pro tebe"), "české značce se nevysvětluje, že prompt je česky")
+})
+
+test("německá značka: copywriter píše německy, s nativní kotvou, nikde 'česky'", () => {
+    const de = { ...config, language: "de" } as ClientConfig
+    const p = buildMegaPrompt(de, postType, null, null, [], noPerf)
+    assert(p.includes("Piš německy, moderní hovorovou němčinou"), "sekce JAZYK mluví o němčině")
+    assert(p.includes("Schreibe auf Deutsch"), "nativní pravidlo v němčině")
+    assert(p.includes("je NĚMECKY"), "výčet, co všechno má být německy")
+    assert(!/Piš česky|, česky\)|\(česky\)|český hook|české titulky|český voiceover/.test(p), "žádná instrukce „česky“ nezůstala")
+    assert(/NEPŘEKLÁDEJ CIZOJAZYČNÉ NÁZVY/.test(p), "pravidlo o názvech je jazykově neutrální")
+})
+
+test("schémata copywritera nesou jazyk značky", () => {
+    const pl = { ...config, language: "pl" } as ClientConfig
+    const schemas: [string, object][] = [
+        ["caption", buildCaptionSchema(pl)], ["video", buildVideoSchema(pl)],
+        ["carousel", buildCarouselSchema(pl)], ["story", buildStorySchema(pl)],
+    ]
+    for (const [name, schema] of schemas) {
+        const s = JSON.stringify(schema)
+        assert(s.includes("Polish"), `${name}: schéma říká Polish`)
+        assert(!s.includes("Czech"), `${name}: schéma neříká Czech`)
+        assert(s.includes("polsky"), `${name}: pole angle je polsky`)
+    }
+    assert(JSON.stringify(buildCaptionSchema(config)).includes("Czech"), "česká značka: Czech jako dřív")
+})
+
+test("obrazový model dostane jazyk a jeho diakritiku", () => {
+    const brief = {
+        concept: "c", layoutArchetype: "poster", composition: "scene", colorTreatment: "warm",
+        logoPlacement: "top-right", negativeSpace: "left", divergenceNote: "n",
+        typography: { headlineText: "Grüße aus Wien", subtextText: "Für dich", styleDescription: "bold", placement: "lower", color: "white" },
+    } as DesignBrief
+    const de = buildNativeImagePrompt(brief, { ...config, language: "de" } as ClientConfig)
+    assert(de.includes("EXACT German text, character-for-character including diacritics (ä ö ü ß)"), "německá typografie s výčtem diakritiky")
+    assert(!de.includes("Czech") && !de.includes("háček"), "žádná čeština v německém promptu")
+    const en = buildNativeImagePrompt(brief, { ...config, language: "en" } as ClientConfig)
+    assert(en.includes("EXACT English text, character-for-character:"), "angličtina bez výčtu diakritiky")
+    assert(!en.includes("diacritics ("), "angličtina nevypisuje prázdnou závorku")
+    const cs = buildNativeImagePrompt(brief, config)
+    assert(cs.includes("EXACT Czech text, character-for-character including diacritics (ě š č ř ž ý á í é ů ú)"), "čeština jako dřív")
+})
+
+test("retuš hotového postu drží jazyk vypáleného textu", () => {
+    const p = buildPostEditPrompt({ instruction: "posuň nadpis výš", hook: "Grüße", language: "de" })
+    assert(p.includes("All German text must keep its exact spelling"), "němčina")
+    assert(buildPostEditPrompt({ instruction: "x" }).includes("All Czech text"), "bez jazyka = čeština")
+})
+
+test("scenárista i režisér reelu píší v jazyce značky", () => {
+    const sk = buildReelScriptPrompt({ ...reelInput, config: { ...reelConfig, language: "sk" } as ClientConfig })
+    assert(sk.includes("Píšeš slovensky"), "scenárista slovensky")
+    assert(sk.includes("Píš po slovensky"), "nativní kotva")
+    assert(!/česky/.test(sk), "žádné „česky“ ve slovenském scénáři")
+    const dir = buildReelDirectorPrompt({
+        config: { ...reelConfig, language: "pl" } as ClientConfig, clientId: "c", medium: "reel" as const, durationSeconds: 8,
+        hook: "Jak to vzniká", narration: [{ text: "Krok jedna", start: 0.5, end: 2 }],
+        cta: "Ulož si to", postType: "behind_scenes", references: [],
+    }, "", "")
+    assert(dir.includes("Polish-speaking brand") && dir.includes("SPOKEN NARRATION (Polish"), "režisér ví, že narrace je polsky")
+    assert(!dir.includes("Czech"), "žádné Czech v polském režisérském promptu")
+})
+
+test("kalendář jde po trhu značky a pohyblivé svátky se počítají", () => {
+    assert(easterSunday(2026).getMonth() === 3 && easterSunday(2026).getDate() === 5, "Velikonoce 2026 = 5. 4.")
+    assert(getDayContext(new Date(2026, 3, 6), "cs").holidays.includes("Velikonoční pondělí"), "Velikonoční pondělí 2026")
+    assert(getDayContext(new Date(2026, 4, 10), "cs").holidays.includes("Den matek"), "Den matek = 2. neděle v květnu")
+    assert(getDayContext(new Date(2026, 10, 27), "cs").holidays.some(h => h.startsWith("Black Friday")), "Black Friday 2026 = 27. 11.")
+    assert(getDayContext(new Date(2026, 8, 28), "cs").holidays.includes("Den české státnosti"), "CZ 28. 9.")
+    assert(getDayContext(new Date(2026, 9, 3), "de").holidays.includes("Tag der Deutschen Einheit"), "DE 3. 10.")
+    assert(!getDayContext(new Date(2026, 9, 3), "cs").holidays.some(h => /Deutsch/.test(h)), "česká značka německý svátek nevidí")
+    assert(getDayContext(new Date(2026, 4, 3), "pl").holidays.includes("Święto Konstytucji 3 Maja"), "PL 3. 5.")
+    assert(getDayContext(new Date(2026, 7, 29), "sk").holidays.includes("Výročie SNP"), "SK 29. 8.")
+    assert(getDayContext(new Date(2026, 10, 26), "en").holidays.includes("Thanksgiving (US)"), "EN Thanksgiving 2026 = 26. 11.")
+    for (const code of CONTENT_LANGUAGES) assert(getDayContext(new Date(2026, 11, 25), code).holidays.length > 0, `Vánoce mají všichni (${code})`)
+    assert(getDayContext(new Date(2026, 8, 28)).holidays.includes("Den české státnosti"), "bez jazyka = český kalendář")
+})
+
+test("jazyk webu se pozná z <html lang>, og:locale a diakritiky", () => {
+    assert(detectContentLanguage('<html lang="de-AT"><body>Servus</body></html>') === "de", "html lang")
+    assert(detectContentLanguage('<html><head><meta property="og:locale" content="pl_PL"></head></html>') === "pl", "og:locale")
+    assert(detectContentLanguage('<html><body>Zapraszamy do naszego sklepu. Świeże pieczywo, ciepłe bułki i słodkości każdego dnia.</body></html>') === "pl", "polská diakritika")
+    assert(detectLanguageFromText("Příliš žluťoučký kůň úpěl ďábelské ódy, říkal Řehoř.") === "cs", "česká diakritika")
+    assert(detectLanguageFromText("Ľudia z Košíc vedia, čo je dobrá káva. Ôsmy rok ju pražíme sami a vôbec sa neponáhľame.") === "sk", "slovenská diakritika")
+    assert(detectLanguageFromText("The best coffee in town, roasted with love for your morning and for our friends from the neighbourhood, about eight years now.") === "en", "angličtina podle spojek")
+    assert(detectLanguageFromText("Kava bez diakritiky") === "cs", "nic nepoznáno = domácí trh")
+    assert(detectContentLanguage('<html lang="hu">') === "cs", "nepodporovaný jazyk = čeština (uživatel přepne v Nastavení)")
 })
 
 // ─── Report ─────────────────────────────────────────────────

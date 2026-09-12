@@ -41,6 +41,8 @@ export interface WebsiteAnalysis {
     /** Město z kontaktu/adresy. Prázdné = web ho neuvádí (čistě online firma).
      *  Propisuje se do `ClientConfig.city` — čte ho kontextový agent a počasí. */
     city?: string
+    /** Jazyk webu (`detectContentLanguage`) → `ClientConfig.language`. Chybí = čeština. */
+    language?: import('@/instagram/language').ContentLanguage
     products: { name: string; type: string; slug: string; price?: string; description?: string }[]
     brandTone: string
     colors: { primary: string; secondary: string; accent: string }
@@ -116,6 +118,8 @@ export interface ManualBusinessInfo {
     followerCount?: number
     topLocations?: string
     audienceGender?: 'mostly_female' | 'mostly_male' | 'mixed' | 'unknown'
+    /** Jazyk, kterým značka mluví k publiku. Chybí = čeština. */
+    language?: import('@/instagram/language').ContentLanguage
 }
 
 // ============================================

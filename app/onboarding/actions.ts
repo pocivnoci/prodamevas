@@ -148,6 +148,7 @@ export async function startConfigPreview(
 // ============================================
 
 import type { ImageBriefItem } from '@/instagram/configs/types'
+import { contentLanguage, writeRuleCs } from '@/instagram/language'
 
 export async function generateImageBrief(
     config: ClientConfig
@@ -330,7 +331,7 @@ ${section === 'products' ? `Vrať JSON pole produktů s: name, type, slug, price
 ${section === 'visual' ? `Vrať JSON objekt s: feedAesthetic (colorPalette, overlayOpacity, textPosition, font, fontOverride, feel, accentColor), overlayGradient (topColor, midColor, bottomColor).` : ''}
 ${section === 'hooks_cta' ? `Vrať JSON objekt s: hookTemplates (pole s pattern, example, bestFor, trigger) a ctaStrategies (soft, medium, hard, none — každý pole stringů).` : ''}
 
-Piš česky. Vrať POUZE platný JSON.`
+${writeRuleCs(contentLanguage(config))} Vrať POUZE platný JSON.`
 
         // User-triggered section refine — Pro tier (latency-tolerant, one section at a time).
         const raw = await generateText(prompt, { temperature: 0.7, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })

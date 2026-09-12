@@ -22,6 +22,7 @@ import { getModel, hasFallback, getTemperature } from "./models"
 import { getCatalogProducts, getWeightedProductIdeas } from "./service"
 import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
+import { contentLanguage, writeRuleCs } from "./language"
 
 /** Strategy ladder: [top Pro, GA Pro], never flash. Mirrors designerLadder(). */
 function lineLadder(): string[] {
@@ -389,7 +390,7 @@ ${brief.notes ? `Poznámky: ${brief.notes}` : ""}
    od sousedních kroků (typicky barevné odlišení kroku při shodné struktuře).
 
 ## PRAVIDLA
-- Piš česky, v tónu značky. Názvy produktů můžou být i anglické, pokud to k značce sedí.
+- ${writeRuleCs(contentLanguage(config))} Tón značky. Názvy produktů můžou být i anglické, pokud to k značce sedí.
 - Každý produkt musí jít reálně vyrobit nebo nechat vyrobit u dodavatele.
 - Neduplikuj nic ze stávajícího katalogu.
 - "slug" u řady = malá písmena bez diakritiky, pomlčky místo mezer.

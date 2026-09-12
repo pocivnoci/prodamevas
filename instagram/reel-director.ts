@@ -25,6 +25,7 @@ import { getModel, hasFallback, getTemperature } from "./models"
 import { claudeDirectorEnabled, directWithClaude } from "./anthropic-client"
 import { buildFactsSection } from "./caption-generator"
 import { getVisualMemoriesSection } from "./image-pipeline"
+import { languagePack, type ContentLanguage } from "./language"
 import {
     buildReelDirectorPrompt, buildStoryboardSchema, parseStoryboard, validateStoryboard,
     type DirectReelInput, type ReelReference, type ReelStoryboard,
@@ -99,9 +100,10 @@ function safeFacts(config: ClientConfig): string {
  * pořadí vět, hook i CTA zůstávají; žádná nová čísla, tvrzení ani jména —
  * zkrácený text jde rovnou do voiceoveru a titulků, kritik už ho neuvidí.
  */
-export async function condenseNarration(lines: string[], maxWords: number): Promise<string[]> {
-    const prompt = `Zkrať tuhle českou narraci Instagram reelu tak, aby měla celkem NEJVÝŠ ${maxWords} slov (teď má ${lines.join(" ").split(/\s+/).filter(Boolean).length}).
-Pravidla: zachovej počet vět (${lines.length}) a jejich pořadí, význam každé věty, hook v první a výzvu v poslední. Piš mluvenou češtinou, krátké věty. NEPŘIDÁVEJ žádná nová čísla, ceny, procenta, jména ani tvrzení — jen ubírej slova.
+export async function condenseNarration(lines: string[], maxWords: number, language?: ContentLanguage): Promise<string[]> {
+    const L = languagePack(language)
+    const prompt = `Zkrať tuhle narraci Instagram reelu (${L.adverbCs}) tak, aby měla celkem NEJVÝŠ ${maxWords} slov (teď má ${lines.join(" ").split(/\s+/).filter(Boolean).length}).
+Pravidla: zachovej počet vět (${lines.length}) a jejich pořadí, význam každé věty, hook v první a výzvu v poslední. Zůstaň ve stejném jazyce (${L.adverbCs}), piš mluvenou řečí, krátké věty. NEPŘIDÁVEJ žádná nová čísla, ceny, procenta, jména ani tvrzení — jen ubírej slova.
 
 Věty:
 ${lines.map((l, i) => `${i + 1}. ${l}`).join("\n")}

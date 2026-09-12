@@ -41,6 +41,7 @@ import { judgeVision } from "./judge"
 import { isQualityUnavailable } from "../utils/retry"
 import { getBrandMemories, formatMemoriesForPrompt } from "./memory-agent"
 import type { ClientConfig } from "./configs/types"
+import { contentLanguage, languagePack, verbatimRule, type ContentLanguage } from "./language"
 
 /** Designer's quality ladder: [top Pro, GA Pro], never flash. */
 function printLadder(): string[] {
@@ -76,7 +77,7 @@ export interface PrintBrief {
     artworkKind: ArtworkKind
     concept: string
     composition: string
-    /** Every string that must appear in the artwork, verbatim (Czech diacritics included) */
+    /** Every string that must appear in the artwork, verbatim (diacritics included) */
     typography: { headline: string; sub?: string; small?: string }
     /** Hex values — the old pipeline passed the palette as prose and got random colors */
     colors: string[]
@@ -344,7 +345,7 @@ Představ si to jako soubor, který pošleš do tiskárny.
 
 1. "composition" — rozvržení plochy: co je kde, jaká je hierarchie, kolik je prázdného místa.
 2. "typography" — přesné řetězce, které mají být vytištěné. headline je povinný.
-   Piš je česky VČETNĚ diakritiky a přesně tak, jak mají být vysázené. Krátce.
+   Piš je ${contentLanguage(config).adverbCs} VČETNĚ diakritiky a přesně tak, jak mají být vysázené. Krátce.
 3. "colors" — 2–5 barev jako HEX (#RRGGBB). Ne slovy.
 4. "placement" — kde je logo a jak velké. Logo se NIKDY nedeformuje.
 5. "panelPlan" — jen u typu label.
@@ -405,6 +406,7 @@ Vrať POUZE validní JSON.`
 export const CHROMA_KEY = { r: 255, g: 0, b: 255 }
 
 function buildArtworkPrompt(brief: PrintBrief, config: ClientConfig, geo: ReturnType<typeof resolvePrintGeometry>, withLogo: boolean): string {
+    const L = contentLanguage(config)
     const texts = [brief.typography.headline, brief.typography.sub, brief.typography.small]
         .filter(Boolean)
         .map(t => `"${t}"`)
@@ -427,7 +429,7 @@ COMPOSITION: ${brief.composition}
 COLORS (use exactly these): ${brief.colors.join(", ")}
 ${brief.panelPlan?.length ? `PANELS:\n${brief.panelPlan.map(p => `- ${p.name}: ${p.content}`).join("\n")}` : ""}
 
-TEXT — render these strings EXACTLY, character for character, including Czech diacritics (ě š č ř ž ý á í é ú ů):
+TEXT — render these strings EXACTLY, ${verbatimRule(L)}:
 ${texts}
 Do not add, translate, abbreviate or invent any other text.
 
@@ -505,16 +507,17 @@ export async function verifyPrintArtwork(
     geo: ReturnType<typeof resolvePrintGeometry>,
     logoExpected: boolean,
     logoBuffer?: Buffer | null,
+    language?: ContentLanguage,
 ): Promise<PrintQA> {
     const expectedTexts = [brief.typography.headline, brief.typography.sub, brief.typography.small].filter(Boolean)
+    const L = languagePack(language)
 
-    const qaPrompt = `You are a strict prepress QA inspector checking FLAT PRINT ARTWORK in CZECH.
+    const qaPrompt = `You are a strict prepress QA inspector checking FLAT PRINT ARTWORK in ${L.englishName.toUpperCase()}.
 
 The first image should be flat, print-ready artwork — a graphic file destined for a printer,
 ${geo.widthMm}×${geo.heightMm} mm. It must NOT be a photograph of a product, a mockup, or a 3D render.
 
-Expected text, which must appear EXACTLY, character for character, including Czech diacritics
-(ě š č ř ž ý á í é ú ů):
+Expected text, which must appear EXACTLY, ${verbatimRule(L)}:
 ${expectedTexts.map(t => `- "${t}"`).join("\n")}
 ${logoExpected ? "The brand logo (second attached image) must be present and geometrically identical — not redrawn, restyled or distorted." : ""}
 
@@ -840,7 +843,7 @@ async function runPrintArtworkInner(
     attempts++
     const first = await renderPrintArtwork(brief, config, category, logoBuffer)
     report("Kontroluji text, plochost a okraje…")
-    const firstQa = await verifyPrintArtwork(first, brief, geo, !!logoBuffer, logoBuffer)
+    const firstQa = await verifyPrintArtwork(first, brief, geo, !!logoBuffer, logoBuffer, config.language)
     consider(first, firstQa)
     if (firstQa.ok) {
         return { brief, artwork: first, qa: firstQa, qaStatus: "pass", attempts }
@@ -856,7 +859,7 @@ async function runPrintArtworkInner(
                 `${firstQa.fixHint}\n\nKeep everything else identical: same flat artwork, same layout, same colors, same background. Do not turn this into a photograph or a mockup.`,
                 { mimeType: "image/png", aspectRatio: geo.ratio },
             )
-            const editedQa = await verifyPrintArtwork(edited, brief, geo, !!logoBuffer, logoBuffer)
+            const editedQa = await verifyPrintArtwork(edited, brief, geo, !!logoBuffer, logoBuffer, config.language)
             consider(edited, editedQa)
             if (editedQa.ok) {
                 return { brief, artwork: edited, qa: editedQa, qaStatus: "retry_pass", attempts }
@@ -875,7 +878,7 @@ async function runPrintArtworkInner(
             negativePrompt: `${brief.negativePrompt}. ${firstQa.issues.join(". ")}`,
         }
         const fresh = await renderPrintArtwork(hardened, config, category, logoBuffer)
-        const freshQa = await verifyPrintArtwork(fresh, brief, geo, !!logoBuffer, logoBuffer)
+        const freshQa = await verifyPrintArtwork(fresh, brief, geo, !!logoBuffer, logoBuffer, config.language)
         consider(fresh, freshQa)
         if (freshQa.ok) {
             return { brief, artwork: fresh, qa: freshQa, qaStatus: "retry_pass", attempts }

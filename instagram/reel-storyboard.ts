@@ -12,6 +12,7 @@ import type { CtaPolicy } from "./cta-policy"
 import type { SelectedProduct } from "./orchestrators/types"
 import type { ReelMedium } from "../lib/reel-media"
 import type { TimedLine } from "./reel-audio"
+import { contentLanguage } from "./language"
 
 export interface ReelReference {
     /** 1-based — tak se na ni odkazuje prompt („Image 2"). */
@@ -112,6 +113,7 @@ function fmtTime(s: number): string {
 /** Čistý prompt builder — testovatelný bez sítě. */
 export function buildReelDirectorPrompt(input: DirectReelInput, memorySection: string, factsSection: string): string {
     const { config, references, narration, durationSeconds, ctaPolicy } = input
+    const L = contentLanguage(config)
     const aesthetic = config.feedAesthetic
     const refsText = references.length
         ? references.map(r => `Image ${r.index} (${r.kind}${r.tags.length ? `, tags: ${r.tags.join(", ")}` : ""}): ${r.description}`).join("\n")
@@ -125,9 +127,9 @@ export function buildReelDirectorPrompt(input: DirectReelInput, memorySection: s
         : "No specific product — the brand world itself is the subject."
     const websiteRule = ctaPolicy && !ctaPolicy.allowWebsite
         ? `⛔ This post's CTA policy (${ctaPolicy.pillarLabel.toUpperCase()}) forbids the website: NO URL, NO domain, NO address anywhere in the video. Land the final shot on a stable brand moment (product, packaging, signature space).`
-        : `The final shot may hold on branded packaging or a signature brand visual; the Czech CTA is ${input.textOnly ? "burned in later as a text card by us" : "spoken and subtitled"}, never rendered as text by you.`
+        : `The final shot may hold on branded packaging or a signature brand visual; the ${L.englishName} CTA is ${input.textOnly ? "burned in later as a text card by us" : "spoken and subtitled"}, never rendered as text by you.`
 
-    return `You are the DIRECTOR of a ${durationSeconds}-second vertical Instagram Reel (9:16) for the Czech brand "${config.name}".
+    return `You are the DIRECTOR of a ${durationSeconds}-second vertical Instagram Reel (9:16) for the ${L.englishName}-speaking brand "${config.name}".
 The copy is FINAL and already approved — you do not write or change it. Your job is the picture: a shot list that matches the spoken narration second by second, built from the brand's own reference images, and ONE video-generation prompt for the Seedance model.
 
 ## BRAND
@@ -145,13 +147,13 @@ ${refsText}
 ${productText}
 
 ${input.textOnly
-        ? `## ON-SCREEN TEXT CARDS (Czech, timed — shots must follow this timeline)
+        ? `## ON-SCREEN TEXT CARDS (${L.englishName}, timed — shots must follow this timeline)
 This reel has **no narration**: nobody speaks. The on-screen text cards below carry the message, and WE burn them in afterwards — the video itself must stay free of any text.
 Hook card: "${input.hook}"
 ${narrationText}
 Total video length: ${durationSeconds}s. The last card ends before the video does — the last second is a hold.
 Because there is no voice, the SOUND is the whole audio track: ask the video model for native background music and ambience matching the mood ("audioMood"), never for speech, lyrics or a voice-over.`
-        : `## SPOKEN NARRATION (Czech, measured timings — shots must follow this timeline)
+        : `## SPOKEN NARRATION (${L.englishName}, measured timings — shots must follow this timeline)
 Hook: "${input.hook}"
 ${narrationText}
 Total video length: ${durationSeconds}s. Speech ends before the video does — the last second is a hold.`}
@@ -166,7 +168,7 @@ ${scenesText}
 - NO on-screen text, captions, titles, subtitles, watermarks or UI in the video. Text is added later by us.
 - NO speech, NO dialogue, NO lip-sync, NO singing. ${input.textOnly
         ? `Sound = instrumental background music in the "audioMood" mood plus diegetic ambience; nothing is mixed in afterwards, so the music has to come from the video model itself.`
-        : `Sound = ambience and diegetic effects only (the Czech voiceover is mixed in afterwards).`}
+        : `Sound = ambience and diegetic effects only (the ${L.englishName} voiceover is mixed in afterwards).`}
 - ${websiteRule}
 - Camera choreography must be a smooth continuous flow with concrete moves (dolly, orbit, rack focus, handheld tracking…). Consistent lighting within a shot.
 - The first 1.5 s must visually hook (movement, contrast, a face, a reveal).

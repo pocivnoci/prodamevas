@@ -33,6 +33,7 @@ function editorialLadder(): string[] {
 import { COSTS, scorePost, buildFactsSection } from "./caption-generator"
 import { buildCtaPolicyJudgeBlock, type CtaPolicy } from "./cta-policy"
 import type { ClientConfig } from "./configs/types"
+import { contentLanguage, writeRuleCs } from "./language"
 import type {
     EditorialMessage,
     EditorialRound,
@@ -477,7 +478,7 @@ function buildCopywriterRevisionPrompt(
     const isReel = captionData.scenes?.length > 0
 
     return `
-Jsi COPYWRITER pro značku "${config.name}".
+Jsi COPYWRITER pro značku "${config.name}". ${writeRuleCs(contentLanguage(config))}
 Šéfredaktor ti vrátil příspěvek s poznámkami. Reaguj.
 
 ## AKTUÁLNÍ VERZE
@@ -525,7 +526,7 @@ Vrať POUZE validní JSON:
   "imageSubtext": "..."${isCarousel ? `,
   "slides": [{ "headline": "...", "subtext": "...", "imagePrompt": "..." }],
   "visualTheme": "..."` : ""}${isReel ? `,
-  "scenes": [{ "timeRange": "...", "visual": "...", "camera": "...", "mood": "...", "narration": "český text pro voiceover", "soundEffect": "ambient sound" }],
+  "scenes": [{ "timeRange": "...", "visual": "...", "camera": "...", "mood": "...", "narration": "text pro voiceover ${contentLanguage(config).adverbCs}", "soundEffect": "ambient sound" }],
   "videoScript": "...",
   "caption": "..."` : ""}
 }

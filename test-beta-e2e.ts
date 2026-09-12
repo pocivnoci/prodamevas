@@ -6074,6 +6074,75 @@ test("40.2 náhled plánu ukazuje, co worker doopravdy vyrobí", () => {
 })
 
 // ═══════════════════════════════════════════════════════════
+// 42. JAZYK OBSAHU — NIKDY „ČESKY" NATVRDO
+// ═══════════════════════════════════════════════════════════
+// Značka mluví jazykem z `ClientConfig.language` (instagram/language.ts). Prompt,
+// který si řekne o češtinu natvrdo, přepíše německé značce hashtagy a titulky do
+// češtiny — a nikdo to nepozná dřív než její publikum. Runtime chování hlídá
+// scripts/test-prompt-assembly.ts (sekce L); tady jsou statické zámky.
+
+test("42.1 validateConfig clampuje jazyk na známý kód", () => {
+    const src = codeOnly("instagram/configs/index.ts")
+    assert(src.includes("language: isContentLanguage(config.language) ? config.language : DEFAULT_CONTENT_LANGUAGE"),
+        "jazyk se clampuje, ne propouští — neznámý kód nesmí dojet do promptu")
+})
+
+test("42.2 anglicky psané prompty obrazu, tisku a QA neříkají 'Czech'", () => {
+    const files = [
+        "instagram/image-pipeline.ts", "instagram/print-pipeline.ts", "instagram/reel-storyboard.ts", "instagram/feed-vision.ts",
+        "instagram/orchestrators/image-orchestrator.ts", "instagram/orchestrators/carousel-orchestrator.ts",
+        "instagram/orchestrators/story-orchestrator.ts", "instagram/orchestrators/reel-orchestrator.ts",
+        "app/actions/post-edit-actions.ts", "app/actions/print-actions.ts",
+    ]
+    for (const f of files) {
+        assert(!/EXACT Czech|in CZECH|IN CZECH|Czech diacritics|Czech typography|Czech brand|Czech CTA|Czech text|Czech voiceover|Czech narration/.test(codeOnly(f)),
+            `${f}: literál „Czech“ — jazyk patří do exactTextRule()/contentLanguage()`)
+    }
+})
+
+test("42.3 česky psané prompty neříkají 'česky' natvrdo", () => {
+    const files = [
+        "instagram/caption-generator.ts", "instagram/plan-pipeline.ts", "instagram/reel-scriptwriter.ts", "instagram/reel-director.ts",
+        "instagram/editorial-board.ts", "instagram/memory-agent.ts", "instagram/product-generator.ts", "instagram/line-generator.ts",
+        "instagram/idea-generator.ts", "instagram/fact-check.ts", "instagram/brand-tagger.ts", "instagram/context-agent.ts",
+        "instagram/cli.ts", "instagram/print-pipeline.ts", "instagram/review-generator.ts", "instagram/psychologist.ts",
+        "app/onboarding/core.ts", "app/onboarding/actions.ts",
+        "app/actions/config-actions.ts", "app/actions/product-actions.ts", "app/actions/content-plan-actions.ts",
+        "app/actions/ig-generate-action.ts", "app/actions/product-brief-actions.ts",
+    ]
+    const banned = /Piš česky|Piš je česky|, česky\)|\(česky\)|, česky,|česky\)|v češtině|hovorovou češtinou|český hook|Český text|Česká věta|český voiceover|české titulky|do češtiny|na českém trhu/
+    for (const f of files) {
+        const offenders = codeOnly(f).split("\n").filter(l => banned.test(l) && !l.includes("rozhovor s UŽIVATELEM"))
+        assert(offenders.length === 0, `${f}: „${offenders[0]?.trim().slice(0, 90)}“ — jazyk patří do contentLanguage(config)`)
+    }
+})
+
+test("42.4 TTS a narrace dostávají jazyk značky, nikdy 'cs' natvrdo", () => {
+    assert(!codeOnly("instagram/reel-audio.ts").includes('language: "cs"'), "reel-audio nesmí předpokládat češtinu")
+    assert(fileContent("instagram/tts/types.ts").includes("language: ContentLanguage"), "rozhraní TTS bere jazyk značky")
+    assert(codeOnly("instagram/orchestrators/reel-orchestrator.ts").includes("synthesizeNarration(lines, ttsOpts, language)"), "orchestrátor předává jazyk do TTS")
+})
+
+test("42.5 kontextový agent bere svátky z trhu značky", () => {
+    assert(codeOnly("instagram/context-agent.ts").includes("getDayContext(now, config.language)"), "kalendář jde po jazyce značky")
+})
+
+test("42.6 onboarding pozná jazyk webu a Nastavení ho umí přepnout", () => {
+    const core = codeOnly("app/onboarding/core.ts")
+    assert(core.includes("detectContentLanguage(homepageHtml)"), "detekce z homepage")
+    assert(core.includes("config.language = L.code"), "config dostane jazyk z analýzy, ne z výstupu modelu")
+    const settings = fileContent("app/(dashboard)/dashboard/instagram/tabs/SettingsTab.tsx")
+    assert(settings.includes('updateField(["language"]') && settings.includes("languageOptions()"), "Nastavení nabízí jazyk obsahu")
+})
+
+test("42.7 nový jazyk = balíček + kalendář trhu", () => {
+    const packs = fileContent("instagram/language.ts")
+    const cal = fileContent("instagram/signals/calendar.ts")
+    for (const code of ["cs", "sk", "en", "de", "pl"]) assert(new RegExp(`\\n    ${code}: \\{`).test(packs), `balíček ${code}`)
+    for (const country of ["CZ", "SK", "PL", "DE", "INTL"]) assert(new RegExp(`\\nconst ${country}: CountryCalendar`).test(cal), `kalendář ${country}`)
+})
+
+// ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
 
