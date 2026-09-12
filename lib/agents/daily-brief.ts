@@ -31,6 +31,7 @@ import { policyLabel, POLICY_ACTOR_PREFIX } from "@/lib/agent-policy"
 import { footnote, heading, raw } from "@/lib/mail/blocks"
 import { renderEmail } from "@/lib/mail/layout"
 import { COLOR } from "@/lib/mail/tokens"
+import { formatCzk } from "@/lib/pricing"
 import type { ComplianceItem } from "@/lib/agents/compliance-calendar"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -63,7 +64,9 @@ export interface DailyBrief {
     checkedAt: string
 }
 
-const czk = (haleru: number) => `${Math.round(haleru / 100).toLocaleString("cs-CZ")} Kč`
+// Haléře na koruny umí jedině `formatCzk()` — lokální kopie dělení stem se
+// vždycky rozejde se zbytkem aplikace (jinde zaokrouhlení, jinde ne).
+const czk = (haleru: number) => formatCzk(haleru)
 
 // ── Sekce: peníze ───────────────────────────────────────────────────────────
 

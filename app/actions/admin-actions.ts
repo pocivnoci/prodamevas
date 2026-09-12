@@ -794,7 +794,10 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         }
     }
 
-    const amountCzk = Math.round(payment.amount / 100).toLocaleString("cs-CZ")
+    // Formátování peněz má jediné místo (`formatCzk`) — ruční dělení stem se
+    // pokaždé rozešlo se zbytkem aplikace v zaokrouhlení.
+    const { formatCzkAmount } = await import("@/lib/pricing")
+    const amountCzk = formatCzkAmount(payment.amount)
 
     // 3b. Peníze zpátky. U Stripu to jde přes API, takže se to nemá dělat ručně —
     // ruční krok znamená prodlevu a riziko, že se na něj zapomene, zatímco

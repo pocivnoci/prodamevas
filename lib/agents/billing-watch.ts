@@ -18,7 +18,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { proposeCustomerNotice } from "@/lib/agents/customer-notices"
 import { renewalNoticeDays, resolveTermMonths } from "@/lib/billing-period"
-import { normalizeTermMonths, termPrice, termLabel } from "@/lib/pricing"
+import { normalizeTermMonths, renewalChargeHaleru, termPrice, termLabel } from "@/lib/pricing"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -34,7 +34,10 @@ export interface UpcomingRenewal {
     clientId: string
     clientName: string
     periodEnd: string
+    /** Co se skutečně strhne z karty — včetně DPH, pokud už se připočítává. */
     amountHaleru: number
+    /** Táž částka bez DPH — do závorky v e-mailu, ceník je B2B a kvótuje základ. */
+    netHaleru: number
     /** Délka obnovovaného období v měsících — do textu oznámení. */
     termMonths: number
     /** Obnova se strhne sama (uložený token u ComGate, nebo Stripe Billing). */
@@ -87,10 +90,14 @@ export async function scanUpcomingRenewals(now: Date = new Date()): Promise<Upco
         const msLeft = new Date(s.current_period_end).getTime() - now.getTime()
         if (msLeft > renewalNoticeDays(termMonths) * DAY_MS) continue
 
-        // Oznamuje se to, co se skutečně strhne — cena OBDOBÍ, ne měsíční sazba.
-        const amount = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
+        // Oznamuje se to, co se skutečně strhne — cena OBDOBÍ, ne měsíční sazba,
+        // a **s DPH**, protože přesně tohle číslo pošle do brány billing-worker
+        // (`renewalChargeHaleru`, tentýž výpočet). Dokud se to počítalo zvlášť,
+        // e-mail sliboval roční Růst za 29 990 Kč a z karty šlo 36 288 Kč.
+        const netAmount = termPrice(plan.price_czk, normalizeTermMonths(termMonths))
         // Nulová cena = trial nebo legacy plán; není co oznamovat.
-        if (amount <= 0) continue
+        if (netAmount <= 0) continue
+        const amount = renewalChargeHaleru(netAmount, now)
 
         out.push({
             subscriptionId: s.id,
@@ -98,6 +105,7 @@ export async function scanUpcomingRenewals(now: Date = new Date()): Promise<Upco
             clientName: client.name,
             periodEnd: s.current_period_end,
             amountHaleru: amount,
+            netHaleru: netAmount,
             termMonths,
             // Stripe Billing obnovuje vždy sám; u ComGate jen s uloženým tokenem.
             auto: s.provider === "stripe" || (Boolean(s.recurring_trans_id) && comgateAuto),
@@ -128,6 +136,7 @@ export async function notifyUpcomingRenewals(now: Date = new Date()): Promise<{ 
                     clientName: r.clientName,
                     clientId: r.clientId,
                     amountHaleru: r.amountHaleru,
+                    netHaleru: r.netHaleru,
                     date: czDate(r.periodEnd),
                     auto: r.auto,
                     // Aby v e-mailu stálo „na dalších 12 měsíců", ne jen částka.

@@ -22,6 +22,7 @@
 
 import { after } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
+import { vatNotice } from "@/lib/legal"
 // Konvence refId, ne klient brány — jádro nesmí záviset na jedné z bran.
 import { isRenewalRefId } from "@/lib/payments/ref-id"
 
@@ -333,8 +334,13 @@ Tým Chrlit`,
             .maybeSingle()
         if (planRow?.name) planName = planRow.name
 
+        // Haléře na koruny převádí jedině `formatCzk()`. Ruční dělení stem tady
+        // zaokrouhlení vynechávalo, takže v potvrzení stálo „3 628,79 Kč",
+        // zatímco doklad i ceník mluví v celých korunách. Jeden převod, jedno číslo.
+        const { formatCzk, formatCzkAmount } = await import("@/lib/pricing")
+        const isCzk = payment.currency === "CZK" || !payment.currency
         const amountStr = typeof payment.amount === "number"
-            ? `${(payment.amount / 100).toLocaleString("cs-CZ")} ${payment.currency === "CZK" || !payment.currency ? "Kč" : payment.currency}`
+            ? isCzk ? formatCzk(payment.amount) : `${formatCzkAmount(payment.amount)} ${payment.currency}`
             : null
 
         await sendNotification({
@@ -353,7 +359,7 @@ ${invoiceLine}
 
 <a href="${siteUrl()}/dashboard/instagram">Přejít do studia →</a>
 
-Tým Chrlit`,
+Tým Chrlit${amountStr ? `\n\n<small>${vatNotice()}</small>` : ""}`,
         })
     } catch (err: any) {
         console.warn(`on-paid: doručení dokladu/potvrzení selhalo: ${err?.message}`)

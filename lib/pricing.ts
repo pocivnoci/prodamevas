@@ -25,7 +25,7 @@ import { isReelMedium } from "./reel-media"
 
 // ─── Období ──────────────────────────────────────────────────────────────────
 
-import { LEGAL, VAT_RATE_PCT } from "@/lib/legal"
+import { LEGAL, VAT_EFFECTIVE_FROM, VAT_RATE_PCT } from "@/lib/legal"
 
 export type TermMonths = 1 | 3 | 6 | 12
 
@@ -175,6 +175,25 @@ export function stripeRecurring(months: TermMonths): { interval: "month" | "year
 export function chargeableHaleru(netHaleru: number, vatPct: number = LEGAL.vatStatus === "payer" ? VAT_RATE_PCT : 0): number {
     if (!vatPct) return netHaleru
     return Math.round(netHaleru * (1 + vatPct / 100))
+}
+
+/**
+ * Kolik se strhne při OBNOVĚ probíhajícího předplatného.
+ *
+ * Probíhající předplatné se do `VAT_EFFECTIVE_FROM` strhává v původní výši:
+ * kdo si ho pořídil za starých podmínek (neplátce, cena byla konečná), tomu se
+ * nesmí ze dne na den zvednout o pětinu — vlastní obchodní podmínky slibují
+ * u změny ceny upozornění předem.
+ *
+ * Je to **jediné** místo, kde ta větev žije. Do 9/2026 byla dvakrát: worker
+ * obnovy strhával s DPH, zatímco oznámení „za tři dny vám strhneme" počítalo
+ * bez ní — roční Růst tak sliboval 29 990 Kč a z karty šlo 36 288 Kč. Rozdíl
+ * na výpisu je nejkratší cesta k chargebacku, takže oznámení i strh musí
+ * vycházet z jednoho výpočtu.
+ */
+export function renewalChargeHaleru(netHaleru: number, now: Date = new Date()): number {
+    const vatLive = now.toISOString().slice(0, 10) >= VAT_EFFECTIVE_FROM
+    return vatLive ? chargeableHaleru(netHaleru) : netHaleru
 }
 
 /** Samotná daň z částky bez DPH — do rozpisu u ceny. */

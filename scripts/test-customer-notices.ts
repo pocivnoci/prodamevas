@@ -79,7 +79,9 @@ check("prázdný refId není obnova", !isRenewalRefId(null) && !isRenewalRefId(u
 console.log("\n── Šablony oznámení ──")
 
 async function templates() {
-    const { buildCustomerNotice } = await import("../lib/agents/customer-notices")
+    // Čisté znění žije v `notice-templates.ts`; `customer-notices.ts` k němu přidává
+    // dedupe přes Supabase, takže by se sem bez `.env.local` nedalo ani doimportovat.
+    const { buildCustomerNotice } = await import("../lib/agents/notice-templates")
 
     const kinds = [
         "renewal_upcoming", "charge_failed", "manual_renew",
@@ -107,6 +109,33 @@ async function templates() {
 
     // Haléře se na koruny převádějí právě jednou — dvojí dělení by ukázalo 14,90 Kč.
     check("částka se nedělí dvakrát", !/14,9|14\.9/.test(auto.body), auto.body.slice(0, 160))
+
+    // ── Peníze: co se oznamuje, to se strhne ────────────────────────────────
+    const { vatNotice } = await import("../lib/legal")
+    const { MAX_BILLING_FAILURES } = await import("../lib/billing-period")
+    const { formatCzk, renewalChargeHaleru } = await import("../lib/pricing")
+
+    // Roční Růst: e-mail dřív sliboval základ (29 990 Kč) a z karty šlo 36 288 Kč.
+    const net = 2_999_00 * 10
+    const gross = renewalChargeHaleru(net, new Date("2026-12-01T00:00:00Z"))
+    const yearly = buildCustomerNotice("renewal_upcoming", {
+        clientName: "Květiny", auto: true, amountHaleru: gross, netHaleru: net,
+        date: "3. 12. 2026", termLabel: "na 12 měsíců",
+    })
+    check("obnova uvádí částku, která se strhne", yearly.body.includes(formatCzk(gross)), yearly.body.slice(0, 220))
+    check("obnova uvádí i základ bez DPH", yearly.body.includes(`${formatCzk(net)} bez DPH`), yearly.body.slice(0, 220))
+    check("obnova uvádí délku období", yearly.body.includes("na 12 měsíců"), yearly.body.slice(0, 220))
+    check("u ceny stojí věta o DPH", yearly.body.includes(vatNotice()))
+
+    // Počet pokusů je tentýž, podle kterého dunning končí.
+    const failed = buildCustomerNotice("charge_failed", { clientName: "Květiny", attempt: 2, amountHaleru: gross, netHaleru: net })
+    check("dunning počítá pokusy podle MAX_BILLING_FAILURES",
+        failed.body.includes(`pokus 2 z ${MAX_BILLING_FAILURES}`), failed.body.slice(0, 200))
+    check("selhaná platba nese větu o DPH", failed.body.includes(vatNotice()))
+
+    // Zpráva bez čísla větu o DPH nepotřebuje — a nesmí ji mít.
+    const noPrice = buildCustomerNotice("manual_renew", { clientName: "Květiny" })
+    check("zpráva bez ceny je bez věty o DPH", !noPrice.body.includes(vatNotice()))
 }
 
 templates()

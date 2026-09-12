@@ -12,9 +12,11 @@
  */
 
 import { vatNotice } from "@/lib/legal"
+import { MAX_BILLING_FAILURES } from "@/lib/billing-period"
+import { formatCzk, normalizeTermMonths, termLabel, termPrice } from "@/lib/pricing"
 import { button, callout, compact, footnote, heading, list, paragraph, promoCode } from "../blocks"
 import { siteUrl } from "../links"
-import { reelsLive, samplePlanName, samplePrice, samplePriceMonthly } from "../plans"
+import { pickPlan, reelsLive, samplePlanName, samplePrice, samplePriceMonthly } from "../plans"
 import type { EmailTemplate } from "../template"
 
 export const subscriptionRenewal: EmailTemplate = {
@@ -25,28 +27,43 @@ export const subscriptionRenewal: EmailTemplate = {
     pricing: true,
     fields: [
         { key: "planName", label: "Tarif", type: "text", required: true },
-        { key: "price", label: "Částka", type: "text", required: true, placeholder: samplePrice() },
+        { key: "termMonths", label: "Období (1, 3, 6 nebo 12)", type: "text", placeholder: "12", help: "Cena za období se dopočítá z ceníku, nepíše se ručně." },
+        { key: "price", label: "Částka (prázdné = z ceníku)", type: "text", placeholder: samplePrice(), help: "Vyplnit jen u nestandardní ceny." },
         { key: "renewsOn", label: "Datum obnovy", type: "text", required: true },
         { key: "manageUrl", label: "Odkaz na správu předplatného", type: "url", required: true },
     ],
     sample: {
         planName: samplePlanName(),
-        price: samplePrice(),
+        termMonths: "12",
+        // Prázdné = cena období se dopočítá z ceníku. Ukázka je v Mailingu
+        // předvyplnění formuláře, takže ručně opsané číslo by odsud odešlo.
+        price: "",
         renewsOn: "5. 9. 2026",
         manageUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },
-    build: v => ({
-        subject: `Předplatné ${v.planName} se obnoví ${v.renewsOn}`,
-        eyebrow: "Předplatné",
-        preheader: `${v.price} · ${v.renewsOn}`,
-        blocks: [
-            heading("Obnova předplatného"),
-            paragraph(`Dobrý den,\n\nvaše předplatné **${v.planName}** se automaticky obnoví **${v.renewsOn}** a strhneme **${v.price}**. Nemusíte nic dělat.`),
-            paragraph("Pokud pokračovat nechcete, zrušte obnovu ve studiu — do data obnovy funguje všechno dál."),
-            button("Spravovat předplatné", v.manageUrl),
-            footnote(vatNotice()),
-        ],
-    }),
+    // Strhává se cena ZAPLACENÉHO OBDOBÍ, ne měsíční sazba tarifu. Do 9/2026 tu
+    // stála měsíční cena jako cena obnovy, takže roční zákazník četl 2 999 Kč
+    // a z karty mu odešlo 29 990 Kč — přesně ten rozdíl na výpisu, kvůli kterému
+    // se z obnovy stane chargeback. Číslo proto pochází z ceníku (`termPrice`),
+    // ne z ruky.
+    build: v => {
+        const term = normalizeTermMonths(v.termMonths || "1")
+        const plan = pickPlan(v.planName || "")
+        const price = v.price?.trim() || formatCzk(termPrice(plan.monthlyHaleru, term))
+        const forTerm = term === 1 ? "" : ` ${termLabel(term)}`
+        return {
+            subject: `Předplatné ${v.planName} se obnoví ${v.renewsOn}`,
+            eyebrow: "Předplatné",
+            preheader: `${price} · ${v.renewsOn}`,
+            blocks: [
+                heading("Obnova předplatného"),
+                paragraph(`Dobrý den,\n\nvaše předplatné **${v.planName}** se automaticky obnoví **${v.renewsOn}** a strhneme **${price}**${forTerm}. Nemusíte nic dělat.`),
+                paragraph("Pokud pokračovat nechcete, zrušte obnovu ve studiu — do data obnovy funguje všechno dál."),
+                button("Spravovat předplatné", v.manageUrl),
+                footnote(vatNotice()),
+            ],
+        }
+    },
 }
 
 export const subscriptionChargeFailed: EmailTemplate = {
@@ -67,7 +84,7 @@ export const subscriptionChargeFailed: EmailTemplate = {
         planName: samplePlanName(),
         price: samplePrice(),
         attempt: "2",
-        maxAttempts: "3",
+        maxAttempts: String(MAX_BILLING_FAILURES),
         graceNote: "Účet zůstává aktivní ještě 3 dny.",
         payUrl: `${siteUrl()}/dashboard/instagram#billing`,
     },

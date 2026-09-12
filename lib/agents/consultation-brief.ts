@@ -15,6 +15,8 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import type { ClientConfig } from "@/instagram/configs/types"
+// Cena služby se nepíše do textu ručně — opsané „990 Kč" přežilo dvě přecenění.
+import { CONSULTATION, formatCzk } from "@/lib/pricing"
 
 /** Co v konfiguraci chybí a musí se doptat na hovoru. */
 function findGaps(config: Partial<ClientConfig>): string[] {
@@ -88,7 +90,7 @@ export async function generateConsultationBrief(consultationId: string): Promise
 
 **Termín:** ${when}
 **Web:** ${client.website || "—"} · **Instagram:** ${client.instagram || "nepropojeno"}
-**Původ schůzky:** ${consultation.source === "purchase" ? "koupená zvlášť (990 Kč)" : consultation.source === "manual" ? "domluvená ručně" : "v ceně předplatného"}
+**Původ schůzky:** ${consultation.source === "purchase" ? `koupená zvlášť (${formatCzk(CONSULTATION.priceHaleru)})` : consultation.source === "manual" ? "domluvená ručně" : "v ceně předplatného"}
 
 ## Co o značce víme
 
