@@ -4240,7 +4240,7 @@ test("29.20 e-mail netipuje rod adresáta", () => {
         "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
 })
 
-test("29.22 v zákaznickém textu se počty skloňují, ne lepí", () => {
+test("29.25 v zákaznickém textu se počty skloňují, ne lepí", () => {
     // „všech 1 příspěvků je připraveno", „2 kreditů zbývá", „před 1 dny" — takhle
     // vypadá text, kde se za proměnnou přilepil pevný tvar. Zákazník to čte jako
     // strojový překlad zrovna ve chvíli, kdy mu produkt slibuje český obsah.
