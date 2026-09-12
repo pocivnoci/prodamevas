@@ -113,8 +113,22 @@ publika a jména značky nad knihovnou 30 hlasů (`lib/voice-library.ts`). Star�
 sekce „Hlas značky" s ukázkou (`previewVoice`, cache v bucketu `voice-samples/`,
 sdílená napříč klienty).
 
-**Vědomě NEimplementováno**: ElevenLabs (rozhodnutí — nejdřív poslech), klonování
-hlasu majitele, `ig_generation_log.voice_provider`.
+**ElevenLabs (12. 9. 2026, větev `elevenlabs-hlas`, PR #129)**: poskytovatel
+`instagram/tts/elevenlabs.ts` je **zapojený** v registru `instagram/tts/index.ts`
+(v3 → Multilingual v2 se STEJNÝM hlasem, `pcm_24000` → WAV přes `tts/wav.ts`, účtování
+za znak, žádný pád na Gemini — reel se parkuje), modely v `instagram/models.ts`
+(`ttsElevenlabs`), sazba 0,10 USD / 1 000 znaků v `lib/model-pricing.ts`. Knihovna má
+**12 rodilých českých hlasů** z komunitní knihovny ElevenLabs (globální `voice_id`,
+zobrazované `name`; hlas musí být přidaný do účtu). Kdo mluví za značku: vybraný hlas
+(`validateConfig` bere poskytovatele z něj), jinak **`DEFAULT_TTS_PROVIDER`** v
+`lib/voice-library.ts` — od 12. 9. 2026 `elevenlabs` (rodilé hlasy); Gemini zůstává
+volbou per značka v Nastavení, ne fallbackem. Poslech 12. 9.: 21 premade hlasů × v3 i v2 (42 ukázek, přepis
+Gemini 48/50 bez chyby), spike `scripts/smoke-elevenlabs-voice.ts`, výstupy
+`audit-screenshots/spike/elevenlabs/`. Seedance jako zdroj řeči padl (čeština i audio
+reference neobstály; tvar reference v API je `{ type: "audio_url", audio_url: { url },
+role: "reference_audio" }`, data URL bere — zaznamenáno, aby se to neplatilo znovu).
+
+**Vědomě NEimplementováno**: klonování hlasu majitele, `ig_generation_log.voice_provider`.
 
 ### Checklist: čeština přímo ze Seedance (spike)
 

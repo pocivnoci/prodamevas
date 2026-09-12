@@ -2547,12 +2547,36 @@ test("17.12 TTS za rozhraním: poskytovatel v instagram/tts, spike skripty bez p
     assert(/prebuiltVoiceConfig/.test(prov) && /getModel\("tts"\)/.test(prov), "Gemini poskytovatel bere ID modelu z registru")
     const idx = codeOnly("instagram/tts/index.ts")
     assert(/throw new Error/.test(idx), "neznámý poskytovatel hází — tichý fallback by dodal cizí hlas")
-    assert(!/elevenlabs:/.test(idx), "ElevenLabs zatím jen jako TODO, ne zapojený poskytovatel")
+    assert(/elevenlabs: elevenLabsTts/.test(idx), "ElevenLabs je zapojený poskytovatel (po poslechu 12. 9. 2026)")
+    const el = codeOnly("instagram/tts/elevenlabs.ts")
+    assert(!/from "\.\/gemini"|generateVoiceover/.test(el), "ElevenLabs nesmí padat na Gemini — cizí hlas není fallback, reel se parkuje")
+    assert(/getModel\("ttsElevenlabs"\)/.test(el) && /getModel\("ttsElevenlabs", "fallback"\)/.test(el), "fallback v3 → Multilingual v2 jde z registru modelů, se stejným hlasem")
+    assert(/output_format=\$\{ELEVENLABS_OUTPUT_FORMAT\}/.test(el) && /pcm_24000/.test(el) && /pcmToWav\(/.test(el), "výstup pcm_24000 zabalený do WAV — časová osa reelu má jednu cestu")
+    assert(/recordUnits\([^)]*"characters"/.test(el), "ElevenLabs se účtuje za znak, jinak hlas reelu měří nulu")
+    assert(/process\.env\.ELEVENLABS_API_KEY/.test(el) && !/ELEVENLABS_API_KEY\s*\|\|/.test(el), "klíč jen z env, bez výchozí hodnoty")
+    const lib = codeOnly("lib/voice-library.ts")
+    assert(/export const DEFAULT_TTS_PROVIDER/.test(lib), "výchozí poskytovatel je jedna konstanta v knihovně hlasů, ne literál v configu")
+    assert(/DEFAULT_TTS_PROVIDER/.test(codeOnly("instagram/configs/index.ts")) && !/=== "elevenlabs" \? "elevenlabs" : "gemini"/.test(codeOnly("instagram/configs/index.ts")), "validateConfig bere výchozího poskytovatele z knihovny a poskytovatele z vybraného hlasu")
+    // Knihovna ElevenLabs: rodilé české hlasy s čitelným jménem a globálním voice_id,
+    // dost na casting (pod 3 kandidáty by casting sjel na celý fond).
+    const { voicesForProvider, castVoice: cast } = require("./lib/voice-library") as typeof import("./lib/voice-library")
+    const el11 = voicesForProvider("elevenlabs")
+    assert(el11.length >= 8, `ElevenLabs knihovna má ${el11.length} hlasů, čekáme aspoň 8`)
+    assert(el11.every(v => v.name && /^[A-Za-z0-9]{20}$/.test(v.id)), "ElevenLabs hlas má zobrazované jméno a 20znakové voice_id")
+    assert(new Set(el11.map(v => v.gender)).size === 2, "ElevenLabs knihovna má oba vnímané rody — casting potřebuje pestrost")
+    const el11Brands = ["Kavárna U Lípy|Gastronomie / Kavárna|Přátelský barista", "Izolace Novák|Řemeslo / Služby|Poctivý řemeslník", "Salon Bella|Krása / Salon|Pečující kadeřnice", "TaskApp|Aplikace / SaaS|Věcný produktový hlas", "FitZone|Fitness / Wellness|Energický trenér", "Wellness Klid|Wellness|Klidný průvodce", "Reality Morava|Reality / Realitní služby|Seriózní makléř", "Second Hand Retro|Móda / Oblečení|Hravá stylistka"]
+    const el11Cast = el11Brands.map(s => { const [brand, industry, persona] = s.split("|"); return cast({ brand, industry, persona }, "elevenlabs") })
+    assert(el11Cast.every(id => el11.some(v => v.id === id)) && new Set(el11Cast).size >= 4, `casting nad ElevenLabs vrací hlasy z jeho fondu a 8 značek dostane aspoň 4 různé (dostaly ${new Set(el11Cast).size})`)
+    // Obor a persona se mají PROTNOUT: fond 12 hlasů je malý a sjednocení by dalo
+    // energickému trenérovi klidného vypravěče jen proto, že fitness sousedí s wellness.
+    const el11Temper = (i: number) => el11.find(v => v.id === el11Cast[i])!.temperament
+    assert(["energetic", "playful"].includes(el11Temper(4)), `energický trenér má energický hlas, ne ${el11Temper(4)}`)
+    assert(["calm", "warm"].includes(el11Temper(5)), `klidný průvodce wellness má klidný hlas, ne ${el11Temper(5)}`)
     const audio = codeOnly("instagram/reel-audio.ts")
     assert(/getTtsProvider\(/.test(audio) && /voice\.voiceId/.test(audio), "reel-audio bere poskytovatele i hlas zvenčí")
 
     // Spike je experiment: kdyby importoval produkci, měřil by naši pipeline, ne API.
-    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts"]) {
+    for (const f of ["scripts/smoke-seedance-dialogue.ts", "scripts/smoke-seedance-audio-ref.ts", "scripts/smoke-reel-voice.ts", "scripts/smoke-elevenlabs-voice.ts"]) {
         const src = codeOnly(f)
         assert(!/from "\.\.\/(instagram|app|lib)\//.test(src), `${f}: spike skript nesmí importovat produkční modul`)
         assert(!fileContains("package.json", f), `${f}: živý spike nepatří do guardu`)

@@ -558,7 +558,8 @@ function BrandVoicePicker({ config, updateField, projectId }: {
                                 className="flex-1 text-left cursor-pointer"
                             >
                                 <span className={`block text-[11px] font-black uppercase tracking-widest ${active ? "text-emerald-400" : "text-white/80"}`}>
-                                    {v.id}
+                                    {v.name ?? v.id}
+                                    <span className="ml-2 text-[8px] font-bold tracking-widest text-white/30">{v.provider === "elevenlabs" ? "ElevenLabs" : "Gemini"}</span>
                                 </span>
                                 <span className="block text-[10px] text-white/40 mt-1 leading-snug">{v.label}</span>
                             </button>

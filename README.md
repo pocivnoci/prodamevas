@@ -29,6 +29,7 @@ Open [http://localhost:3000](http://localhost:3000)
 | `ANTHROPIC_API_KEY` | Claude: cross-family soudce, ověření faktů na webu, reelový režisér. Bez něj vše padá na Gemini Pro ladder (volitelné) |
 | `ARK_API_KEY` | BytePlus ModelArk — Seedance video pro reely. Bez něj reel nejde vyrobit; `REELS_ENABLED=1` bez klíče hlásí health-check |
 | `ARK_BASE_URL` | Endpoint ModelArk, výchozí `https://ark.ap-southeast.bytepluses.com/api/v3` (měnit jen při přesunu regionu) |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS — **výchozí** hlas značky v reelech (rodilé české hlasy; `eleven_v3`, fallback `eleven_multilingual_v2` se stejným hlasem). Skutečný klíč začíná `sk_`; bez něj reel s hlasem nejde vyrobit a parkuje se (na Gemini se nepadá) |
 | `COMGATE_MERCHANT` / `COMGATE_SECRET` | Platební brána (CZK) |
 | `COMGATE_MOCK=true` | Testovací platby bez reálné brány (na produkci ignorováno) |
 | `HIKERAPI_KEY` | IG scraping v onboardingu (volitelné) |

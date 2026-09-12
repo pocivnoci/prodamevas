@@ -12,7 +12,7 @@ import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
-import { castVoice, isKnownVoice, type TtsProviderId } from "../../lib/voice-library"
+import { castVoice, findVoice, DEFAULT_TTS_PROVIDER, type TtsProviderId } from "../../lib/voice-library"
 import { clampSubtitleStyle } from "../reel-subtitles"
 import { clampReelModes } from "../../lib/reel-media"
 import { industryRiskFamily } from "../../lib/industry-risk"
@@ -216,12 +216,17 @@ function normalizeHandle(raw: string | undefined, slug: string): string {
  * neskončily na jednom hlase.
  */
 function resolveVoice(config: ClientConfig, slug: string): BrandVoiceCasting {
-    const provider: TtsProviderId = config.voice?.provider === "elevenlabs" ? "elevenlabs" : "gemini"
     const chosen = config.voice?.voiceId
     const legacy = config.ttsVoice
-    const voiceId = isKnownVoice(chosen) ? chosen!
-        : isKnownVoice(legacy) ? legacy!
-            : castVoice({
+    // Poskytovatel jde z VYBRANÉHO hlasu: výběr v Nastavení ukládá obojí, ale kdyby se
+    // rozešly, rozhoduje hlas — jeho ID u druhého poskytovatele neexistuje. Bez výběru
+    // platí uložený poskytovatel, jinak výchozí knihovny (`DEFAULT_TTS_PROVIDER`).
+    const picked = findVoice(chosen) ?? findVoice(legacy)
+    const saved = config.voice?.provider
+    const provider: TtsProviderId = picked?.provider
+        ?? (saved === "elevenlabs" || saved === "gemini" ? saved : DEFAULT_TTS_PROVIDER)
+    const voiceId = picked ? picked.id
+        : castVoice({
                 persona: config.brandVoice?.persona,
                 industry: config.industry,
                 audience: (config.audiencePersonas || []).map(p => `${p.label} ${p.ageRange}`).join(" "),

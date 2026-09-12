@@ -26,6 +26,7 @@ import { buildComposeArgs, escapeFilterPath } from "../instagram/reel-compositor
 import { VideoPendingError, isVideoPending, QualityUnavailableError, isQualityUnavailable } from "../utils/retry"
 import { videoUnitKey, costUsdForCall } from "../lib/model-pricing"
 import { getModel } from "../instagram/models"
+import { buildSpeechRequest, ELEVENLABS_OUTPUT_FORMAT } from "../instagram/tts/elevenlabs"
 
 let passed = 0
 let failed = 0
@@ -366,6 +367,15 @@ check("značka přežije zabalení do obyčejné chyby", isVideoPending(new Erro
 check("video pending NENÍ nedostupná kvalita", !isQualityUnavailable(pending) && !isVideoPending(new QualityUnavailableError("x")))
 
 // sharp je asynchronní a soubor běží jako CJS (bez top-level await) — reference proto na konci.
+console.log("\n🗣️ ELEVENLABS: TVAR POŽADAVKU A SAZBA\n")
+check("ID modelů z registru: v3 primární, Multilingual v2 fallback se stejným hlasem", getModel("ttsElevenlabs") === "eleven_v3" && getModel("ttsElevenlabs", "fallback") === "eleven_multilingual_v2")
+check("v3 čte tagy přednesu — anglicky, v závorkách před textem; „clear“ je neutrál bez tagu", buildSpeechRequest("Dobrý den.", "eleven_v3", { tags: ["warm", "clear"] }).text === "[warmly] Dobrý den.")
+check("Multilingual v2 by tagy vyslovil, proto je nedostane", buildSpeechRequest("Dobrý den.", "eleven_multilingual_v2", { tags: ["warm"] }).text === "Dobrý den.")
+check("language_code se neposílá (v3 ani v2 ho neberou, jazyk poznají z textu)", !("language_code" in buildSpeechRequest("x", "eleven_v3", {})))
+check("výstup pcm_24000 — stejná cesta jako Gemini, wavInfo/buildTimeline beze změny", ELEVENLABS_OUTPUT_FORMAT === "pcm_24000" && wavInfo(pcmToWav(Buffer.alloc(48_000), 24_000, 1, 16)).durationSeconds === 1)
+const perThousandChars = (m: string) => costUsdForCall(m, { promptTokens: 0, outputTokens: 0, thoughtTokens: 0, cachedTokens: 0, units: { kind: "characters", n: 1000 } })
+check("sazba za znak pro oba modely (0,10 USD / 1 000 znaků) — bez ní by hlas reelu měřil nulu", near(perThousandChars("eleven_v3") ?? -1, 0.1, 1e-9) && near(perThousandChars("eleven_multilingual_v2") ?? -1, 0.1, 1e-9))
+
 async function asyncChecks() {
     console.log("\n🖼️ REFERENCE PRO SEEDANCE\n")
     const solid = (width: number, height: number) => sharp({ create: { width, height, channels: 4, background: { r: 200, g: 30, b: 30, alpha: 1 } } }).png().toBuffer()

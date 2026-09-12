@@ -5,18 +5,20 @@
 
 import type { TtsProvider, TtsProviderId } from "./types"
 import { geminiTts } from "./gemini"
+import { elevenLabsTts } from "./elevenlabs"
 
 export type { TtsProvider, TtsProviderId, TtsSynthesizeOptions } from "./types"
 export { deliveryTags } from "./delivery"
 
 const PROVIDERS: Record<string, TtsProvider> = {
     gemini: geminiTts,
-    // TODO(ElevenLabs): `eleven_v3` / `eleven_multilingual_v2`, výstup `pcm_24000`
-    // zabalený do WAV, ID modelu do `instagram/models.ts`, sazba za znak do
-    // `lib/model-pricing.ts`, klíč `ELEVENLABS_API_KEY`. Návrh a podmínky
-    // (nikdy tichý fallback na jiný hlas — radši zaparkovat) jsou v
-    // `docs/DESIGN_reels-v2_2026-09-12.md`, fáze 1. Zapínat se smí až po
-    // poslechovém testu spike skriptů, ne dřív.
+    // ElevenLabs zapojený 12. 9. 2026 po poslechu (`scripts/smoke-elevenlabs-voice.ts`,
+    // `audit-screenshots/spike/elevenlabs/`). KDO mluví za značku, neurčuje tenhle
+    // registr, ale `config.voice.provider` a výchozí `DEFAULT_TTS_PROVIDER`
+    // v `lib/voice-library.ts`. Fallback MEZI poskytovateli neexistuje — cizí hlas
+    // není fallback (viz throw níže); uvnitř ElevenLabs padá v3 na Multilingual v2
+    // se stejným hlasem.
+    elevenlabs: elevenLabsTts,
 }
 
 /**
