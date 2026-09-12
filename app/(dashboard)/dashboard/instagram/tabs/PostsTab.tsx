@@ -934,8 +934,12 @@ function PostDetailModal({
                             )}
                         </div>
                     </div>
-                </div>
 
+                    {/* Titulky, úprava a hlášení o publikování PATŘÍ DO POSUVNÉ ČÁSTI.
+                        Byly sourozenci těla modalu a při výšce titulkového panelu (4 karty)
+                        + panelu úprav + akční lišty zbylo tělu na 90 vh vysokém modalu pár
+                        pixelů — z reelu byl vidět jen proužek (screenshot 12. 9. 2026).
+                        Pevná zůstává jen akční lišta dole. */}
                 {/* Titulky reelu — vypálené do videa, přerenderování stojí 0 kreditů */}
                 {media.kind === "reel" && (
                     <ReelSubtitlesPanel
@@ -990,6 +994,8 @@ function PostDetailModal({
                         </p>
                     </div>
                 )}
+
+                </div>
 
                 {/* Footer Actions */}
                 <div className="px-4 sm:px-6 py-3 sm:py-4 bg-[#050505] border-t border-white/10 flex flex-wrap items-center gap-2 sm:gap-3">
