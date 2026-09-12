@@ -26,6 +26,7 @@ import { withRetry } from '@/utils/retry'
 import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
+import { resolveIndustryVisual } from '@/instagram/industry-visual-profiles'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 import { Type } from '@google/genai'
 import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion, QuestionAxis } from './types'
@@ -745,6 +746,13 @@ DŮLEŽITÉ:
     // ale čtou z configu, takže všem tenantům běžely na "business" + Praha.
     if (analysis.industry) config.industry = analysis.industry
     if (analysis.city?.trim()) config.city = analysis.city.trim()
+    // Oborový vizuální profil (žánr, světlo, řez, princip palety). Bez něj dostane
+    // art director na kvalitu snímku jedinou natvrdo psanou větu, stejnou pro
+    // vinařství i pro izolatéra — právě proto vypadaly fotky napříč klienty stejně.
+    // Seeduje se z oboru; scrape webu a vision feedu níž přepíšou jen ta pole,
+    // ke kterým mají skutečná data.
+    const industryVisual = resolveIndustryVisual(config.industry)
+    if (industryVisual) config.industryVisual = industryVisual
     // Prázdný handle nesmí skončit jako samotné „@" — tak vznikl reálný stav tří
     // klientů, kterým v promptu svítí „IG: @". Prázdno je pravdivější.
     const handle = (igHandle || '').trim().replace(/^@+/, '')
@@ -771,6 +779,12 @@ DŮLEŽITÉ:
 
         if (analysis.feedVisuals) {
             config.feedAesthetic.typographyStyle = analysis.feedVisuals.typographyStyle
+            // Typografii vidělo vision na SKUTEČNÉM feedu značky — to přebije oborový
+            // odhad. Žánr a světlo se nepřepisují: z mřížky náhledů je nevidět
+            // spolehlivě a špatně odhadnuté světlo je horší než obecné.
+            if (config.industryVisual && analysis.feedVisuals.typographyStyle) {
+                config.industryVisual.typographyStyle = analysis.feedVisuals.typographyStyle
+            }
             config.feedAesthetic.logoPlacement = analysis.feedVisuals.logoPlacementHabit ?? 'auto'
             const visualNotes = [
                 analysis.feedVisuals.visualStyleSummary,

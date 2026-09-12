@@ -265,6 +265,25 @@ export interface ImageBriefItem {
 
 // ─── Client Config ──────────────────────────────────────────
 
+/**
+ * Oborový vizuální profil. Všechna pole jsou volná česká věta pro model — registr
+ * hodnot žije v `instagram/industry-visual-profiles.ts`, tady je jen tvar.
+ *
+ * ⚠️ Záměrně tu NENÍ nic o kompozici, záběru ani rozvržení. To je osa, na které má
+ * engine rotovat (archetypy + anti-repeat); předepsaná by ji umlčela — přesně tak
+ * se z devíti značek stala jedna šablona s vyměněným hexem (viz `showcase-kit.ts`).
+ */
+export interface IndustryVisual {
+    /** Fotografický žánr oboru — např. „dokumentární reportáž z místa práce". */
+    photographicGenre: string
+    /** Jak se v tomhle oboru svítí — světlo, kontrast, denní doba. */
+    lightingBrief: string
+    /** Typografický řez oboru. Doplňuje `feedAesthetic.typographyStyle`, nenahrazuje ho. */
+    typographyStyle?: string
+    /** Princip palety („barvu nese produkt, pozadí zůstane neutrální"), ne konkrétní hexy. */
+    palettePrinciple?: string
+}
+
 export interface ClientConfig {
     /** Unique client ID (used as project_id in DB) */
     id: string
@@ -320,6 +339,19 @@ export interface ClientConfig {
 
     /** Visual identity for feed cohesion */
     feedAesthetic: FeedAesthetic
+
+    /**
+     * Oborová vizuální identita — JAKÝ druh snímku to vlastně je.
+     *
+     * Doteď art director obor neznal vůbec: `config.industry` se v `image-pipeline.ts`
+     * nevyskytoval ani jednou a kvalita se předepisovala jedinou natvrdo zapsanou větou
+     * („editorial, cinematic lighting, real depth") pro vinařství i pro izolatéra.
+     * Odtud „všechny fotky vypadají stejně".
+     *
+     * Prázdné = dnešní chování (fallback texty v `image-pipeline.ts`). `validateConfig()`
+     * profil odvozuje z `industry` přes `INDUSTRY_VISUAL_PROFILES`.
+     */
+    industryVisual?: IndustryVisual
 
     /** Visual rhythm of the profile GRID (see lib/feed-pattern.ts). Deliberately top-level and
      *  not part of feedAesthetic: feedAesthetic describes a single image and is poured into the

@@ -23,6 +23,8 @@ import type { PerformanceInsight } from "../instagram/performance"
 import { resolveCtaPolicy, buildCtaPolicyJudgeBlock } from "../instagram/cta-policy"
 import { buildPhotoFidelitySection } from "../instagram/photo-fidelity"
 import { isPhotoPolicy, prefersRealPhotos, PHOTO_POLICY_OPTIONS, type PhotoPolicy } from "../lib/photo-policy"
+import { INDUSTRY_VISUAL_PROFILES, CATEGORY_VISUAL_KEYS, resolveIndustryVisual, industryVisualByKey } from "../instagram/industry-visual-profiles"
+import { CATEGORY_DEFAULTS } from "../app/onboarding/core"
 
 let passed = 0
 let failed = 0
@@ -489,11 +491,74 @@ test("mechanismus přebíjí per-klientský brief formátu", () => {
     assert(def?.description === MECHANISMS.srovnani.description,
         "description se nebere z mechanismu — per-klientské téma se propsalo do promptu")
     assert(def?.structure === MECHANISMS.srovnani.structure, "structure se nebere z mechanismu")
-    assert(def?.visualStyle === MECHANISMS.srovnani.visualStyle, "visualStyle se nebere z mechanismu")
+    // `visualStyle` se od 9/2026 SČÍTÁ, ne přepisuje (dřív tu stála rovnost). Mechanismus
+    // je sdílený napříč tenanty, takže když přebil i vizuál, dostal art director u téhož
+    // mechanismu doslova stejnou větu pro každou značku — jeden z doložených zdrojů
+    // „všechny fotky vypadají stejně". Věcný důvod pro přebití (model si do briefu
+    // propašoval TÉMA) platí u description a structure, u vizuálu naměřený není.
+    assert(!!def?.visualStyle?.startsWith(MECHANISMS.srovnani.visualStyle),
+        "mechanismus není základem vizuálního stylu")
     // Vše ostatní MUSÍ zůstat per klient — na `name` visí ig_post_types,
     // weekPlan, členství v pilířích i post_type_id starých příspěvků.
     assert(def?.name === "meme" && def?.pillar === "dosah",
         "mechanismus přepsal i identitu formátu — to rozbije vazby v DB")
+})
+
+test("klientský visualStyle se mechanismem nezahazuje", () => {
+    // Regrese, kvůli které byl obor ve vizuálu neviditelný: klient si v Nastavení
+    // napsal, jak má formát vypadat, a `getPostTypeDef` to zahodil ve prospěch
+    // sdílené věty. Značka musí zůstat v textu a mít poslední slovo.
+    const own = "Zavřený ateliér, jen svíčka a kov, nikdy denní světlo."
+    const def = getPostTypeDef({
+        ...config,
+        postTypeDefs: [{
+            name: "meme", display_name: "Meme", pillar: "dosah",
+            description: "x", structure: "y", visualStyle: own, mechanism: "srovnani",
+        }],
+    } as any, "meme")
+    assert(def!.visualStyle!.includes(own), "klientský visualStyle se ztratil")
+    assert(def!.visualStyle!.includes(MECHANISMS.srovnani.visualStyle), "mechanismus zmizel")
+    assert(def!.visualStyle!.indexOf(MECHANISMS.srovnani.visualStyle) < def!.visualStyle!.indexOf(own),
+        "pořadí je obrácené — poslední slovo musí mít značka")
+})
+
+test("oborový vizuální profil: identita ano, kompozice ne", () => {
+    // Profil smí předepsat žánr, světlo, řez a princip palety. Jakmile začne
+    // předepisovat kompozici, vznikne z devíti značek jedna šablona s vyměněným
+    // hexem — přesně tak jednou padla ukázková série (viz showcase-kit.ts).
+    // Zarovnání sazby („zarovnání vlevo") je vlastnost ŘEZU, ne kompozice snímku —
+    // hlídá se jen to, co rozhoduje o rozvržení obrazu.
+    const COMPOSITION_WORDS = /(kompozic|rozvržen|umísti|v rohu|pruh přes|jako inset|celoplošn\w* výplň)/i
+    for (const [key, p] of Object.entries(INDUSTRY_VISUAL_PROFILES)) {
+        assert(p.photographicGenre.length > 15, `${key}: chybí fotografický žánr`)
+        assert(p.lightingBrief.length > 15, `${key}: chybí popis světla`)
+        assert(p.match.length > 0, `${key}: profil nejde najít podle oboru`)
+        assert(p.match.every(m => m === m.toLowerCase() && m === m.normalize("NFD").replace(/[̀-ͯ]/g, "")),
+            `${key}: hledací podřetězce musí být malými písmeny a bez diakritiky`)
+        for (const [field, text] of Object.entries(p)) {
+            if (typeof text !== "string") continue
+            assert(!COMPOSITION_WORDS.test(text), `${key}.${field} předepisuje kompozici: „${text}"`)
+        }
+    }
+})
+
+test("každá kategorie onboardingu najde svůj vizuální profil", () => {
+    // Volný text oboru („Gastronomie / Kavárna") se hledá podřetězcem a vyhrává
+    // nejdelší shoda. Bez téhle aserce by nová položka registru mohla tiše ukrást
+    // kategorii cizí obor („Reality / Realitní služby" vs. řemeslné „služby").
+    for (const [cat, def] of Object.entries(CATEGORY_DEFAULTS)) {
+        const expected = CATEGORY_VISUAL_KEYS[cat]
+        const resolved = resolveIndustryVisual(def.industry)
+        if (!expected) {
+            assert(!resolved, `kategorie "${cat}" nemá mít profil, ale dostala ho`)
+            continue
+        }
+        assert(!!resolved, `kategorie "${cat}" (${def.industry}) nenašla profil`)
+        assert(resolved!.photographicGenre === industryVisualByKey(expected)!.photographicGenre,
+            `kategorie "${cat}" spadla do jiného profilu než ${expected}`)
+    }
+    assert(!resolveIndustryVisual(""), "prázdný obor musí vrátit prázdno, ne náhradní obor")
+    assert(!resolveIndustryVisual("něco úplně jiného"), "neznámý obor nesmí dostat cizí žánr")
 })
 
 test("mechanismy samy projdou testem invariantu", () => {

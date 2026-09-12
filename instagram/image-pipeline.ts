@@ -66,17 +66,43 @@ ${visual.map(m => `- ${m.content} (confidence: ${(m.confidence * 100).toFixed(0)
 //  this agent produces the structured design brief that drives it.)
 // ============================================
 
-/** Structural layout families the AI Designer rotates through — the enforced anti-repetition axis */
-export const LAYOUT_ARCHETYPES = [
-    "editorial-magazine",
-    "poster-typography",
-    "split-layout",
-    "full-bleed-photo",
-    "type-driven",
-    "product-hero",
-    "candid-lifestyle",
-    "color-block-graphic",
-] as const
+/**
+ * Strukturální rodiny layoutů, kterými art director rotuje — vynucená osa proti opakování.
+ *
+ * KAŽDÝ ARCHETYP MÁ POPIS, protože holý slug model nenaučí nic. Osm slugů bez vysvětlení
+ * skončilo tak, že „editorial-magazine" i „type-driven" vypadaly stejně: model si pod
+ * nimi představil totéž. Popis je JEDNA věta o STRUKTUŘE — ne o oboru, ne o barvě.
+ *
+ * ROZŠÍŘENO Z 8 NA 16 (9/2026). Dva důvody, oba naměřené:
+ *  1. Osm archetypů na klienta se čtyřmi posty týdně se protočí za čtrnáct dní.
+ *  2. Rodiny `typography` a `graphic` v `ARCHETYPE_GROUPS` měly po dvou členech, takže
+ *     zákaz posledních archetypů rodinu VYPRÁZDNIL a pattern ban musel zahodit — dva
+ *     typografické posty po sobě braly tentýž archetyp. Každá rodina má teď ≥ 4 členy,
+ *     což ustojí i rozšířené okno banu (5 postů) — hlídá `scripts/test-feed-pattern.ts`.
+ */
+export const LAYOUT_ARCHETYPE_BRIEFS: Record<string, string> = {
+    // photo
+    "editorial-magazine": "magazínová dvoustrana: fotka drží většinu plochy, text sedí v redakční mřížce s jasným nadpisem a doprovodem",
+    "full-bleed-photo": "jediná fotka od kraje ke kraji, typografie leží přímo v ní",
+    "product-hero": "produkt jako jediný hrdina snímku, prostředí je mu jen podstavcem",
+    "candid-lifestyle": "nearanžovaný okamžik s lidmi, jako by fotograf jen prošel kolem",
+    "documentary-reportage": "reportážní záběr z místa a práce — situace, ruce, materiál; nic nearanžovaného",
+    "product-flatlay": "kolmý pohled shora na rozložené předměty, řád a mezery jsou kompozice",
+    "texture-macro": "extrémní detail povrchu nebo materiálu, který teprve v popisku dostane smysl",
+    // typography
+    "poster-typography": "plakát: text je celý obraz, sazba nese sdělení sama",
+    "type-driven": "typografie vede a obraz jí jen podkládá — fotka nebo plocha slouží sazbě",
+    "quote-frame": "jediná věta vysazená jako citát, s atribucí a typografickou ozdobou",
+    "lettering-hand": "ručně psané nebo kreslené písmo jako hlavní motiv, nepravidelné tahy",
+    // graphic
+    "color-block-graphic": "skladba barevných ploch a tvarů, fotka nanejvýš jako výřez v jedné z nich",
+    "split-layout": "plocha rozdělená na dvě jasná pole, která stojí proti sobě",
+    "illustration-flat": "plochá vektorová ilustrace bez fotografie, redukované tvary",
+    "mockup-device": "obrazovka, obal nebo tisková maketa zasazená do scény",
+    "infographic-data": "čísla, popisky a jednoduché diagramy jako hlavní obsah snímku",
+}
+
+export const LAYOUT_ARCHETYPES = Object.keys(LAYOUT_ARCHETYPE_BRIEFS) as readonly string[]
 
 export interface DesignBrief {
     /** Short creative concept name + 1-sentence idea — stored on the post for anti-repetition */
@@ -243,6 +269,84 @@ function buildCompositionRules(slotIntent: SlotIntent | undefined): string {
   most ~one-third of the frame for text; the rest must show the photograph.`
 }
 
+// ============================================
+// OBOROVÝ VIZUÁLNÍ PROFIL
+//
+// Do 9/2026 se v tomhle souboru `config.industry` nevyskytoval ani jednou: art
+// director nevěděl, jestli dělá vinařství nebo izolatéra, a kvalitu snímku měl
+// předepsanou jedinou natvrdo zapsanou větou pro všechny obory. Profil to mění na
+// úrovni IDENTITY (žánr, světlo, řez, princip palety) a schválně nikde nesahá na
+// kompozici — ta je osa rotace, viz LAYOUT_ARCHETYPE_BRIEFS a `showcase-kit.ts`.
+//
+// Fallbacky níž jsou DOSLOVA původní texty: klient bez profilu musí dostat přesně
+// to, co dostával včera.
+// ============================================
+
+/** Řádky do `## BRAND KIT:` — obor a jeho žánr. Prázdné, když profil není. */
+function buildIndustryVisualLines(config: ClientConfig): string {
+    const iv = config.industryVisual
+    const lines: string[] = []
+    if (config.industry) lines.push(`- Industry / obor: ${config.industry}`)
+    if (iv?.photographicGenre) lines.push(`- Fotografický žánr oboru: ${iv.photographicGenre}`)
+    if (iv?.lightingBrief) lines.push(`- Světlo oboru: ${iv.lightingBrief}`)
+    if (iv?.palettePrinciple) lines.push(`- Princip palety oboru: ${iv.palettePrinciple}`)
+    if (iv?.typographyStyle) lines.push(`- Typografie oboru (doplněk k typografii značky, nikoli náhrada): ${iv.typographyStyle}`)
+    if (lines.length === 0) return ""
+    return lines.join("\n") + "\n⚠️ Tohle je IDENTITA, ne kompozice: žánr a světlo drž, ale záběr, měřítko a rozvržení si zvol sám — dva posty ve stejném žánru nesmí vypadat jako kopie."
+}
+
+/** Hodnoty registru jsou psané lidsky a ne všechny končí tečkou — věty se z nich
+ *  skládají strojově, takže interpunkci doplní kód. */
+const sentence = (s?: string) => (s ? (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`) : "")
+
+/** Věta o kvalitě fotografie do promptu designéra. */
+function photographyQualityBrief(config: ClientConfig): string {
+    const iv = config.industryVisual
+    if (!iv?.photographicGenre && !iv?.lightingBrief) {
+        return "editorial, cinematic lighting, real depth — no stock-photo vibes"
+    }
+    return [sentence(iv.photographicGenre), sentence(iv.lightingBrief), "Žádné stock fotky."]
+        .filter(Boolean).join(" ")
+}
+
+/** Táž věta pro render prompt (Nano Banana Pro). */
+function renderQualityBrief(config: ClientConfig): string {
+    const iv = config.industryVisual
+    if (!iv?.photographicGenre && !iv?.lightingBrief) {
+        return "Editorial photography quality, cinematic lighting, real depth of field."
+    }
+    return [sentence(iv.photographicGenre), sentence(iv.lightingBrief)].filter(Boolean).join(" ")
+}
+
+/**
+ * Rotační osa: co se v posledních postech opakovalo a co má tenhle post udělat jinak.
+ *
+ * Samotný seznam „diverguj od všech" se ukázal jako slabý — model si vybral, v čem
+ * diverguje, a skoro vždy to byl koncept (nejlevnější změna), zatímco záběr, paleta
+ * i archetyp zůstaly. Tohle pojmenuje opakující se archetyp KÓDEM (deterministicky,
+ * z otisků) a zbytek osy vyjmenuje, aby nešlo „diverguje" splnit přepsáním věty.
+ */
+export function buildRotationAxisSection(recentBriefs: string[]): string {
+    if (recentBriefs.length === 0) return ""
+    const counts = new Map<string, number>()
+    for (const b of recentBriefs) {
+        const m = /layout:\s*([a-z-]+)/i.exec(b)
+        if (m) counts.set(m[1], (counts.get(m[1]) ?? 0) + 1)
+    }
+    const repeated = [...counts.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1])
+    const repeatedLine = repeated.length
+        ? `\n🔁 Měřeno z otisků výš: archetyp „${repeated[0][0]}" se opakoval ${repeated[0][1]}×. Tenhle post ho nesmí použít ani napodobit.`
+        : ""
+    return `
+## ROTAČNÍ OSA — VEZMI OPAK:
+Projdi otisky výš a pro KAŽDOU ze tří os najdi, co v nich převažuje, a zvol tentokrát opak:
+1. ZÁBĚR A MĚŘÍTKO — pokud poslední posty braly detail, vezmi celek (a naopak); stejně tak výšku kamery.
+2. PALETA A TEPLOTA — pokud převažovalo teplé/tmavé, jdi do studeného/světlého (uvnitř palety značky).
+3. ARCHETYP A ROLE TEXTU — pokud text seděl přes fotku, ať ho tentokrát nese sazba, plocha nebo naopak.
+Napiš do \`divergenceNote\`, KTEROU osu jsi otočil a proti čemu — „jiný koncept" není divergence.${repeatedLine}
+`
+}
+
 export async function generateDesignBrief(params: {
     config: ClientConfig
     clientId: string
@@ -295,13 +399,14 @@ photo, typography AND logo — in one pass. Design like a human designer in Figm
 - Overall feel: ${fa.feel}
 - Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font} — but you may choose any typography style that fits the brand`}
 - Logo placement preference: ${fa.logoPlacement && fa.logoPlacement !== "auto" ? fa.logoPlacement : "your choice — vary it between posts"}
+${buildIndustryVisualLines(config)}
 ${fa.customInstructions || ""}
 ${config.characterDescription ? `- Brand character: ${config.characterDescription}` : ""}
 ${memSection}
 
 ## THIS POST:
 - Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
-${formatBrief?.visualStyle ? `- Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
+${formatBrief?.visualStyle ? `- Format visual style (mechanismus formátu + co si k němu přeje značka — drž se toho): ${formatBrief.visualStyle}` : ""}
 - Headline (Czech, render EXACTLY as written): "${captionData.hook}"
 ${captionData.imageSubtext ? `- Subtext (Czech, render EXACTLY as written): "${captionData.imageSubtext}"` : ""}
 ${captionData.accentWords?.length ? `- Accent words (highlight these within the headline): ${captionData.accentWords.join(", ")}` : ""}
@@ -313,10 +418,11 @@ ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto)}
 ${recentBriefs.length ? recentBriefs.map((b, i) => `${i + 1}. ${b}`).join("\n") : "(no history yet — total creative freedom)"}
 ⚠️ HARD RULE: do NOT repeat the layout, text placement, typography style, or visual concept
 of any recent design above. Same shit different day is FORBIDDEN.
-
+${buildRotationAxisSection(recentBriefs)}
 ${buildSlotIntentSection(slotIntent, fa)}
 ## LAYOUT ARCHETYPE (rotation is ENFORCED in code — violations get rejected):
-Set layoutArchetype to ONE of: ${allowedArchetypes.join(", ")}.
+Set layoutArchetype to ONE of these (the brief after the dash says what the archetype IS):
+${allowedArchetypes.map(a => `- ${a} — ${LAYOUT_ARCHETYPE_BRIEFS[a] ?? ""}`).join("\n")}
 ${effectiveBans.length ? `🚫 FORBIDDEN for this post (used by the latest posts): ${effectiveBans.join(", ")}.` : ""}
 The feed must stay ON-BRAND (same palette, mood, typography family) while each post
 changes the STRUCTURE — layout, text scale/placement, photo vs. graphic balance.
@@ -328,7 +434,7 @@ Cohesive vibe, different skeleton.
 - Typography is a DESIGN ELEMENT — vary scale, weight, placement, alignment between posts.
 ${buildCompositionRules(slotIntent)}
 - Logo: small, tasteful, never dominating. Vary corners/positions unless brand preference is fixed.
-- Photography quality: editorial, cinematic lighting, real depth — no stock-photo vibes.
+- Photography quality: ${photographyQualityBrief(config)}
 ${fidelitySection}
 
 Return ONLY the JSON design brief.`
@@ -462,7 +568,7 @@ ${hasLogo ? `## LOGO:
 Reproduce the attached brand logo image faithfully (exact shapes and colors, no redrawing) at: ${brief.logoPlacement}. Keep it small and subtle.` : ""}
 
 ## QUALITY:
-Editorial photography quality, cinematic lighting, real depth of field. The final result must look like a finished, art-directed brand post — not a photo with text slapped on it.`
+${renderQualityBrief(config)} The final result must look like a finished, art-directed brand post — not a photo with text slapped on it.`
 }
 
 /**
@@ -516,13 +622,14 @@ The image model (Nano Banana Pro) renders each slide ENTIRELY from your briefs �
 - Brand accent color: ${fa.accentColor || "pick a tasteful accent from the palette"}
 - Overall feel: ${fa.feel}
 - Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font}`}
+${buildIndustryVisualLines(config)}
 ${fa.customInstructions || ""}
 ${memSection}
 
 ## CAROUSEL:
 Visual theme: "${visualTheme}"
 Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
-${formatBrief?.visualStyle ? `Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
+${formatBrief?.visualStyle ? `Format visual style (mechanismus formátu + co si k němu přeje značka — drž se toho): ${formatBrief.visualStyle}` : ""}
 ${slideSummary}
 ${params.accentWords?.length ? `Accent words (highlight these within the COVER headline, same as a single-image post): ${params.accentWords.join(", ")}` : ""}
 ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "cover")}
@@ -539,7 +646,7 @@ ${buildSlotIntentSection(slotIntent, fa)}
 4. The COVER has the boldest typography; inner slides are calmer and consistent.
 5. Diverge hard from the recent designs (layout, type placement, concept).
 6. Set ONE layoutArchetype for the whole carousel (same value on every brief), chosen from:
-   ${allowedArchetypes.join(", ")}.${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).join(", ")}.` : ""}
+${allowedArchetypes.map(a => `   - ${a} — ${LAYOUT_ARCHETYPE_BRIEFS[a] ?? ""}`).join("\n")}${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => archetypePool.includes(a) && !allowedArchetypes.includes(a)).join(", ")}.` : ""}
    Stay on-brand (palette, mood, type family) — change the STRUCTURE, not the brand.
 
 Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per slide, in order] }`
@@ -659,12 +766,13 @@ Format: 9:16 vertical, full screen on a phone, seen for under 2 seconds each.
 - Brand accent color: ${fa.accentColor || "pick a tasteful accent from the palette"}
 - Overall feel: ${fa.feel}
 - Typography vibe: ${fa.typographyStyle || `inspired by ${fa.font}`}
+${buildIndustryVisualLines(config)}
 ${fa.customInstructions || ""}
 ${memSection}
 
 ## STORY SET:
 Post type: ${postType}${formatBrief?.description ? ` — ${formatBrief.description}` : ""}
-${formatBrief?.visualStyle ? `Format visual style (the brand defined how this post type should LOOK — follow it): ${formatBrief.visualStyle}` : ""}
+${formatBrief?.visualStyle ? `Format visual style (mechanismus formátu + co si k němu přeje značka — drž se toho): ${formatBrief.visualStyle}` : ""}
 ${frameSummary}
 ${buildProductSection(params.product)}${buildUserPhotoSection(params.userPhoto, "frame")}
 
@@ -687,7 +795,7 @@ ${STORY_SAFE_ZONE_RULE}
 6. NO slide indicators, NO page counters, NO "swipe" arrows — this is not a carousel.
 7. Diverge hard from the recent designs (layout, type placement, concept).
 8. Set ONE layoutArchetype for the whole set (same value on every brief), chosen from:
-   ${allowedArchetypes.join(", ")}.${banned.filter(a => !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => !allowedArchetypes.includes(a)).join(", ")}.` : ""}
+${allowedArchetypes.map(a => `   - ${a} — ${LAYOUT_ARCHETYPE_BRIEFS[a] ?? ""}`).join("\n")}${banned.filter(a => !allowedArchetypes.includes(a)).length ? `\n   🚫 FORBIDDEN (used by the latest posts): ${banned.filter(a => !allowedArchetypes.includes(a)).join(", ")}.` : ""}
    Stay on-brand (palette, mood, type family) — change the STRUCTURE, not the brand.
 
 Return JSON: { "designSystem": "one paragraph describing the shared system", "briefs": [one design brief per frame, in order] }`

@@ -12,6 +12,7 @@ import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
 
 export interface ClientMeta {
@@ -257,6 +258,11 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             feel: "Moderní a čistý",
             phoneModel: "iPhone 16 Pro",
         },
+        // Oborová vizuální identita. Uložený profil vyhrává (uživatel/onboarding ho mohl
+        // upravit), jinak se odvodí z `industry`. Neznámý obor = undefined = dnešní chování
+        // s natvrdo psaným fallbackem v image-pipeline; NIKDY náhradní obor, protože cizí
+        // žánr je horší než žádný.
+        industryVisual: config.industryVisual ?? resolveIndustryVisual(config.industry),
         // Grid rhythm. Clamped, not defaulted-through: engine code indexes ARCHETYPE_GROUPS by
         // the derived visual mode, so a garbage value must never reach it.
         feedPattern: isFeedPattern(config.feedPattern) ? config.feedPattern : "none",
