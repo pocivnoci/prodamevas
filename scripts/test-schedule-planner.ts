@@ -97,10 +97,38 @@ console.log("\nSpan (skutečný měsíc):")
     eq("span 0 = jako by nebyl zadaný",
         distributeSchedule(8, { startDate: start, postsPerWeek: 4, spanDays: 0 }).map(s => dayOffset(start, s.date)),
         distributeSchedule(8, { startDate: start, postsPerWeek: 4 }).map(s => dayOffset(start, s.date)))
-    eq("2×/day span ignoruje (o dnech rozhoduje perDay)",
+    // Do 9/2026 se rozpětí u 2×/den ignorovalo (dny šly hustě za sebou). UI ale
+    // nabízí kadenci 10 i 14, takže „měsíc" tím končil dřív než kalendář.
+    eq("2×/den rozprostře dny přes rozpětí místo do řady za sebou",
         distributeSchedule(8, { startDate: start, postsPerWeek: 14, spanDays: 30 }).map(s => dayOffset(start, s.date)),
-        [0, 0, 1, 1, 2, 2, 3, 3])
+        [0, 3, 7, 11, 15, 18, 22, 26])
+    eq("62 postů na 31 dní při 14×/týdně = dva na každý den",
+        distributeSchedule(62, { startDate: start, postsPerWeek: 14, spanDays: 31 }).map(s => dayOffset(start, s.date)),
+        Array.from({ length: 62 }, (_, i) => Math.floor(i / 2)))
+    eq("dva posty téhož dne mají různý čas",
+        distributeSchedule(4, { startDate: start, postsPerWeek: 14, spanDays: 2, timeSlots: ["09:00", "17:00"] }).map(s => s.time),
+        ["09:00", "17:00", "09:00", "17:00"])
     eq("jeden post do měsíčního rozpětí sedne na start", offsets(1, 30), [0])
+
+    // Kadence nad 7 (UI nabízí 10 a 14): plán musí sáhnout až na konec měsíce,
+    // nesmí přetéct a na den smí připadnout nejvýš `ceil(perWeek/7)` příspěvků.
+    let highFitOk = true, highReachOk = true, highPerDayOk = true, highDensityOk = true
+    for (const spanDays of [28, 29, 30, 31]) {
+        for (const perWeek of [10, 14]) {
+            const perDay = Math.ceil(perWeek / 7)
+            const list = offsets(postsForSpan(spanDays, perWeek), spanDays, perWeek)
+            if (list[list.length - 1] > spanDays - 1) highFitOk = false
+            // Poslední den plánu musí ležet v posledním týdnu rozpětí — jinak se
+            // „měsíc" zase scvrkl na čtyři týdny.
+            if (list[list.length - 1] < spanDays - 7) highReachOk = false
+            if (list.some(o => list.filter(x => x === o).length > perDay)) highPerDayOk = false
+            if (!list.every(o => list.filter(x => x >= o && x < o + 7).length <= perWeek)) highDensityOk = false
+        }
+    }
+    check("kadence 10 a 14 se vejdou do rozpětí", highFitOk)
+    check("kadence 10 a 14 dosáhnou na konec měsíce", highReachOk)
+    check("na den připadne nejvýš ceil(perWeek/7) příspěvků", highPerDayOk)
+    check("hustota drží kadenci i nad 7×/týdně", highDensityOk)
 
     // Kadence se drží pro každý reálný měsíc i kadenci, ne jen pro ten testovaný.
     let allDensityOk = true, allFitOk = true

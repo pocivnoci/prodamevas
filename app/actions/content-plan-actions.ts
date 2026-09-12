@@ -5,6 +5,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { buildFactsSection } from "@/instagram/caption-generator"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { computeSlotIntents, ghostRolesForPreview, getPatternDef, type SlotIntent, type FeedPatternId, type VisualMode } from "@/lib/feed-pattern"
+import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 import type { CatalogProduct } from "@/instagram/service"
 import type { ClientConfig } from "@/instagram/configs/types"
 
@@ -254,6 +255,14 @@ async function generateContentPlanInner(
 
         const config = await loadConfig(projectSlug)
         setActiveProject(clientId)
+
+        // Týden plánu dělí KADENCE, ne fixních sedm položek. `Math.floor(i / 7)`
+        // předpokládal 7×/týdně: při 4×/týdně a 17 postech (31denní měsíc) hlásil
+        // „Týden 1–3" místo 1–5 a poslední dva týdny kalendáře se ztratily.
+        // Stejná kadence řídí i práh „Rozděl do týdnů" v promptu — dřív natvrdo 14,
+        // což byly dva týdny jen u 7×/týdně.
+        const perWeek = Math.min(MAX_POSTS_PER_WEEK, Math.max(1, Math.round(Number(config.postsPerWeek) || 4)))
+        const spansWeeks = count > perWeek * 2
 
         // Get strategic post type sequence
         const _getPillarForType = createPillarMapper(config)
@@ -526,7 +535,7 @@ ${productNumbering}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${buildFactsSection(config)}
 ${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
-${count > 14 ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
+${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
 
         const { runPlanPipeline } = await import("@/instagram/plan-pipeline")
         const pipelineResult = await runPlanPipeline({
@@ -690,7 +699,7 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                 angle: concept.angle,
                 topic: concept.topic,
                 qualityScore: concept.qualityScore || undefined,
-                week: count > 14 ? Math.floor(i / 7) + 1 : undefined,
+                week: spansWeeks ? Math.floor(i / perWeek) + 1 : undefined,
                 day: i + 1,
                 ideaId,
                 ideaTitle,

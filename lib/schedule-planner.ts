@@ -79,8 +79,9 @@ export function postsForSpan(spanDays: number, postsPerWeek: number): number {
 
 /**
  * Produce `count` schedule slots at `postsPerWeek` per week.
- *  - `spanDays` set (a perWeek ≤ 7): rovnoměrně přes zadané rozpětí — tím se
- *    plán trefí do skutečné délky měsíce místo do čtyř týdnů.
+ *  - `spanDays` set: dny se rozprostřou rovnoměrně přes zadané rozpětí, takže se
+ *    plán trefí do skutečné délky měsíce místo do čtyř týdnů. Kolik příspěvků
+ *    připadne na jeden den, pořád rozhoduje kadence (1 do 7×/týdně, jinak `perDay`).
  *  - perWeek ≤ 7: at most one post/day, spread across the week (offset
  *    `floor(j*7/perWeek)`) — cadence 4 gives a Mon/Tue/Thu/Sat rhythm.
  *  - perWeek > 7: `ceil(perWeek/7)` posts/day (14 = 2×/day), each at a different
@@ -103,11 +104,16 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
     start.setHours(0, 0, 0, 0)
     if (start < minStart) start = minStart
 
-    // Rozpětí dává smysl jen tam, kde na den připadá nejvýš jeden příspěvek;
-    // u 2×/day rozhoduje `perDay` a dny se stejně vyplní hustě za sebou.
-    const span = opts.spanDays && opts.spanDays > 0 && perWeek <= 7
-        ? Math.round(opts.spanDays)
-        : null
+    // Rozpětí platí pro každou kadenci. Dřív se u 2×/den ignorovalo, jenže UI
+    // nabízí i 10 a 14 týdně — „měsíc" pak při kadenci 10 skončil po 22 dnech
+    // a poslední týden kalendáře zůstal prázdný.
+    // Rozpětí řídí JEN dny; kolik slotů má den, dál drží kadence.
+    const span = opts.spanDays && opts.spanDays > 0 ? Math.round(opts.spanDays) : null
+    const slotsPerDay = perWeek <= 7 ? 1 : perDay
+    // Kolikátý příspěvek daného dne se zrovna plánuje — u 2×/den z toho plyne slot
+    // (09:00 / 17:00). Stačí pamatovat předchozí den, protože dny jdou vzestupně.
+    let prevDay = -1
+    let inDay = 0
 
     const out: ScheduleSlot[] = []
     for (let i = 0; i < count; i++) {
@@ -117,7 +123,12 @@ export function distributeSchedule(count: number, opts: DistributeOptions = {}):
         let slotIdx: number
         if (span) {
             dayOffset = Math.min(span - 1, Math.floor((i * span) / count)) // rovnoměrně přes celé rozpětí
-            slotIdx = j % slots.length
+            if (dayOffset === prevDay) inDay++
+            else { inDay = 0; prevDay = dayOffset }
+            // Nad 7×/týdně dopadne na den jeden nebo dva příspěvky (nikdy víc než
+            // `perDay`) a druhý z nich musí dostat jiný čas. Do 7×/týdně je den
+            // vždycky jen jeden, takže čas dál rotuje podle pozice v týdnu.
+            slotIdx = slotsPerDay === 1 ? j % slots.length : inDay
         } else if (perWeek <= 7) {
             dayOffset = week * 7 + Math.floor((j * 7) / perWeek) // ≤1/day, spread across the week
             slotIdx = j % slots.length                           // rotate times by position

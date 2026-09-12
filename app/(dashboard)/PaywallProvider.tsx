@@ -5,6 +5,7 @@ import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { AlertTriangle, ChartColumn, CheckCircle2, ClipboardList, CreditCard, Lock, X, Zap } from "lucide-react"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { LEGAL } from "@/lib/legal"
+import { countLabel, POSTS } from "@/lib/plural"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 
 // ─── Toast System ────────────────────────────────────────────
@@ -208,6 +209,7 @@ function UpgradeModal({
 
 function PlanUnlockModal({ onClose }: { onClose: () => void }) {
     const { subscription, setActiveSection } = useStudio()
+    const planPostsTotal = subscription?.planPostsTotal || 0
 
     /**
      * Modální okno **nezakládá platbu samo.**
@@ -240,8 +242,14 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         Odemkněte svůj plán
                     </h2>
 
+                    {/* Počet příspěvků říká jen předplatné. Natvrdo psané číslo
+                        platilo pro čtyři týdny × 7 postů; skutečný měsíc má 28–31
+                        dní a kadence bývá nižší, takže slibovalo víc, než klient
+                        dostal. Když ho neznáme, věta ho radši neuvede vůbec. */}
                     <p className="text-white/40 text-sm mb-6 text-center max-w-sm mx-auto">
-                        Váš měsíční plán obsahuje {subscription?.planPostsTotal || 30} příspěvků.
+                        {planPostsTotal
+                            ? `Váš měsíční plán obsahuje ${countLabel(planPostsTotal, POSTS)}.`
+                            : "Váš měsíční plán je připravený."}{" "}
                         Aktivujte předplatné a odemkněte je všechny.
                     </p>
 
@@ -250,7 +258,9 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         <div className="flex items-center gap-3">
                             <ClipboardList className="w-4 h-4" />
                             <div>
-                                <p className="text-[10px] text-white/70 font-bold">Měsíční plán (~30 příspěvků)</p>
+                                <p className="text-[10px] text-white/70 font-bold">
+                                    Měsíční plán{planPostsTotal ? ` (${countLabel(planPostsTotal, POSTS)})` : ""}
+                                </p>
                                 <p className="text-[9px] text-white/30">Caption, hashtags, obrázek — vše vygenerováno</p>
                             </div>
                         </div>
