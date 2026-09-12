@@ -137,6 +137,15 @@ check("každá akce volá requireSuperAdmin()", missingGuard.length === 0, missi
 const cron = codeOnly("app/api/cron/tasks-sync/route.ts")
 check("cron route kontroluje CRON_SECRET", cron.includes("CRON_SECRET") && cron.includes("Bearer"))
 
+// Zakládací formulář byl dlouho jen „název + vlastník" a zbytek polí se nedal
+// vyplnit odnikud. Termín a klient musí jít zadat rovnou, jinak se nedoplní nikdy.
+const createBody = actions.slice(
+    actions.indexOf("export async function createTask"),
+    actions.indexOf("export async function setTaskStatus"))
+check("createTask umí termín i klienta",
+    /dueDate\?:/.test(createBody) && /clientId\?:/.test(createBody) &&
+    createBody.includes("due_date:") && createBody.includes("client_id:"))
+
 // ── 5. Registr navigace ─────────────────────────────────────
 // Sekce mimo registr je dosažitelná jen ručním hashem a v sidebaru chybí — přesně
 // ta chyba, kvůli které registr vznikl.
@@ -148,6 +157,19 @@ check(
     page.includes('activeSection === "tasks" && isAdmin'),
     "bez toho ji otevře kdokoliv přes #tasks",
 )
+
+// Sekce je stav, ne route: `setProjectId` sám přepne tenanta a nechá člověka
+// stát na Úkolech. Přepínat se smí jen přes `useStudioNavigate()`.
+const tasksTab = codeOnly("app/(dashboard)/dashboard/instagram/tabs/TasksTab.tsx")
+check("TasksTab přepíná sekce přes useStudioNavigate", tasksTab.includes("useStudioNavigate"))
+// Odznak s počtem otázek patří do registru, ne natvrdo do sidebaru — jinak ho
+// spodní lišta ani rozbalovací panel mít nebudou.
+const navFile = file("app/(dashboard)/nav.ts")
+check("odznak u Úkolů je součást registru navigace",
+    /id: "tasks"[^}]*badge: "tasksAwaitingAnswer"/.test(navFile))
+check("sidebar i spodní lišta čtou odznaky z kontextu",
+    file("app/(dashboard)/StudioNavPanel.tsx").includes("navBadges[item.badge]") &&
+    file("app/(dashboard)/BottomNav.tsx").includes("navBadges[item.badge]"))
 
 // ── 6. Ruční úprava textu příspěvku ─────────────────────────
 const postEdit = codeOnly("app/actions/post-edit-actions.ts")

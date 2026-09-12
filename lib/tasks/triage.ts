@@ -8,9 +8,9 @@
  * Třídič doplní právě tohle a **nic jiného**:
  *   spec.cil / spec.hotovo / spec.kde_zacit · next_step · effort · agent · client_id
  *
- * Do `title`, `note` ani `priority` nesahá — ty vlastní Google tabulka a sync je
- * přepisuje. Kdyby do nich psal, každý úkol by se prvním tříděním vytrhl ze
- * syncu (`updateTask` v takovém případě přepne `source` na 'app').
+ * Do `title`, `note` ani `priority` nesahá — ty patří člověku. Kdyby je model
+ * přepisoval, nikdo by v seznamu nepoznal větu, kterou tam sám napsal, a přestal
+ * by mu věřit i to ostatní.
  *
  * **Když si není jistý, ptá se.** Úkol, ze kterého nejde odvodit „hotovo", není
  * úkol pro agenta ani pro člověka v deset večer — je to otázka. Zapíše se do
@@ -22,6 +22,7 @@
  * Bez toho by seznam platil model při každém průchodu za totéž.
  */
 
+import { QUESTION_PREFIX } from "@/lib/tasks/question"
 import supabaseAdmin from "@/supabase/admin"
 import { judgeText } from "@/instagram/judge"
 
@@ -233,7 +234,7 @@ async function applyTriage(
     // Otázka a čekání jsou dva různé důvody, proč se úkol teď nedělá. Oba končí
     // v `blocked_on`, protože pro člověka v seznamu je to tatáž informace:
     // „tenhle si teď nevezmu a tady je proč".
-    if (question) patch.blocked_on = `otázka: ${question}`
+    if (question) patch.blocked_on = `${QUESTION_PREFIX} ${question}`
     else if (waiting) patch.blocked_on = waiting
     else patch.blocked_on = null
 
