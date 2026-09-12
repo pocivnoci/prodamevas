@@ -11,7 +11,8 @@
  * `scripts/test-reel-pipeline.ts`; síť je jen v `synthesizeNarration`.
  */
 
-import { generateVoiceover } from "./gemini-client"
+import { getTtsProvider } from "./tts"
+import type { TtsProvider } from "./tts/types"
 import { QualityUnavailableError } from "../utils/retry"
 import { REEL_TIMELINE } from "../lib/reel-media"
 
@@ -233,21 +234,37 @@ export function wordCount(lines: string[]): number {
     return lines.join(" ").split(/\s+/).filter(Boolean).length
 }
 
+/** Hlas značky tak, jak ho drží `ClientConfig.voice` (+ tagy přednesu pro tenhle reel). */
+export interface NarrationVoice {
+    provider?: string
+    voiceId: string
+    style?: string
+    tags?: string[]
+}
+
 /**
  * Namluví každou větu zvlášť a změří ji. Běží PŘED zadáním videa, takže když
  * TTS nejde (ani s fallback modelem), job se zaparkuje bez jediné utracené
  * vteřiny videa — `QualityUnavailableError`, stejně jako u vyčerpaného Pro tieru.
+ *
+ * Hlas se sem PŘEDÁVÁ, neurčuje se tady: který hlas značka má, ví jen config
+ * (`config.voice`), a engine si ho nesmí domyslet — právě z domyšleného „Kore"
+ * vznikl stav, kdy všichni klienti zněli stejně.
  */
 export async function synthesizeNarration(
     lines: string[],
-    opts: { voice?: string; mood?: string; audioTags?: string[] },
+    voice: NarrationVoice,
 ): Promise<{ clips: Buffer[]; durations: number[] }> {
+    if (!voice?.voiceId) throw new Error("synthesizeNarration: chybí voiceId — hlas značky patří do config.voice")
+    const provider: TtsProvider = getTtsProvider(voice.provider)
     const clips: Buffer[] = []
     const durations: number[] = []
     for (const [i, text] of lines.entries()) {
         try {
             // Ticho kolem věty ořezat DŘÍV, než se měří — pauzy dává osa, ne TTS.
-            const clip = trimSilence(await generateVoiceover(text, { voice: opts.voice, mood: opts.mood, audioTags: opts.audioTags }))
+            const clip = trimSilence(await provider.synthesize(text, {
+                voiceId: voice.voiceId, style: voice.style, tags: voice.tags, language: "cs",
+            }))
             const info = wavInfo(clip)
             if (info.durationSeconds < 0.2) throw new Error(`TTS vrátilo prázdný klip (${info.durationSeconds}s)`)
             clips.push(clip)

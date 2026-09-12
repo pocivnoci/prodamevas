@@ -9,6 +9,7 @@ import type { BrandVoiceConfig } from "../types"
 import type { FeedPatternId } from "../../lib/feed-pattern"
 import type { PhotoPolicy } from "../../lib/photo-policy"
 import type { MediumType } from "../../lib/credits"
+import type { TtsProviderId } from "../../lib/voice-library"
 
 // ─── Product ────────────────────────────────────────────────
 
@@ -200,6 +201,15 @@ export interface PostTypeDef {
 }
 
 // ─── Audience Persona ───────────────────────────────────────
+
+/** Hlas značky — poskytovatel + konkrétní hlas z `lib/voice-library.ts`. */
+export interface BrandVoiceCasting {
+    provider: TtsProviderId
+    /** ID hlasu v knihovně poskytovatele (Gemini prebuilt, např. "Sulafat"). */
+    voiceId: string
+    /** Volitelný styl přednesu („klidně a věcně") — konstantní přes celý reel. */
+    style?: string
+}
 
 export interface AudiencePersona {
     /** Short label, e.g. "Začátečník", "Skeptik" */
@@ -473,8 +483,15 @@ export interface ClientConfig {
     /** Video script instructions (what to show, visual focus) */
     videoFocus?: string
 
-    /** TTS voice preset for voiceover (Gemini TTS voice name, e.g. "Kore", "Puck", "Charon") */
+    /** @deprecated Nahrazeno `voice`. `validateConfig()` starou hodnotu přebere jako
+     *  voiceId, pokud ji knihovna zná; nový kód čte jen `config.voice`. */
     ttsVoice?: string
+
+    /** Hlas značky pro voiceover reelů. Default ve `validateConfig()` je
+     *  DETERMINISTICKÝ CASTING (`castVoice` z `lib/voice-library.ts`) z persony,
+     *  oboru a publika — ne konstanta: jediný sdílený preset „Kore" byl nejčastější
+     *  stížnost na reely (všichni klienti zněli stejně). */
+    voice?: BrandVoiceCasting
 
     /** Per-post-type format overrides (aspect ratio, medium, overlay style) */
     postFormats?: Record<string, PostFormat>

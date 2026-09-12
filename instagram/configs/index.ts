@@ -6,12 +6,13 @@
 
 import { isSuperAdminEmail } from "../../lib/super-admins"
 import supabaseAdmin from "../../supabase/admin"
-import type { ClientConfig } from "./types"
+import type { ClientConfig, BrandVoiceCasting } from "./types"
 import { FORMAT_BRIEF_LIMITS } from "./types"
 import { isPhotoPolicy } from "../../lib/photo-policy"
 import { findFinishedCopy } from "./format-brief"
 import { reconcileFormats } from "./reconcile"
 import { isFeedPattern } from "../../lib/feed-pattern"
+import { castVoice, isKnownVoice, type TtsProviderId } from "../../lib/voice-library"
 import { industryRiskFamily } from "../../lib/industry-risk"
 import { resolveIndustryVisual } from "../industry-visual-profiles"
 import { CAROUSEL_MAX_TOTAL_SLIDES } from "../caption-generator"
@@ -202,6 +203,31 @@ function normalizeHandle(raw: string | undefined, slug: string): string {
     return ""
 }
 
+/**
+ * Hlas značky. Pořadí je záměrné: uložený výběr klienta > starý `ttsVoice`
+ * (migrace) > DETERMINISTICKÝ CASTING z persony, oboru a publika.
+ *
+ * Poslední krok je to podstatné — kdyby default byla konstanta, vrátili bychom se
+ * do stavu, kdy „Kore" mluví za kavárnu i za izolatéra. Casting je čistá funkce
+ * (`lib/voice-library.ts`), takže stejná značka dostane týž hlas při každém načtení
+ * configu; jméno značky je v seedu, aby dva cold configy bez persony a oboru
+ * neskončily na jednom hlase.
+ */
+function resolveVoice(config: ClientConfig, slug: string): BrandVoiceCasting {
+    const provider: TtsProviderId = config.voice?.provider === "elevenlabs" ? "elevenlabs" : "gemini"
+    const chosen = config.voice?.voiceId
+    const legacy = config.ttsVoice
+    const voiceId = isKnownVoice(chosen) ? chosen!
+        : isKnownVoice(legacy) ? legacy!
+            : castVoice({
+                persona: config.brandVoice?.persona,
+                industry: config.industry,
+                audience: (config.audiencePersonas || []).map(p => `${p.label} ${p.ageRange}`).join(" "),
+                brand: config.name || slug,
+            }, provider)
+    return { provider, voiceId, style: config.voice?.style }
+}
+
 function validateConfig(config: ClientConfig, slug: string): ClientConfig {
     // reconcileFormats self-heals the four format sources on every load — drift
     // (e.g. a format orphaned by a deleted pillar) never reaches the pipeline.
@@ -234,6 +260,8 @@ function validateConfig(config: ClientConfig, slug: string): ClientConfig {
             toneByPostType: config.brandVoice?.toneByPostType ?? {},
         },
         contentPillars: config.contentPillars || {},
+        // Hlas značky — viz resolveVoice(). Nikdy konstanta pro všechny.
+        voice: resolveVoice(config, slug),
         // Voice anchor (few-shot). Optional feature — default to empty so the copywriter
         // prompt simply omits the section until the brand has curated/auto-promoted examples.
         brandVoiceExamples: config.brandVoiceExamples || [],

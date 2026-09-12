@@ -505,100 +505,16 @@ export async function analyzeImagesWithText(
 }
 
 // ============================================
-// VOICEOVER — Gemini 3.1 Flash TTS (Czech)
+// VOICEOVER — přesunuto do instagram/tts/
 // ============================================
 
 /**
- * Gemini TTS vrací **holé PCM bez kontejneru** (`audio/L16;codec=pcm;rate=24000`),
- * ne WAV. Uložit ten buffer jako `.wav` znamená soubor, který ffmpeg odmítne
- * (`Invalid data found when processing input`) — a protože reel orchestrátor
- * chybu post-processingu polyká a pošle dál syrový klip, **každý reel dosud
- * odcházel bez českého voiceoveru a bez titulků**, jen s varováním v logu.
- *
- * Hlavička se proto dolepuje tady, u zdroje: volající pak drží buffer, který je
- * sám o sobě přehratelný soubor, a nemusí hádat vzorkovací frekvenci. Parametry
- * se čtou z `mimeType`, ne natvrdo — kdyby Gemini přepnul na 48 kHz nebo stereo,
- * hlavička se přizpůsobí místo aby tiše rozladila zvuk.
+ * Syntéza hlasu už tady nežije: poskytovatelé jsou v `instagram/tts/`
+ * (`gemini.ts` má i `toPlayableAudio` a `prebuiltVoiceConfig`). Tahle obálka
+ * zůstává jen pro zpětnou kompatibilitu volajících, kteří o hlasu značky nic
+ * nevědí. Nový kód si bere poskytovatele přes `getTtsProvider(config.voice.provider)`.
  */
-function toPlayableAudio(raw: Buffer, mimeType?: string): Buffer {
-    // Už kontejner (RIFF/WAVE, MP3, OGG…) — nesahat na to.
-    if (raw.subarray(0, 4).toString("latin1") === "RIFF") return raw
-    if (!/L16|pcm/i.test(mimeType || "")) return raw
-
-    const rate = Number(/rate=(\d+)/i.exec(mimeType || "")?.[1]) || 24_000
-    const channels = Number(/channels=(\d+)/i.exec(mimeType || "")?.[1]) || 1
-    const bits = 16
-    const blockAlign = (channels * bits) / 8
-
-    const header = Buffer.alloc(44)
-    header.write("RIFF", 0, "latin1")
-    header.writeUInt32LE(36 + raw.length, 4)
-    header.write("WAVE", 8, "latin1")
-    header.write("fmt ", 12, "latin1")
-    header.writeUInt32LE(16, 16)          // délka fmt bloku
-    header.writeUInt16LE(1, 20)           // 1 = nekomprimované PCM
-    header.writeUInt16LE(channels, 22)
-    header.writeUInt32LE(rate, 24)
-    header.writeUInt32LE(rate * blockAlign, 28)
-    header.writeUInt16LE(blockAlign, 32)
-    header.writeUInt16LE(bits, 34)
-    header.write("data", 36, "latin1")
-    header.writeUInt32LE(raw.length, 40)
-
-    return Buffer.concat([header, raw])
-}
-
-export async function generateVoiceover(
-    narrationText: string,
-    options: {
-        voice?: string        // Preset voice name (default: "Kore")
-        mood?: string         // e.g. "professional", "excited", "calm"
-        audioTags?: string[]  // expressive delivery tags, e.g. ["warm pace", "smiling"] (Gemini 3.1 TTS supports 200+)
-    } = {}
-): Promise<Buffer> {
-    const { voice = "Kore", mood, audioTags } = options
-
-    // Prepend mood + audio tags for expressive delivery
-    const tags = [mood, ...(audioTags || [])].filter(Boolean)
-    const textWithMood = tags.length
-        ? `${tags.map(t => `[${t}]`).join("")} ${narrationText}`
-        : narrationText
-
-    const callModel = async (model: string): Promise<Buffer> => {
-        const response = await ai.models.generateContent({
-            model,
-            contents: textWithMood,
-            config: {
-                responseModalities: ["AUDIO"] as any,
-                speechConfig: {
-                    voiceConfig: {
-                        prebuiltVoiceConfig: {
-                            voiceName: voice,
-                        },
-                    },
-                },
-            } as any,
-        })
-
-        recordUsage(model, response.usageMetadata, "tts")
-
-        const audioPart = response.candidates?.[0]?.content?.parts?.[0]
-        const inlineData = (audioPart as any)?.inlineData
-
-        if (!inlineData?.data) {
-            throw new Error("TTS returned no audio data")
-        }
-
-        return toPlayableAudio(Buffer.from(inlineData.data, "base64"), inlineData.mimeType)
-    }
-
-    try {
-        return await callModel(getModel("tts"))
-    } catch (err) {
-        console.warn(`⚠️ ${getModel("tts")} failed — falling back to ${getModel("tts", "fallback")}...`, err)
-        return callModel(getModel("tts", "fallback"))
-    }
-}
+export { generateVoiceover } from "./tts/gemini"
 
 // ============================================
 // EMBEDDINGS (pipeline v2 — memory relevance + consistency score)
