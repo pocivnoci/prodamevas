@@ -480,6 +480,8 @@ Hook: "${captionData.hook}"
 Body: "${captionData.body || ""}"
 CTA: "${captionData.cta}"
 ${isCarousel && captionData.slides ? `Slides: ${captionData.slides.map((s: any) => `"${s.headline}"`).join(", ")}` : ""}
+${isReel ? `Scény (${captionData.scenes.length}, scénář od scenáristy — vrať PŘESNĚ tenhle počet ve stejném pořadí; přepisuj jen znění tam, kde to poznámky vyžadují, beaty NESLUČUJ ani nevynechávej):
+${captionData.scenes.map((sc: any, i: number) => `${i + 1}. [${sc.timeRange}] ${sc.textOnly ? "karta" : "narrace"}: "${sc.narration || ""}" | obraz: ${sc.visual || ""}`).join("\n")}` : ""}
 
 ## ŠÉFREDAKTOROVY POZNÁMKY
 ${editorFeedback}
@@ -807,7 +809,28 @@ export async function reviewPost(
         if (revision.accentWords) currentCaption.accentWords = revision.accentWords
         if (revision.slides) currentCaption.slides = revision.slides
         if (revision.visualTheme) currentCaption.visualTheme = revision.visualTheme
-        if (revision.scenes) currentCaption.scenes = revision.scenes
+        // Scény reelu píše scenárista (Opus) na délku videa; revize smí měnit ZNĚNÍ,
+        // ne kostru. Bez tohohle vrátila revize kvůli jednomu hashtagu 1 scénu místo
+        // 5 beatů, TTS namluvilo dvě věty a dlouhý reel vyšel na 10 s (agro-invest,
+        // 12. 9. 2026). Jiný počet scén = revize scén se zahodí, nahlas.
+        if (Array.isArray(revision.scenes) && revision.scenes.length > 0) {
+            const cur: any[] = Array.isArray(currentCaption.scenes) ? currentCaption.scenes : []
+            if (cur.length === 0) {
+                currentCaption.scenes = revision.scenes
+            } else if (revision.scenes.length !== cur.length) {
+                console.warn(`   ⚠️ Redakce vrátila ${revision.scenes.length} scén místo ${cur.length} — scénář zůstává, mění se jen text postu`)
+            } else {
+                const TEXT_FIELDS = ["narration", "visual", "camera", "mood", "soundEffect"] as const
+                currentCaption.scenes = cur.map((sc, i) => {
+                    const patch: Record<string, string> = {}
+                    for (const f of TEXT_FIELDS) {
+                        const v = revision.scenes[i]?.[f]
+                        if (typeof v === "string" && v.trim()) patch[f] = v.trim()
+                    }
+                    return { ...sc, ...patch }
+                })
+            }
+        }
         if (revision.videoScript) currentCaption.videoScript = revision.videoScript
         if (revision.caption) currentCaption.caption = revision.caption
 
