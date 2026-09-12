@@ -820,6 +820,10 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         productId: result.item!.productId,
                         productName: result.item!.productName,
                         productImage: result.item!.productImage,
+                        // Kategorie patří k novému konceptu — server ji vrací ověřenou proti pilíři.
+                        categoryId: result.item!.categoryId,
+                        categoryLabel: result.item!.categoryLabel,
+                        categoryEmoji: result.item!.categoryEmoji,
                         // Stav brány patří k NOVÉMU znění. Ponechat starý štítek by
                         // znamenalo varovat u hooku, který ten problém už nemá — nebo
                         // hůř, mlčet u hooku, který ho nově má.
@@ -1530,6 +1534,14 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                                                                     className="text-[8px] px-1.5 py-0.5 border border-violet-400/20 bg-violet-400/5 text-violet-300/70 rounded-sm font-bold uppercase tracking-wider"
                                                                 >
                                                                     💡 {item.ideaTitle}
+                                                                </span>
+                                                            )}
+                                                            {item.categoryLabel && (
+                                                                <span
+                                                                    title="Kategorie pilíře — úhel, který post drží"
+                                                                    className="text-[8px] px-1.5 py-0.5 border border-emerald-400/20 bg-emerald-400/5 text-emerald-300/70 rounded-sm font-bold uppercase tracking-wider"
+                                                                >
+                                                                    {item.categoryEmoji} {item.categoryLabel}
                                                                 </span>
                                                             )}
                                                         </div>

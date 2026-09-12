@@ -72,6 +72,18 @@ příchozích ideaIds a **vymyšlená schválená témata uloží zpět** do `ig
 jen tam, worker při resume **nikdy nesmí insertovat**. Řádky plánu nesou `ideaId` →
 worker → `generateOnePost({ideaId, topic})` = pravdivá atribuce.
 
+**Nápad je téma, ne formát; kategorie drží celý systém** (`instagram/idea-rules.ts`,
+guard §39). Formát (obrázek / karusel / reel) vybírá slot plánu, nápad ho nesmí
+předepisovat: generátor nápad s formátovým slovem pošle na přepis, a co ho nese i po
+přepisu, je téma (značka o videích mluví) a zůstává — nahlas. Plán bere zásobník **po
+pilířích** (`getWeightedIdeasForPillars`), dostane katalog kategorií pilířů a ke každému
+postu vrátí `categoryId`, který kód ověří proti pilíři slotu; kategorie jede na řádku
+plánu přes worker do `generateOnePost({ categoryId })` a při vkladu do zásobníku se
+z ní stane `subcategory`. Koncept, který slibuje video u obrázku, jde v pipeline na
+vynucený přepis. Nápady bez platné kategorie (přegenerované pilíře) zařadí
+`classifyUncategorizedIdeas` — denně v `idea_replenish_client` a po uložení změněných
+kategorií v Nastavení (fronta). Jednorázový úklid: `scripts/fix-idea-bank.ts`.
+
 **Náhled plánu je bez vedlejších efektů.** Jiný týdenní plánovač neexistuje:
 `planWeekAction`/`content-planner.ts` byly odstraněné (účtovací díra — neúčtovaná
 synchronní generace). CalendarTab „Naplánovat týden" otevírá kampaňový flow přes

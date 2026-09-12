@@ -667,19 +667,44 @@ function decayedScore(score: number, lastSignalAt: string | null | undefined): n
 
 export async function getWeightedIdeas(limit = 5): Promise<PostIdea[]> {
     const clientId = getActiveProject()
+    const allIdeas = await fetchActiveIdeas(clientId, 100)
+    return weightIdeas(allIdeas, limit)
+}
 
-    const { data: allIdeas } = await supabaseAdmin
+/**
+ * Vážený výběr PO PILÍŘÍCH — pro plán. `wants` říká, kolik nápadů z kterého pilíře
+ * (typicky počet slotů pilíře v plánu + 1 na výběr). Nápad z pilíře „prodej" se tak
+ * nemůže nabídnout slotu „dosah": plán má témata řídit kategoriemi, ne náhodou.
+ * clientId je explicitní — plán ho má, a getActiveProject() sem nepatří.
+ */
+export async function getWeightedIdeasForPillars(clientId: string, wants: Record<string, number>): Promise<Record<string, PostIdea[]>> {
+    const allIdeas = await fetchActiveIdeas(clientId, 300)
+    const out: Record<string, PostIdea[]> = {}
+    for (const [pillarId, n] of Object.entries(wants)) {
+        if (!(n > 0)) continue
+        const picked = weightIdeas(allIdeas.filter(i => i.category === pillarId), n)
+        if (picked.length > 0) out[pillarId] = picked
+    }
+    return out
+}
+
+async function fetchActiveIdeas(clientId: string, limit: number): Promise<PostIdea[]> {
+    const { data } = await supabaseAdmin
         .from("ig_post_ideas")
         .select("*")
         .eq("client_id", clientId)
         .eq("is_active", true)
         .order("performance_score", { ascending: false })
-        .limit(100)
+        .limit(limit)
+    return (data ?? []) as PostIdea[]
+}
 
+/** Cooldown + průzkumné vážení + náhodný výběr — jádro sdílené oběma čtenáři výš. */
+function weightIdeas(allIdeas: PostIdea[], limit: number): PostIdea[] {
     // Per-idea cooldown (same rule as getAvailableIdeas) — a hardcoded 90d here
     // used to silently override each idea's cooldown_days.
     const now = Date.now()
-    const ideas = (allIdeas ?? []).filter(idea => {
+    const ideas = allIdeas.filter(idea => {
         if (!idea.last_used_at) return true
         const cooldownDays = idea.cooldown_days ?? DEFAULT_IDEA_COOLDOWN_DAYS
         return now - new Date(idea.last_used_at).getTime() > cooldownDays * 86_400_000

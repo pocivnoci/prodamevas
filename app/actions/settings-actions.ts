@@ -59,16 +59,19 @@ export async function getClientConfig(projectId: string): Promise<ClientConfig |
 
 export async function updateClientConfig(projectId: string, newConfig: any): Promise<{ success: boolean; error?: string }> {
     try {
-        await requireProjectAccess(projectId)
+        const { clientId } = await requireProjectAccess(projectId)
         // Validation - verify the config is valid JSON and has minimum required fields
         if (!newConfig || typeof newConfig !== "object") {
             return { success: false, error: "Neplatný formát konfigurace (musí být JSON objekt)." }
         }
 
+        // Staré kategorie pilířů — po uložení se porovnají s novými (fronta na zařazení nápadů).
+        const { data: before } = await supabaseAdmin.from("clients").select("config").eq("id", clientId).single()
+
         const { error } = await supabaseAdmin
             .from("clients")
             .update({ config: newConfig })
-            .eq("slug", projectId)
+            .eq("id", clientId)
 
         if (error) {
             console.error("Supabase update error:", error)
@@ -78,6 +81,11 @@ export async function updateClientConfig(projectId: string, newConfig: any): Pro
         // Invalidate config cache
         const { invalidateConfigCache } = await import("@/instagram/configs")
         invalidateConfigCache(projectId)
+
+        if (newConfig.contentPillars) {
+            const { enqueueReclassifyIfCategoriesChanged } = await import("@/lib/agents/idea-replenish")
+            await enqueueReclassifyIfCategoriesChanged(clientId, projectId, (before?.config as any)?.contentPillars, newConfig.contentPillars)
+        }
 
         // Revalidate the app to reflect changes
         revalidatePath("/dashboard")

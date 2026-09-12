@@ -76,6 +76,13 @@ export async function updateClientConfig(projectSlug: string, partialConfig: any
         const { invalidateConfigCache } = await import("@/instagram/configs")
         invalidateConfigCache(projectSlug)
 
+        // Přegenerované/přejmenované kategorie pilířů → nápady v zásobníku by zůstaly
+        // s id, které konfigurace už nezná. Zařazení dělá agent; tady jen fronta.
+        if (partialConfig?.contentPillars) {
+            const { enqueueReclassifyIfCategoriesChanged } = await import("@/lib/agents/idea-replenish")
+            await enqueueReclassifyIfCategoriesChanged(clientId, projectSlug, currentConfig.contentPillars, reconciled.contentPillars)
+        }
+
         return { success: true }
     } catch (err: any) {
         console.error("updateClientConfig error:", err?.message || err)

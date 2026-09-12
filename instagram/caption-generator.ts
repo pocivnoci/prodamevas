@@ -9,7 +9,7 @@ import { judgeText } from "./judge"
 import { getModel, hasFallback, getTemperature } from "./models"
 import { unitRate, videoUnitKey } from "@/lib/model-pricing"
 import { isReelMedium, clampReelDuration, REEL_LIMITS, plannedNarrationWords, SPOKEN_WORDS_PER_SECOND, type ReelMedium } from "@/lib/reel-media"
-import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample } from "./configs/types"
+import type { ClientConfig, PostFormat, PostTypeDef, AudiencePersona, BrandVoiceExample, PillarCategory } from "./configs/types"
 import type { PostType, PostIdea, Review } from "./types"
 import type { HookTemplate, ToneModifier } from "./types"
 import type { PerformanceInsight } from "./performance"
@@ -962,7 +962,11 @@ export function buildMegaPrompt(
     approvedHook?: string,
     /** Pre-resolved CTA policy (single source of truth for CTA/website/product-link rules).
      *  Derived internally when omitted — pass it from the caller to guarantee writer/judge parity. */
-    ctaPolicy?: CtaPolicy
+    ctaPolicy?: CtaPolicy,
+    /** Kategorie pilíře zvolená plánem (nebo nápadem). Bez ní se úhel kategorie bral jen
+     *  z nápadu — a v kampani, kde post jede na explicitní téma, se nápad do promptu
+     *  nedostane vůbec, takže se kategorie ztrácela přesně tam, kde vzniká většina postů. */
+    category?: PillarCategory
 ): string {
     const bv = config.brandVoice
     const toneDesc = getToneDescription(config, postType.name)
@@ -1088,10 +1092,10 @@ ${toneDesc ? `## TÓN: ${toneDesc}` : ""}
 
 ${productsSection}
 ${idea && !userTopic ? (() => {
-    // Resolve category context from idea's subcategory
+    // Resolve category context: plan's category first, else the idea's subcategory
     const pillarKey = getPillarForType(config, postType.name)
     const pillarConfig = config.contentPillars[pillarKey]
-    const ideaCategory = idea.subcategory && pillarConfig?.categories?.find(c => c.id === idea.subcategory)
+    const ideaCategory = category ?? (idea.subcategory && pillarConfig?.categories?.find(c => c.id === idea.subcategory))
     const categoryContext = ideaCategory
         ? `\n**Kategorie:** ${ideaCategory.emoji} ${ideaCategory.label}${ideaCategory.prompt ? `\n**Úhel:** ${ideaCategory.prompt}` : ""}\nPost MUSÍ odpovídat tomuto typu obsahu.`
         : `Kategorie: ${idea.category}, Platforma: ${idea.subcategory || "general"}`
@@ -1100,6 +1104,9 @@ ${idea && !userTopic ? (() => {
 ${categoryContext}
 `
 })() : ""}
+${category && (!idea || userTopic) ? `## 🗂️ KATEGORIE OBSAHU: ${category.emoji} ${category.label}
+${category.prompt ? `**Úhel:** ${category.prompt}\n` : ""}Post MUSÍ odpovídat tomuto typu obsahu — je to kategorie, kterou má tenhle post v plánu.
+` : ""}
 ${userTopic ? `## 🎯 ZADANÉ TÉMA OD UŽIVATELE (PRIORITA 1)
 **Post MUSÍ být PŘESNĚ o tomto tématu:** ${userTopic}
 ` : ""}

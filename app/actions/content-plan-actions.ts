@@ -44,6 +44,12 @@ export interface ContentPlanItem {
     ideaId?: string
     /** Idea title for the 💡 badge in the plan preview. */
     ideaTitle?: string
+    /** Kategorie pilíře (PillarCategory.id), kterou plán postu přiřadil. Řídí úhel
+     *  copywritera (worker ji předá enginu) a při vkladu vymyšleného tématu do
+     *  zásobníku se z ní stane `subcategory` — nápad je tak od začátku pod svým čipem. */
+    categoryId?: string
+    categoryLabel?: string
+    categoryEmoji?: string
     /** This post's cell in the feed pattern, decided at plan time and carried through to the
      *  worker — so a resumed/retried post keeps the visual mode the grid was planned around. */
     slotIntent?: SlotIntent
@@ -284,10 +290,20 @@ async function generateContentPlanInner(
         // ideas become plan topics with ideaId attribution; the model invents the rest.
         // Read-only here: the preview must NEVER mutate the bank (deposit + markIdeaAsUsed
         // happen only at startCampaign / post generation). ──
-        let bankIdeas: { id: string; title: string; content: string; performance_score?: number; times_used_with_metrics?: number }[] = []
+        // Po pilířích: slot „dosah" dostane nabídnuté jen nápady z pilíře „dosah".
+        // Globální výběr míchal pilíře a model pak sázel prodejní nápad do edukačního
+        // slotu — kategorie, které si uživatel nastavil, tím ztrácely smysl.
+        let bankIdeas: { id: string; title: string; content: string; category: string; subcategory?: string | null; performance_score?: number; times_used_with_metrics?: number }[] = []
         try {
-            const { getWeightedIdeas } = await import("@/instagram/service")
-            bankIdeas = await getWeightedIdeas(count)
+            const { getWeightedIdeasForPillars } = await import("@/instagram/service")
+            const wants: Record<string, number> = {}
+            for (const typeName of typeSequence) {
+                const p = getPillarForType(config, typeName)
+                wants[p] = (wants[p] || 0) + 1
+            }
+            for (const p of Object.keys(wants)) wants[p] += 1 // jeden navíc, ať má model z čeho vybírat
+            const byPillar = await getWeightedIdeasForPillars(clientId, wants)
+            bankIdeas = Object.values(byPillar).flat()
         } catch (e: any) {
             console.warn(`📋 [content-plan] idea bank skipped: ${e?.message}`)
         }
@@ -428,12 +444,38 @@ async function generateContentPlanInner(
             ? `\n## 🚫 NEDÁVNÉ HOOKY (NEPOUŽÍVEJ podobné vzorce ani témata!):\n${recentHooks.map(h => `- "${h}"`).join("\n")}\n`
             : ""
 
+        // Číslování je globální (ideaIndex), seskupení po pilířích — a pravidlo „jen ve
+        // stejném pilíři" se pak ještě vynucuje v kódu při mapování ideaIndex → ideaId.
+        const ideaLine = (idea: (typeof bankIdeas)[number], i: number) => {
+            const cat = config.contentPillars[idea.category]?.categories?.find(c => c.id === idea.subcategory)
+            const proven = (idea.performance_score || 0) > 0 && (idea.times_used_with_metrics || 0) > 0 ? "[🔥 ověřený] " : ""
+            return `${i + 1}. ${proven}"${idea.title}" — ${String(idea.content || "").substring(0, 150)}${cat ? ` [kategorie: ${cat.id}]` : ""}`
+        }
         const ideaBankSection = bankIdeas.length > 0
             ? `\n## 💡 ZÁSOBNÍK TÉMAT ZNAČKY (použij přednostně!)
-Schválené nápady klienta. Kde to dává smysl, postav post na nápadu ze seznamu a vrať jeho číslo jako "ideaIndex".
+Schválené nápady klienta, seskupené podle pilíře. Kde to dává smysl, postav post na nápadu ze seznamu a vrať jeho číslo jako "ideaIndex".
 Nápad rozveď vlastním hookem a úhlem — jádro tématu ale MUSÍ odpovídat nápadu.
-${bankIdeas.map((idea, i) => `${i + 1}. ${(idea.performance_score || 0) > 0 && (idea.times_used_with_metrics || 0) > 0 ? "[🔥 ověřený] " : ""}"${idea.title}" — ${String(idea.content || "").substring(0, 150)}`).join("\n")}
-PRAVIDLA: Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, vymysli vlastní téma a "ideaIndex" vynech.\n`
+${Object.entries(config.contentPillars)
+    .map(([key, p]) => ({ key, p, ideas: bankIdeas.map((idea, i) => ({ idea, i })).filter(x => x.idea.category === key) }))
+    .filter(g => g.ideas.length > 0)
+    .map(g => `### ${g.p.emoji} ${g.p.label} (pilíř "${g.key}")\n${g.ideas.map(x => ideaLine(x.idea, x.i)).join("\n")}`)
+    .join("\n")}
+PRAVIDLA: Nápad použij JEN u postu ze STEJNÉHO pilíře. Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, vymysli vlastní téma a "ideaIndex" vynech. Nápad s [kategorie: …] převezme i tu kategorii jako "categoryId".\n`
+            : ""
+
+        // ─── Kategorie pilířů: jediný způsob, jak uživatel řídí, O ČEM se generuje.
+        // Plán je dostane celé (id, štítek, prompt, váha) a ke každému postu vrátí
+        // categoryId; kód ho pak ověří proti pilíři slotu. ──
+        const { categoryLine } = await import("@/instagram/idea-rules")
+        const plannedPillars = [...new Set(typeSequence.map(t => getPillarForType(config, t)))]
+        const categoryCatalog = plannedPillars
+            .map(key => ({ key, p: config.contentPillars[key] }))
+            .filter(x => x.p?.categories?.length)
+            .map(x => `### ${x.p.emoji} ${x.p.label} (pilíř "${x.key}")\n${x.p.categories!.map(categoryLine).join("\n")}`)
+        const categoryCatalogSection = categoryCatalog.length > 0
+            ? `\n## 🗂️ KATEGORIE PILÍŘŮ (ke každému postu vrať "categoryId" z kategorií JEHO pilíře)
+Rozlož posty každého pilíře mezi jeho kategorie podle vah (bez vah rovnoměrně); prompt kategorie je úhel, který má post držet.
+${categoryCatalog.join("\n")}\n`
             : ""
 
         // ─── Brand grounding: pipe in what onboarding learned from the client's REAL Instagram.
@@ -534,7 +576,7 @@ ${config.brandVoice.antiPatterns?.join(", ")}
 ${productNumbering}
 ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePersonas.map(p => `- **${p.label}** (${p.ageRange} let): Pain points: ${p.painPoints.slice(0, 2).join(", ")}`).join("\n")}\n` : ""}
 ${buildFactsSection(config)}
-${brandGroundingSection}${ideaBankSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
+${brandGroundingSection}${ideaBankSection}${categoryCatalogSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
 ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
 
         const { runPlanPipeline } = await import("@/instagram/plan-pipeline")
@@ -545,9 +587,10 @@ ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
             contextBlock,
             typeList,
             recentHooks,
+            mediums: effectiveMediums,
             onStage: (progress, message) => planBreadcrumb({ progress, agent_message: message }),
         })
-        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number; productIndex?: number }[] = pipelineResult.concepts
+        const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number; productIndex?: number; categoryId?: string }[] = pipelineResult.concepts
         const strategySummary = pipelineResult.strategySummary || undefined
         await planBreadcrumb({ progress: 92, agent_message: `📝 Plán: ${concepts.length}/${count}${pipelineResult.judged ? " · oponentura ✓" : ""}` })
 
@@ -563,7 +606,7 @@ ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
 
             const fillPrompt = `Jsi content planner pro "${config.name}". Potřebuji přesně ${missing} dalších postů do obsahového plánu.
 
-${topHooksSection}
+${topHooksSection}${categoryCatalogSection}
 ## EXISTUJÍCÍ HOOKY (neduplikuj):
 ${existingHooks.map(h => `- "${h}"`).join("\n")}
 
@@ -574,7 +617,7 @@ ${missingTypes.map((t, i) => {
     return `${i + 1}. Typ: "${t}" (${pt?.display_name || t}) | Pilíř: ${pillar}`
 }).join("\n")}
 
-Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore.`
+Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore${categoryCatalog.length ? ", categoryId" : ""}.`
 
             try {
                 // Same Pro ladder as the pipeline — a fill item is a real plan item, no flash.
@@ -667,6 +710,7 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
 
         // Build plan items with metadata
         const usedIdeaIdx = new Set<number>()
+        const categoryStats = { idea: 0, planner: 0, none: 0 }
         const plan: ContentPlanItem[] = typeSequence.slice(0, count).map((typeName, i) => {
             const pt = ptMap.get(typeName)
             const pillar = getPillarForType(config, typeName)
@@ -678,13 +722,33 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
 
             // Map ideaIndex → ideaId with clamping — the model can hallucinate indexes
             // or reuse one twice; invalid/duplicate indexes silently become "invented".
+            // Nápad z cizího pilíře se NEváže: post o tématu je, ale atribuce by řekla,
+            // že prodejní nápad „zafungoval" v edukačním slotu — a učicí smyčka by se
+            // učila z lži. Vidět to musí být v logu.
             const ix = concept.ideaIndex
             let ideaId: string | undefined
             let ideaTitle: string | undefined
+            let ideaCategoryId: string | undefined
             if (typeof ix === "number" && Number.isInteger(ix) && ix >= 1 && ix <= bankIdeas.length && !usedIdeaIdx.has(ix)) {
-                usedIdeaIdx.add(ix)
-                ideaId = bankIdeas[ix - 1].id
-                ideaTitle = bankIdeas[ix - 1].title
+                const bankIdea = bankIdeas[ix - 1]
+                if (bankIdea.category === pillar) {
+                    usedIdeaIdx.add(ix)
+                    ideaId = bankIdea.id
+                    ideaTitle = bankIdea.title
+                    ideaCategoryId = bankIdea.subcategory || undefined
+                } else {
+                    console.warn(`📋 [content-plan] post #${i + 1} (${pillar}) sáhl po nápadu #${ix} z pilíře ${bankIdea.category} — vazba zrušena, téma zůstává`)
+                }
+            }
+
+            // Kategorie: nápad ze zásobníku ji nese sám (je to jeho kategorie), jinak
+            // platí, co plánovač vrátil — ale jen když je to kategorie pilíře slotu.
+            const pillarCategories = pillarCfg?.categories || []
+            const category = pillarCategories.find(c => c.id === ideaCategoryId)
+                ?? pillarCategories.find(c => c.id === concept.categoryId)
+            if (pillarCategories.length > 0) {
+                if (category) categoryStats[category.id === ideaCategoryId ? "idea" : "planner"]++
+                else categoryStats.none++
             }
 
             return {
@@ -703,11 +767,17 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                 day: i + 1,
                 ideaId,
                 ideaTitle,
+                categoryId: category?.id,
+                categoryLabel: category?.label,
+                categoryEmoji: category?.emoji,
                 slotIntent: slotIntents[i] ?? undefined,
                 factFlag: planFactFlags[i]?.[0],
                 factSources: planFactSources.filter(v => (concept.hookPreview || "").includes(v.claim)),
             }
         })
+        if (categoryCatalog.length > 0) {
+            console.log(`📋 [content-plan] kategorie: ${categoryStats.idea} podle nápadu · ${categoryStats.planner} podle plánovače · ${categoryStats.none} bez kategorie`)
+        }
 
         // ─── Link each post to the product it is actually ABOUT ────────────────────
         // This used to be a blind round-robin over the focus products, which meant the
@@ -1011,6 +1081,10 @@ export interface RegeneratedPlanItem {
     hookPreview: string
     angle: string
     topic: string
+    /** Kategorie pilíře nového konceptu (viz ContentPlanItem.categoryId). */
+    categoryId?: string
+    categoryLabel?: string
+    categoryEmoji?: string
     productId?: string
     productName?: string
     productImage?: string
@@ -1054,6 +1128,12 @@ async function regeneratePlanItemInner(
         const pillarSection = pillarCfg
             ? `## PILÍŘ: ${pillarCfg.emoji} ${pillarCfg.label}\n${pillarCfg.description || ""}\nCíl: ${pillarCfg.ctaStrategy === "hard" ? "PRODEJ" : pillarCfg.ctaStrategy === "medium" ? "HODNOTA" : pillarCfg.ctaStrategy === "soft" ? "DOSAH" : "KOMUNITA"}\n`
             : ""
+        // Kategorie pilíře — stejná smlouva jako v celém plánu: model vrátí id, kód ověří.
+        const { categoryLine } = await import("@/instagram/idea-rules")
+        const regenCategories = pillarCfg?.categories || []
+        const categorySection = regenCategories.length
+            ? `## KATEGORIE PILÍŘE (vrať id jedné z nich jako "categoryId")\n${regenCategories.map(categoryLine).join("\n")}\n`
+            : ""
 
         // Live catalog, not the frozen config.products snapshot (see generateContentPlan)
         const catalogProducts: CatalogProduct[] = await getCatalogProducts(clientId, config.products)
@@ -1077,7 +1157,7 @@ ${config.brandVoice.voiceTraits?.map((t: string) => `- ${t}`).join("\n") || ""}
 ${config.brandVoice.antiPatterns?.slice(0, 5).map((p: string) => `- ${p}`).join("\n") || ""}
 
 ${productsSection}
-${pillarSection}
+${pillarSection}${categorySection}
 ## ÚKOL
 Vygeneruj JEDEN nový koncept pro post typu "${postType}".
 ${userTopic ? `Téma kampaně: "${userTopic}" — hook MUSÍ souviset s tímto tématem.` : ""}
@@ -1095,7 +1175,7 @@ ${existingHooks.map(h => `- "${h}"`).join("\n")}
 ${medium && !isReelMedium(medium) ? `- ⚠️ Tohle je ${medium === "carousel" ? "KARUSEL" : "JEDEN OBRÁZEK"} — hook ani angle NESMÍ slibovat "video", "Reel", "scénář" ani "za 60 sekund ti ukážu". Mluv o tom, co bude na obrázcích.` : ""}
 
 Vrať POUZE validní JSON:
-{ "hookPreview": "český hook max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
+{ "hookPreview": "český hook max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenCategories.length ? `, "categoryId": "id kategorie pilíře"` : ""}${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
 
         // Single-item regen goes through the same Pro ladder as the plan itself —
         // a regenerated hook must not be weaker than the plan it replaces an item of.
@@ -1140,12 +1220,16 @@ Vrať POUZE validní JSON:
             console.warn(`📋 [regenerate-item] faktická brána nedoběhla: ${String(e?.message || e).slice(0, 120)}`)
         }
 
+        const regenCategory = regenCategories.find(c => c.id === parsed.categoryId)
         return {
             success: true,
             item: {
                 hookPreview: hook,
                 angle: parsed.angle,
                 topic: parsed.topic,
+                categoryId: regenCategory?.id,
+                categoryLabel: regenCategory?.label,
+                categoryEmoji: regenCategory?.emoji,
                 productId: product?.id,
                 productName: product?.id ? product.name : undefined,
                 productImage: product?.id ? product.imageUrl : undefined,
