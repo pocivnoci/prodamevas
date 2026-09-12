@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, type PostFormatInput } from "@/app/actions/config-actions"
+import { getClientConfig, updateClientConfig, rescanClientWebsite, deleteClient, uploadClientLogo, upsertPostFormat, removePostFormat, suggestPostFormat, recommendFeedPattern, suggestBrandFacts, previewVoice, type PostFormatInput } from "@/app/actions/config-actions"
 import { syncConfigProductsToDb } from "@/app/actions/product-actions"
 import { CatalogSection } from "./products/CatalogSection"
 import { generateCategoryPrompt } from "@/app/actions/content-plan-actions"
@@ -14,6 +14,7 @@ import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
 import { ConsultationSection } from "./ConsultationSection"
 import { FEED_PATTERNS, computeSlotIntent, type FeedPatternId } from "@/lib/feed-pattern"
 import { PHOTO_POLICY_OPTIONS } from "@/lib/photo-policy"
+import { VOICE_LIBRARY, findVoice } from "@/lib/voice-library"
 import { getConfigBrandImages } from "@/instagram/configs/types"
 import { Hint, HINTS } from "./Hint"
 import { FACT_CHECK_MODES, factCheckModeIndex } from "@/lib/fact-check-modes"
@@ -476,6 +477,10 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
                 </div>
             </SectionCard>
 
+            <SectionCard title="Hlas značky" description="Kterým hlasem mluví voiceover ve vašich reelech">
+                <BrandVoicePicker config={config} updateField={updateField} projectId={projectId} />
+            </SectionCard>
+
             <SectionCard title="CTA Variace" description="Výzvy k akci které AI používá v příspěvcích">
                 <div>
                     <FieldLabel hint="Oddělené čárkou — AI si vybírá podle kontextu">CTA fráze</FieldLabel>
@@ -493,6 +498,85 @@ function VoiceSection({ config, updateField, updateArrayField, projectId }: {
             <SectionCard title="Šablony úvodních vět" description="Vzory pro úvodní věty — {{topic}} se nahradí automaticky">
                 <HookTemplatesEditor config={config} updateField={updateField} />
             </SectionCard>
+        </div>
+    )
+}
+
+/**
+ * Výběr hlasu značky.
+ *
+ * Ukázka se přehrává až na kliknutí, ne na najetí: syntéza prvního poslechu stojí
+ * volání TTS (pak už je v bucketu pro celou flotilu) a automatické spouštění zvuku
+ * v aplikaci nikdo nechce. Vybraný hlas se ukládá společným tlačítkem „Uložit"
+ * nahoře, stejně jako zbytek nastavení.
+ */
+function BrandVoicePicker({ config, updateField, projectId }: {
+    config: any
+    updateField: (p: string[], v: any) => void
+    projectId: string
+}) {
+    const selectedId: string | undefined = config.voice?.voiceId
+    const [playing, setPlaying] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    const play = async (voiceId: string) => {
+        setError(null)
+        setPlaying(voiceId)
+        try {
+            const res = await previewVoice(projectId, voiceId)
+            if (!res.success || !res.url) throw new Error(res.error || "Ukázku se nepodařilo připravit")
+            const audio = new Audio(res.url)
+            audio.onended = () => setPlaying(null)
+            audio.onerror = () => { setError("Ukázku nejde přehrát"); setPlaying(null) }
+            await audio.play()
+        } catch (err: any) {
+            setError(err?.message || String(err))
+            setPlaying(null)
+        }
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-[10px] text-white/40 leading-relaxed">
+                Hlas vybíráme podle persony a oboru už při onboardingu — tady ho můžete přebít.
+                První poslech se chvíli připravuje, další je okamžitý.
+            </p>
+            {error && (
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">{error}</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {VOICE_LIBRARY.map(v => {
+                    const active = v.id === selectedId
+                    return (
+                        <div key={v.id}
+                            className={`flex items-start gap-3 p-3 rounded-sm border transition-all ${
+                                active ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/[0.02] border-white/5 hover:border-white/15"
+                            }`}>
+                            <button
+                                onClick={() => updateField(["voice"], { ...(config.voice || {}), provider: v.provider, voiceId: v.id })}
+                                className="flex-1 text-left cursor-pointer"
+                            >
+                                <span className={`block text-[11px] font-black uppercase tracking-widest ${active ? "text-emerald-400" : "text-white/80"}`}>
+                                    {v.id}
+                                </span>
+                                <span className="block text-[10px] text-white/40 mt-1 leading-snug">{v.label}</span>
+                            </button>
+                            <button
+                                onClick={() => play(v.id)}
+                                disabled={playing !== null}
+                                className="shrink-0 px-3 py-2 rounded-sm border border-white/10 bg-white/5 hover:bg-white/10 text-[9px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-40 cursor-pointer"
+                            >
+                                {playing === v.id ? "Hraje…" : "Poslechnout"}
+                            </button>
+                        </div>
+                    )
+                })}
+            </div>
+            {selectedId && !findVoice(selectedId) && (
+                <p className="text-[10px] text-amber-400/80">
+                    Uložený hlas „{selectedId}" v knihovně není — po uložení se vybere znovu podle značky.
+                </p>
+            )}
         </div>
     )
 }

@@ -100,6 +100,53 @@ hlasy knihovny do bucketu, poslech vedle sebe; pak 2 živé reely na `chrlit`
   a hlasových stylů. Bez toho se učicí smyčka přetrhne (invariant).
 - Dashboard: u reelu ukázat hlas, hook vzor, režim — aby šlo poznat, co funguje.
 
+## Hlas — stav implementace a checklist poslechu (12. 9. 2026)
+
+**Hotovo v kódu** (balík R2): poskytovatelé TTS jsou za rozhraním
+`instagram/tts/` (`TtsProvider.synthesize(text, { voiceId, style, tags, language })
+→ WAV`), Gemini je jediný zapojený, ElevenLabs má v registru jen TODO. Hlas značky
+žije v `ClientConfig.voice = { provider, voiceId, style }`; default ve
+`validateConfig()` je **deterministický casting** `castVoice()` z persony, oboru,
+publika a jména značky nad knihovnou 30 hlasů (`lib/voice-library.ts`). Staré
+`ttsVoice` se migruje a je `@deprecated`. Přednes už nejde z popisu světla:
+`scenes[].mood` → `deliveryTags()` (`instagram/tts/delivery.ts`). V Nastavení je
+sekce „Hlas značky" s ukázkou (`previewVoice`, cache v bucketu `voice-samples/`,
+sdílená napříč klienty).
+
+**Vědomě NEimplementováno**: ElevenLabs (rozhodnutí — nejdřív poslech), klonování
+hlasu majitele, `ig_generation_log.voice_provider`.
+
+### Checklist: čeština přímo ze Seedance (spike)
+
+Spouští se ručně s `.env.local`; nic z toho nevisí na produkční cestě.
+
+| Skript | Co ověřuje |
+|---|---|
+| `scripts/smoke-seedance-dialogue.ts` | nativní dialog: tři české věty v uvozovkách, `generate_audio: true`, 8 s/480p, bez zákazu řeči. `--lang=en` je kontrolní vzorek |
+| `scripts/smoke-seedance-audio-ref.ts` | audio reference: náš WAV z veřejné URL + „[Audio1] lip-sync". Tvar pole je odhad (`ARK_AUDIO_TYPE`), při 4xx se vypíše celé tělo chyby |
+| `scripts/smoke-reel-voice.ts` | tytéž tři věty přes všech 30 hlasů do `voice-samples/` — tabulka URL a délek |
+
+Hodnotí se poslechem, ano/ne u každého bodu:
+
+- [ ] **Je to čeština?** Slova jsou česká, ne fonetická napodobenina.
+- [ ] **Přízvuk.** Slyšet cizí přízvuk (anglický, slovanský „obecný")? Kde přesně?
+- [ ] **Prozodie.** Věta má českou melodii a přízvuk na první slabice, nebo stoupá
+      na konci po anglicku?
+- [ ] **Diakritika a délky.** „ř", „ě", „ou", dlouhé samohlásky — přežily?
+- [ ] **Přirozenost.** Zní to jako člověk v místnosti, nebo jako hlasový asistent?
+- [ ] **Lip-sync.** Sedí rty na zvuk po celou dobu (ne jen první vteřinu)? Není to
+      „uncanny"?
+- [ ] **Konzistence.** Dva běhy stejného promptu = srovnatelný hlas, nebo pokaždé
+      jiný člověk?
+- [ ] **Délka a tempo.** Vejde se řeč do 8 s bez zrychlování? Kolik slov reálně?
+- [ ] **Srovnání.** Je to lepší než dnešní Gemini voiceover nad obrazem? Kdyby ne,
+      zůstává vypravěč a spike končí.
+
+Rozhodovací pravidlo: **mluvící člověk jde do produktu jen tehdy, když projdou
+čeština, přirozenost i lip-sync.** Falešně mluvící člověk poškodí značku víc než
+vypravěč nad obrazem. Když projde jen část, zapiš ke každému bodu, co se stalo, a
+vyhodnoť z toho ElevenLabs (fáze 1, bod 1) jako alternativu.
+
 ## Pořadí a odhad
 
 | Fáze | Co | Odhad | Závislosti |

@@ -13,6 +13,7 @@ import { MEDIA_CREDITS } from "../lib/credits"
 import { REEL_MEDIA, REEL_LIMITS, REEL_TIMELINE, isReelMedium, clampReelDuration, REEL_LABELS, SPOKEN_WORDS_PER_SECOND, plannedNarrationWords, plannedNarrationSentences, narrationWordBudget } from "../lib/reel-media"
 import { parsePostMedia } from "../lib/media-urls"
 import { applyFormatClamps } from "../instagram/format-clamps"
+import { deliveryTags } from "../instagram/tts/delivery"
 import { wavInfo, pcmToWav, buildTimeline, assembleVoiceoverWav, wordCount, TIMELINE_DEFAULTS, trimSilence } from "../instagram/reel-audio"
 import { CLIENT_BUCKET_MIME_TYPES } from "../lib/storage-buckets"
 import sharp from "sharp"
@@ -122,7 +123,15 @@ const trimmed = trimSilence(pcmToWav(Buffer.concat([quiet(0.3), tone(1), quiet(0
 check("trimSilence: ticho před i za řečí pryč, 60 ms dojezd zůstane", near(wavInfo(trimmed).durationSeconds, 1.12, 0.03) && wavInfo(trimmed).sampleRate === 24_000, `${wavInfo(trimmed).durationSeconds}s`)
 const silentClip = pcmToWav(quiet(1), 24_000, 1, 16)
 check("trimSilence: celý tichý klip vrací beze změny (prázdnotu hlídá volající)", trimSilence(silentClip) === silentClip)
-check("synthesizeNarration měří AŽ oříznutý klip", /trimSilence\(await generateVoiceover\(/.test(readFileSync("instagram/reel-audio.ts", "utf-8")))
+// Volání se přesunulo za rozhraní `TtsProvider` (hlas patří značce, ne enginu) —
+// pořadí „nejdřív ořezat, pak měřit" platí dál a hlídá se na novém tvaru.
+check("synthesizeNarration měří AŽ oříznutý klip", /trimSilence\(await provider\.synthesize\(/.test(readFileSync("instagram/reel-audio.ts", "utf-8")))
+
+console.log("\n🎙️ PŘEDNES Z NÁLAD SCÉN\n")
+check("teplé světlo → teplý přednes", deliveryTags(["warm golden hour, soft bokeh"]).includes("warm"))
+check("dramatická scéna → vážný přednes", deliveryTags(["dramatic side lighting, moody"]).includes("serious"))
+check("nejvýš dva tagy (víc si u TTS konkuruje)", deliveryTags(["warm golden hour", "bright energetic daylight", "calm minimal studio"]).length <= 2)
+check("nic nesedí → žádný tag, ne náhradní nálada", deliveryTags(["nondescript"]).length === 0 && deliveryTags([undefined]).length === 0)
 
 console.log("\n🪣 KLIENTSKÉ BUCKETY\n")
 const uploadTypes = [...orchestratorSrc.matchAll(/uploadToBucket\([^)]*"([a-z]+\/[a-z0-9.+-]+)"\)/g)].map(m => m[1])

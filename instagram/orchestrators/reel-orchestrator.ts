@@ -29,6 +29,7 @@ import { VideoPendingError } from "../../utils/retry"
 import { seedanceEnabled, submitVideoTask, pollVideoTask, downloadVideo, MAX_REFERENCES, type SeedanceReference } from "../seedance-client"
 import { directReel, condenseNarration, finalizeVideoPrompt, type ReelReference } from "../reel-director"
 import { synthesizeNarration, buildTimeline, assembleVoiceoverWav, wordCount } from "../reel-audio"
+import { deliveryTags } from "../tts"
 import { referenceTooSmall, upscaleReference } from "../reel-references"
 import sharp from "sharp"
 import { createHash } from "crypto"
@@ -67,8 +68,19 @@ export async function renderReel(ctx: RenderContext): Promise<RenderResult> {
         // ── 1. Narrace = věty copywritera (prošly kritikem, redakcí i faktickou bránou) ──
         let lines = (captionData.scenes ?? []).map(s => (s.narration || "").trim()).filter(Boolean)
         if (lines.length === 0) throw new Error("Reel bez narrace — copywriter nevrátil žádnou větu k namluvení")
-        const moods = [...new Set((captionData.scenes || []).map(s => s.mood).filter(Boolean))].slice(0, 2)
-        const ttsOpts = { voice: config.ttsVoice || "Kore", mood: "professional", audioTags: moods }
+        // Hlas značky je v configu (casting ve `validateConfig()`), ne tady — jediný
+        // sdílený preset „Kore" byl nejčastější stížnost na reely. Přednes se odvozuje
+        // z nálad scén přes `deliveryTags()`: `scenes[].mood` popisuje SVĚTLO, takže
+        // se z něj bere jen to, co dává smysl hlasu (dřív se posílalo celé, i s
+        // natvrdo předřazeným „professional" pro všechny).
+        const voice = config.voice
+        if (!voice?.voiceId) throw new Error("Reel bez hlasu značky: config.voice doplňuje validateConfig() — tenhle config přišel mimo loadConfig()")
+        const ttsOpts = {
+            provider: voice.provider,
+            voiceId: voice.voiceId,
+            style: voice.style,
+            tags: deliveryTags((captionData.scenes || []).map(s => s.mood)),
+        }
 
         // ── 2. TTS po větách + měření → časová osa ──
         await report("video", 40, `🎙️ Namlouvám narraci (${lines.length} vět)…`)

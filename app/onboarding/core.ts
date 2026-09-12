@@ -27,6 +27,7 @@ import type { ClientConfig, PostTypeDef } from '@/instagram/configs/types'
 import { FORMAT_BRIEF_LIMITS } from '@/instagram/configs/types'
 import { stripFinishedCopy } from '@/instagram/configs/format-brief'
 import { resolveIndustryVisual } from '@/instagram/industry-visual-profiles'
+import { castVoice } from '@/lib/voice-library'
 import { fetchInstagramProfile, estimatePostsPerWeek, type IgProfileData } from '@/lib/ig-scraper'
 import { Type } from '@google/genai'
 import type { WebsiteAnalysis, ManualBusinessInfo, IgInsights, OnboardingQuestion, QuestionAxis } from './types'
@@ -910,6 +911,22 @@ Pravidla:
     } catch (personaErr) {
         console.warn(`⚠️ Persona generation failed: ${(personaErr as Error).message}`)
     }
+
+    // Hlas značky pro voiceover reelů. Seeduje se TADY, protože až tady jsou pohromadě
+    // persona, obor i publikum — tři vstupy castingu. `validateConfig()` by ho sice
+    // doplnil při každém načtení configu stejně, ale v Nastavení by pak hlas vypadal
+    // jako „nenastaveno", i když jím klient mluví. Klient ho v Nastavení přebije.
+    config.voice = {
+        provider: 'gemini',
+        voiceId: castVoice({
+            persona: config.brandVoice?.persona,
+            industry: config.industry,
+            audience: (config.audiencePersonas || []).map(p => `${p.label} ${p.ageRange}`).join(' ')
+                || analysis.targetAudience,
+            brand: config.name || slug,
+        }),
+    }
+    console.log(`   🎙️ Hlas značky: ${config.voice.voiceId}`)
 
     // Recommend a communication style tailored to THIS specific client (best-effort,
     // optional). Shown at the end of onboarding (review step) and saved into the config.
