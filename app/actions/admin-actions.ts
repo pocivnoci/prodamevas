@@ -465,7 +465,7 @@ export async function checkIsAdmin(): Promise<boolean> {
 /**
  * Get available clients from config registry (for dashboard project selector)
  */
-export async function getAvailableIGClients(): Promise<{ id: string; name: string; icon: string; description: string }[]> {
+export async function getAvailableIGClients(): Promise<{ id: string; clientId: string; name: string; icon: string; description: string }[]> {
     const { getAvailableClients } = await import("@/instagram/configs")
     return getAvailableClients()
 }

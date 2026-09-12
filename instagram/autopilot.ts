@@ -1537,7 +1537,7 @@ export async function generateBatch(options: {
     dryRun: boolean
     topic?: string
 }) {
-    const { config } = await ensureConfig(options.configName)
+    const { clientUuid, config } = await ensureConfig(options.configName)
     const { count, dryRun } = options
     const estimatedCost = count * COSTS.perPost
 
@@ -1589,7 +1589,9 @@ export async function generateBatch(options: {
     })
 
     try {
-        const editorialPlanResult = await reviewContentPlan(config, planSlots)
+        // Produkty pro šéfredaktora z ŽIVÉHO katalogu; config.products je zmražený snapshot.
+        const planProducts = await getCatalogProducts(clientUuid, config.products).catch(() => [])
+        const editorialPlanResult = await reviewContentPlan(config, planSlots, undefined, planProducts)
         totalCost += editorialPlanResult.totalTokenCost
 
         if (editorialPlanResult.approved) {

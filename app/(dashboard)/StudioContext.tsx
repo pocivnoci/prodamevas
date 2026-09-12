@@ -46,7 +46,7 @@ export interface GenerateIntent {
 }
 
 /** Značka v přepínači. `id` je SLUG klienta, ne UUID — viz `projectId` níž. */
-export interface ClientInfo { id: string; name: string; icon: string; description: string }
+export interface ClientInfo { id: string; clientId?: string; name: string; icon: string; description: string }
 
 /** Last tenant the user picked in the sidebar. Value is a client SLUG (`projectId`
  *  is a slug despite the name). Only ever trusted after it is matched against the
@@ -265,9 +265,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                 // Every candidate is validated against the user's OWN list before it can
                 // select anything: a stale slug (access revoked, another account on a
                 // shared browser) must fall through to clients[0], never resolve.
+                // `?project=` z e-mailu nese UUID (agenti mají po ruce client_id, ne slug),
+                // sidebar a localStorage slug. Obojí se mapuje na slug PŘES vlastní seznam —
+                // neznámá hodnota nikdy nic nevybere.
                 const wanted = new URLSearchParams(window.location.search).get("project")
                 const stored = readStoredProject()
-                const pick = [wanted, stored].find(id => id && list.some(c => c.id === id))
+                const toSlug = (id: string | null) => id ? list.find(c => c.id === id || c.clientId === id)?.id ?? null : null
+                const pick = toSlug(wanted) ?? toSlug(stored)
                 setProjectId(prev => prev || pick || list[0].id)
             })
             .catch(() => { if (alive) setClients([]) })
@@ -405,8 +409,9 @@ export function useStudioNavigate() {
      * `navigate("mailing", { to: lead.email })` a nemusí znát vnitřek Mailingu.
      */
     return useCallback((s: StudioSection, opts?: { replace?: boolean } | Record<string, string>) => {
-        if (!opts) { setActiveSection(s); return }
-        const { replace, ...rest } = opts as { replace?: boolean } & Record<string, string>
+        // Bez options se dřív jen nastavil stav a route zůstala — přesně ta „zaseknutá
+        // aplikace" z komentáře výš, jen v nejběžnějším volání `navigate("settings")`.
+        const { replace, ...rest } = (opts ?? {}) as { replace?: boolean } & Record<string, string>
         setActiveSection(s, { replace, query: Object.keys(rest).length > 0 ? rest : undefined })
         if (pathname !== "/dashboard/instagram") router.push("/dashboard/instagram")
     }, [setActiveSection, pathname, router])

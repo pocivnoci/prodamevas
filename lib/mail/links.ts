@@ -8,6 +8,7 @@
  */
 
 import { signEmail } from "@/lib/email-sign"
+import type { StudioSection } from "@/app/(dashboard)/StudioContext"
 
 /**
  * Základ pro všechny generované odkazy (odhlášení, deep linky, ukázky).
@@ -45,8 +46,15 @@ export function assetUrl(path: string): string {
     return `${MAIL_ASSET_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`
 }
 
-/** Deep link into the studio: selects the project (?project=) and opens a tab (#hash). */
-export function studioDeepLink(clientId: string, section: string = "calendar"): string {
+/**
+ * Deep link into the studio: selects the project (?project=) and opens a tab (#hash).
+ *
+ * `clientId` smí být slug i UUID — StudioContext mapuje obojí na slug přes seznam
+ * značek uživatele. Sekce je typovaná registrem (`StudioSection`): hash mimo registr
+ * parseHash tiše překlopí na dashboard, takže překlep se má projevit při buildu,
+ * ne až u zákazníka v e-mailu.
+ */
+export function studioDeepLink(clientId: string, section: StudioSection = "calendar"): string {
     return `${siteUrl()}/dashboard/instagram?project=${encodeURIComponent(clientId)}#${section}`
 }
 

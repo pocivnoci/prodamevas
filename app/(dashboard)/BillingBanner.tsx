@@ -1,7 +1,6 @@
 "use client"
 
-import Link from "next/link"
-import { useStudio, type SubscriptionState } from "./StudioContext"
+import { useStudio, useStudioNavigate, type SubscriptionState } from "./StudioContext"
 
 /**
  * Pruh nad obsahem, když je něco s předplatným.
@@ -31,11 +30,13 @@ function fmtDate(iso: string | null): string {
 }
 
 export function BillingBanner() {
-    const { subscription, projectId } = useStudio()
+    const { subscription } = useStudio()
+    // Sekce je stav (hash), ne query parametr: `?section=subscription` nikdo nečetl a
+    // „subscription" ani není sekce — CTA na opravu karty vedlo na přehled.
+    const navigate = useStudioNavigate()
     if (!subscription || subscription.billingState === "ok") return null
 
     const until = fmtDate(subscription.currentPeriodEnd)
-    const href = `/dashboard/instagram?section=subscription${projectId ? `&project=${projectId}` : ""}`
 
     const { tone, text, cta } = describe(subscription.billingState, {
         until,
@@ -45,12 +46,13 @@ export function BillingBanner() {
     return (
         <div className={`mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border px-4 py-3 ${TONE[tone]}`}>
             <p className="text-xs font-medium leading-relaxed">{text}</p>
-            <Link
-                href={href}
+            <button
+                type="button"
+                onClick={() => navigate("settings")}
                 className="ml-auto shrink-0 text-[10px] font-bold uppercase tracking-widest underline underline-offset-4 hover:opacity-80"
             >
                 {cta}
-            </Link>
+            </button>
         </div>
     )
 }

@@ -62,6 +62,8 @@ function buildPlanReviewPrompt(
     plan: any[],
     conversationHistory: EditorialMessage[],
     round: number,
+    /** Živý katalog (`getCatalogProducts`), ne zmražený snapshot z onboardingu. */
+    products: { name: string }[],
 ): string {
     const historyBlock = conversationHistory.length > 0
         ? `\n## PŘEDCHOZÍ DISKUZE (${conversationHistory.length} zpráv)\n${conversationHistory.map(m => {
@@ -93,7 +95,7 @@ Obor: ${config.industry || "business"} | Web: ${config.website} | IG: ${config.i
 ## PILÍŘE OBSAHU
 ${Object.entries(config.contentPillars).map(([key, p]) => `- ${p.emoji} ${p.label} (${p.postTypes.join(", ")}): ${p.description || ""}`).join("\n")}
 
-${config.products?.length ? `## PRODUKTY (${config.products.length})\n${config.products.slice(0, 5).map(p => `- ${p.name}`).join("\n")}` : ""}
+${products.length ? `## PRODUKTY (${products.length})\n${products.slice(0, 5).map(p => `- ${p.name}`).join("\n")}` : ""}
 ${historyBlock}
 ## AKTUÁLNÍ CONTENT PLAN (kolo ${round}/${MAX_PLAN_ROUNDS})
 ${planBlock}
@@ -193,6 +195,9 @@ export async function reviewContentPlan(
     config: ClientConfig,
     initialPlan: any[],
     onProgress?: EditorialProgressCallback,
+    /** Živý katalog značky. Byl to poslední čtenář `config.products` v enginu —
+     *  šéfredaktor tak posuzoval plán podle produktů, které už mohly být smazané. */
+    products: { name: string }[] = [],
 ): Promise<EditorialPlanResult> {
     const report = onProgress || (async () => {})
     const allMessages: EditorialMessage[] = []
@@ -219,7 +224,7 @@ export async function reviewContentPlan(
 
         // Chief Editor reviews
         console.log(`\n🎖️ [Editorial] Content Plan — Kolo ${round}/${MAX_PLAN_ROUNDS}`)
-        const reviewPrompt = buildPlanReviewPrompt(config, currentPlan, allMessages, round)
+        const reviewPrompt = buildPlanReviewPrompt(config, currentPlan, allMessages, round, products)
         // Chief Editor = judge → cross-family (Claude Sonnet 5) when enabled, else Gemini Pro judge.
         const reviewRaw = await judgeText(reviewPrompt, { label: "editorial-plan-review" })
         totalCost += COSTS.textGeneration
