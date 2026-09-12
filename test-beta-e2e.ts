@@ -5803,6 +5803,18 @@ test("40.1 revize vidí scény a vrací jich stejně", () => {
     assert(/return \{ \.\.\.sc, \.\.\.patch \}/.test(eb), "revize mění znění beatu, ne kostru (timeRange, textOnly)")
 })
 
+test("40.2 náhled plánu ukazuje, co worker doopravdy vyrobí", () => {
+    // Agro-invest 12. 9. 2026: náhled sliboval reely, tarif trial je nedovoluje,
+    // worker je překlopil na karusel — šest karuselů ze sedmi postů.
+    const plan = codeOnly("app/actions/content-plan-actions.ts")
+    assert(/getClientSubscription\(clientId\)\)\?\.features\?\.allowed_media/.test(plan), "plán musí číst tarif stejně jako worker")
+    assert(/const mediumAvailable = \(m: PlanMedium\)/.test(plan) && /allowedMedia\.includes\(m\)/.test(plan), "reel se nabídne jen když ho pustí REELS_ENABLED i tarif")
+    assert(/m === "carousel" && prev === "carousel"/.test(plan), "tři karusely za sebou nesmí plán otevřít")
+    const w = fileContent("app/api/cron/campaign-worker/route.ts")
+    assert(/reelBlockedBy/.test(w) && /cursor % 3 === 0/.test(w), "worker překlápí nedostupný reel stejným pravidlem jako plán, ne paušálně na karusel")
+    assert(!/if \(isReelMedium\(chargedMedium\) && process\.env\.REELS_ENABLED !== "1"\) chargedMedium = "carousel"/.test(w), "paušální reel → karusel je ta chyba")
+})
+
 // ═══════════════════════════════════════════════════════════
 // REPORT
 // ═══════════════════════════════════════════════════════════
