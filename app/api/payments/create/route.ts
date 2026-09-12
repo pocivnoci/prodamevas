@@ -13,6 +13,7 @@ import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } f
 import { activeGateway, createStripeCheckout, paymentLabel } from "@/lib/payments/checkout"
 import { enqueueTask } from "@/lib/agent-runner"
 import { CONSULTATION, EXTRA_CREDIT_HALERU, chargeableHaleru, creditPackPrice, normalizeTermMonths, parseCreditPack, termPrice } from "@/lib/pricing"
+import { countLabel, CREDITS } from "@/lib/plural"
 
 /**
  * Cena jednoho dokoupeného kreditu podle TARIFU klienta.
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
         const plan = isService
             ? { id: CONSULTATION.id, name: CONSULTATION.name, price_czk: CONSULTATION.priceHaleru }
             : creditPack
-                ? { id: planId, name: `${creditPack} kreditů`, price_czk: creditPackPrice(creditPack, unitPrice) }
+                ? { id: planId, name: countLabel(creditPack, CREDITS), price_czk: creditPackPrice(creditPack, unitPrice) }
                 : (await supabaseAdmin
                     .from("subscription_plans")
                     .select("*")
@@ -168,7 +169,7 @@ export async function POST(req: NextRequest) {
         // Do `payments.label` jde plný popisek (skončí jako položka na dokladu),
         // do ComGate až jeho 40znakový ořez.
         const label = isService ? `Chrlit — ${CONSULTATION.name}`
-            : creditPack ? `Chrlit — dobití ${creditPack} kreditů`
+            : creditPack ? `Chrlit — dobití: ${countLabel(creditPack, CREDITS)}`
             : paymentLabel(plan.name, termMonths)
 
         const isMock = isMockPaymentMode()

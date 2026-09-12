@@ -9,6 +9,7 @@
  */
 
 import { siteUrl, studioDeepLink } from "@/lib/mail/links"
+import { countLabel, CREDITS } from "@/lib/plural"
 
 export type LifecycleKind =
     | "activation_nudge" | "credit_low" | "winback" | "waitlist_drip"
@@ -53,7 +54,7 @@ export function buildLifecycleEmail(
             return {
                 subject: `Kredity skoro vyčerpané${tag}`,
                 body: `Dobrý den,\n\n` +
-                    `v plánu${brand ? ` pro značku <strong>${brand}</strong>` : ""} zbývá ${vars.creditsRemaining} z ${vars.creditsTotal} kreditů. Aby obsah nepřestal vycházet, navyšte prosím plán nebo si dokupte kredity.\n\n` +
+                    `v plánu${brand ? ` pro značku <strong>${brand}</strong>` : ""} zbývá ${vars.creditsRemaining} z ${countLabel(Number(vars.creditsTotal), CREDITS)}. Aby obsah nepřestal vycházet, navyšte prosím plán nebo si dokupte kredity.\n\n` +
                     `<a href="${studio("subscription")}">Spravovat předplatné →</a>${sign}`,
             }
         }

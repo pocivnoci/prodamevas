@@ -10,6 +10,7 @@ import type { Duel } from "@/lib/ab-duel"
 import { LOCKED_ANALYTICS_COPY, type AnalyticsDepth } from "@/lib/analytics-depth"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { Anchor, Bookmark, Brain, ChartColumn, Check, Eye, Heart, Link, Lock, LockOpen, MessageCircle, Search, Share2, Swords, TrendingUp } from "lucide-react"
+import { countLabel, POSTS } from "@/lib/plural"
 
 export function PerformanceTab({ projectId }: { projectId: string }) {
     const [posts, setPosts] = useState<any[]>([])
@@ -64,7 +65,7 @@ export function PerformanceTab({ projectId }: { projectId: string }) {
         setSyncMsg(null)
         const r = await syncMetricsAction(projectId)
         if (r.success) {
-            setSyncMsg(`Načteno ${r.synced ?? 0} příspěvků z Instagramu${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
+            setSyncMsg(`Z Instagramu načteno: ${countLabel(r.synced ?? 0, POSTS)}${r.matched ? `, nově propojeno ${r.matched}` : ""}.`)
             await loadData(false)
         } else {
             setSyncMsg(`${r.error || "Synchronizace selhala"}`)
