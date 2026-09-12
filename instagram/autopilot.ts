@@ -832,13 +832,19 @@ Uživatel nahrál vlastní fotku, která bude vizuálním základem příspěvku
 
     // Inject brand memories (long-term learning from past performance) — retrieved by
     // relevance to the topic/idea when available (pipeline v2), not just top-confidence.
+    // Blok se drží mimo try, protože ho dostane i scenárista reelů (6a): paměť
+    // „co u téhle značky funguje / čemu se vyhnout" se učí z metrik VŠECH postů
+    // včetně reelů, ale dřív ji četl jen copywriter — scénář, který narraci
+    // copywritera nahrazuje, o ni přišel a učicí smyčka se u reelů přetrhla.
+    let memorySection = ""
     try {
         const memoryTopic = options.topic || idea?.title || undefined
         // Jen textové typy: formatMemoriesForPrompt vizuální paměti zahazuje, takže by
         // jinak ujídaly sloty z limitu a copywriter by dostal míň pravidel, než si řekl.
         const memories = await getBrandMemories(8, clientUuid, _getPillarForType(selectedType.name), memoryTopic, ["pattern", "preference", "avoid"])
         if (memories.length > 0) {
-            megaPrompt += formatMemoriesForPrompt(memories)
+            memorySection = formatMemoriesForPrompt(memories)
+            megaPrompt += memorySection
             console.log(`   🧠 Brand memory: ${memories.length} vzorců načteno`)
         }
     } catch {
@@ -1140,6 +1146,7 @@ ${feedSummary}
                 brandPhotos: getConfigBrandImageObjects(config).map(img => ({ description: img.description || "", tags: img.tags || [] })),
                 reviews: (reviewRows || []).map(r => ({ quote: r.quote, author: r.customer_initials || undefined })),
                 signals: contextBlock || undefined,
+                memorySection: memorySection || undefined,
                 pastReels,
             })
 

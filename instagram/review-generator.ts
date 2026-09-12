@@ -13,11 +13,17 @@ export async function generateAIReviews(config: ClientConfig, count: number = 5)
 }
 
 async function generateAIReviewsInner(config: ClientConfig, count: number = 5) {
+    // Slug → UUID PRÁVĚ JEDNOU (invariant z CLAUDE.md). Dřív se překládal třikrát
+    // a brand memory se četla úplně bez něj — přes modulově globální
+    // getActiveProject(), který při souběhu dvou requestů v jedné lambdě umí
+    // podstrčit paměť cizí značky.
+    const clientId = await resolveClientId(config.id)
+
     // 1. Build prompt — products from the LIVE catalog (ig_products), not the frozen
     // config.products onboarding snapshot: a synthetic review naming a deleted product
     // would ship straight into customer-facing content.
     const { getCatalogProducts } = await import("./service")
-    const catalogProducts = await getCatalogProducts(await resolveClientId(config.id), config.products)
+    const catalogProducts = await getCatalogProducts(clientId, config.products)
         .catch(() => config.products || [])
     const productsSection = catalogProducts.length
         ? `\n## PRODUKTY/SLUŽBY (recenze MUSÍ zmiňovat KONKRÉTNÍ produkty)\n${catalogProducts.slice(0, 8).map(p => `- ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n`
@@ -31,7 +37,7 @@ async function generateAIReviewsInner(config: ClientConfig, count: number = 5) {
     let memorySection = ""
     try {
         const { getBrandMemories, formatMemoriesForPrompt } = await import("./memory-agent")
-        const memories = await getBrandMemories(5)
+        const memories = await getBrandMemories(5, clientId)
         if (memories.length > 0) {
             memorySection = formatMemoriesForPrompt(memories)
             console.log(`   🧠 Brand memory: ${memories.length} vzorců injected into review generation`)
@@ -43,7 +49,6 @@ async function generateAIReviewsInner(config: ClientConfig, count: number = 5) {
     // Inject top-performing review patterns
     let topReviewsSection = ""
     try {
-        const clientId = await resolveClientId(config.id)
         const { data: topReviews } = await supabaseAdmin
             .from("ig_reviews")
             .select("quote, performance_score")
@@ -130,8 +135,7 @@ ${productsSection}${personaSection}${topReviewsSection}${memorySection}
         throw new Error("AI vrátila neplatná data (prázdné pole).")
     }
 
-    // 3. Client resolution
-    const clientId = await resolveClientId(config.id)
+    // 3. Zápis — clientId je přeložený už nahoře, tady se jen používá.
 
     // 4. Map to DB rows (is_approved je false by default)
     const rows = reviewsPayload.slice(0, count).map(review => ({

@@ -66,7 +66,10 @@ export async function buildHealthCheck(): Promise<HealthReport> {
 
         // A job stuck mid-pipeline (neither done nor failed) for hours means a
         // crashed run that never resolved. Windowed to 7 days so old debris
-        // (pre-dating this check) doesn't alarm forever.
+        // (pre-dating this check) doesn't alarm forever. Since the shared reaper
+        // (`lib/job-reaper.ts`, swept by /api/cron/job-resume) fails + refunds
+        // standalone jobs after 15 min, anything still here is either a campaign
+        // ghost the worker should have reclaimed, or the sweep itself not running.
         safe("zaseklé joby", async () => {
             const { count, error } = await supabaseAdmin.from("ig_jobs").select("id", { count: "exact", head: true })
                 .not("status", "in", "(done,failed)")
@@ -74,7 +77,7 @@ export async function buildHealthCheck(): Promise<HealthReport> {
                 .gte("created_at", new Date(Date.now() - 7 * DAY_MS).toISOString())
             if (error) throw new Error(error.message)
             return count && count > 0
-                ? { icon: "⚠️", title: `${count}× job visí uprostřed pipeline`, detail: "Přes 2 h v ne-koncovém stavu (pending/copywriter/…) — spadlý běh." }
+                ? { icon: "⚠️", title: `${count}× job visí uprostřed pipeline`, detail: "Přes 2 h v ne-koncovém stavu (pending/copywriter/…). Samostatné joby zametá reaper v job-resume po 15 min — když tu něco zbývá, je to kampaňový ghost, nebo sweep neběží." }
                 : null
         }),
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { RENDER_BUDGET_MS } from "@/lib/job-park"
+import { sweepStuckJobs } from "@/lib/job-reaper"
 
 export const maxDuration = 800 // stejný strop jako /api/ig-run-job — dokončuje tentýž render
 
@@ -22,6 +23,12 @@ export const maxDuration = 800 // stejný strop jako /api/ig-run-job — dokonč
  * Kredit se nepřeúčtovává: zaparkovaný job si původní platbu nese s sebou a
  * `generateOnePost` navazuje z caption checkpointu, takže druhý pokus stojí jen render.
  *
+ * Před resume proběhne sweep ZASEKLÝCH jobů (`lib/job-reaper.ts`): job, který
+ * se přes 15 minut nepohnul z ne-koncového stavu, je mrtvá lambda — označí se za
+ * selhaný a kredit se vrátí. Dřív to uměl jen polling z prohlížeče, takže job
+ * bez otevřeného tabu (včetně těch, které tenhle cron sám rozjel a Vercel je
+ * utnul) visel do nekonečna se strženým kreditem.
+ *
  * Auth: CRON_SECRET bearer (v cronu není uživatelská session).
  */
 export async function GET(req: Request) {
@@ -32,6 +39,13 @@ export async function GET(req: Request) {
     }
 
     const nowIso = new Date().toISOString()
+
+    // Sweep zaseklých jobů jde první a nikdy neshodí resume: je to pár řádků
+    // v DB, a i kdyby selhal, odložené zakázky musí dojet.
+    const reaped = await sweepStuckJobs().catch(err => {
+        console.error("job-resume: sweep zaseklých jobů selhal:", err?.message)
+        return { scanned: 0, reaped: 0 }
+    })
 
     // Jeden job na tick. Render může trvat minuty a lambda má strop — dávkovat by
     // znamenalo riskovat, že se druhý job utne uprostřed. Cron běží po minutě,
@@ -46,7 +60,7 @@ export async function GET(req: Request) {
         .limit(1)
 
     const job = due?.[0]
-    if (!job) return NextResponse.json({ ok: true, resumed: 0 })
+    if (!job) return NextResponse.json({ ok: true, resumed: 0, reaped: reaped.reaped })
 
     // Podmíněný claim — vynulování `retry_after` je zároveň zámek.
     const { data: claimed } = await supabaseAdmin

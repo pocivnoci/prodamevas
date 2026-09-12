@@ -3965,6 +3965,35 @@ test("28.3 nedostupná kvalita zakázku odloží, nevrátí ji jako selhání", 
     assert(fileContains("vercel.json", "/api/cron/job-resume"), "sweep musí být v cronu")
 })
 
+test("28.7 zaseklý job se reapuje i bez otevřeného tabu — a nikdy dvakrát", () => {
+    // Reaper žil jen v pollingu z prohlížeče: job, který nikdo nesledoval (cron
+    // resume, zavřený tab), visel týdny se strženým kreditem a ranní brief ho
+    // jen hlásil. Jedna logika pro obě cesty, jinak se práh a pořadí claim →
+    // refund rozejdou přesně tam, kde jde o peníze.
+    assert(fileExists("lib/job-reaper.ts"), "reaper musí mít vlastní sdílený modul")
+    const reaper = codeOnly("lib/job-reaper.ts")
+    assert(/STUCK_AFTER_MS = 15 \* 60 \* 1000/.test(reaper),
+        "práh musí přesahovat maxDuration běhu (800 s), jinak označí živý render za mrtvý")
+    // Claim je podmíněný UPDATE a refund jde AŽ za ním, jen když claim vrátil řádek.
+    const claimAt = reaper.indexOf('.not("status", "in"')
+    const refundAt = reaper.indexOf("refundJobCharge(")
+    assert(claimAt > 0 && refundAt > claimAt, "refund smí jít jen za podmíněným claimem — jinak dva reapery vrátí kredit dvakrát")
+    assert(/if \(!claimed \|\| claimed\.length === 0\) return false/.test(reaper),
+        "když claim nevrátí řádek, reaper končí bez refundu")
+    // Kampaňové joby drží platbu schválně a worker si je sám zvedne z checkpointu.
+    assert(/isCampaignJob/.test(reaper) && /campaignId/.test(reaper), "kampaňové joby reaper přeskakuje")
+
+    for (const route of ["app/api/ig-job-status/route.ts", "app/api/cron/job-resume/route.ts"]) {
+        const src = codeOnly(route)
+        assert(src.includes("@/lib/job-reaper"), `${route} musí reapovat přes sdílený modul`)
+        assert(!/STUCK_AFTER_MS\s*=/.test(src), `${route} nesmí mít vlastní práh — práh je jeden`)
+    }
+    assert(/sweepStuckJobs\(\)/.test(codeOnly("app/api/cron/job-resume/route.ts")),
+        "cron musí zaseklé joby zametat nezávisle na tom, kdo se dívá")
+    assert(/isCampaignJob\(job\)/.test(codeOnly("app/api/ig-job-status/route.ts")),
+        "polling nesmí selhat kampaňový job, který si worker drží k resume")
+})
+
 test("28.4 emoji se nezapéká do názvu formátu", () => {
     for (const f of ["instagram/service.ts", "app/actions/config-actions.ts"]) {
         const src = codeOnly(f)
