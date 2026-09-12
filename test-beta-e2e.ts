@@ -4154,7 +4154,7 @@ test("41.1 signály, které se sbíraly a nikdo je nečetl, mají konzumenta", (
     assert(/export async function measuredTimeSlots\(clientId: string\)/.test(codeOnly("instagram/performance.ts")), "naměřené sloty berou clientId explicitně")
     for (const f of ["app/actions/calendar-actions.ts", "lib/agents/auto-publish.ts"]) {
         const src = codeOnly(f)
-        assert(/resolvePostingTimes\(\{/.test(src) && /measuredTimeSlots\(clientId\)/.test(src) && /igBaseline\?\.bestPostingTimes/.test(src),
+        assert(/resolvePostingTimes\(\{/.test(src) && /measuredTimeSlots\(clientId\)/.test(src) && /igBaseline[\s\S]{0,160}bestPostingTimes/.test(src),
             `${f}: plánovač musí brát naměřené časy → baseline → config`)
     }
 })

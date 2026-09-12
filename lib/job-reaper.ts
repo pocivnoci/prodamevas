@@ -80,10 +80,10 @@ export async function reapStuckJob(job: ReapableJob): Promise<boolean> {
         const { refundJobCharge } = await import("@/lib/subscription")
         const cfg = (job.config ?? {}) as { charged?: "plan" | "credits" | "none"; chargedCredits?: number }
         await refundJobCharge(job.client_id, job.id, cfg.charged, cfg.chargedCredits)
-    } catch (err: any) {
+    } catch (err) {
         // Refund je idempotentní přes unikátní index credit_transactions(action, reference_id);
         // selhání tady znamená DB problém, ne dvojí vrácení. Musí být vidět.
-        console.error(`🚨 reaper: job ${job.id} označen za selhaný, ale vrácení kreditu selhalo: ${err?.message}`)
+        console.error(`🚨 reaper: job ${job.id} označen za selhaný, ale vrácení kreditu selhalo: ${(err as Error)?.message}`)
     }
     return true
 }

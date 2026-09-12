@@ -9,6 +9,7 @@
  */
 
 import { siteUrl, studioDeepLink } from "@/lib/mail/links"
+import type { StudioSection } from "@/app/(dashboard)/StudioContext"
 import { countLabel, CREDITS } from "@/lib/plural"
 
 export type LifecycleKind =
@@ -35,7 +36,7 @@ export function buildLifecycleEmail(
     const brand = vars.clientName?.trim() || null
     /** „ — Kavárna Alchymista" v apozici, nebo nic. */
     const tag = brand ? ` — ${brand}` : ""
-    const studio = (section: string) =>
+    const studio = (section: StudioSection) =>
         vars.clientId ? studioDeepLink(vars.clientId, section) : `${siteUrl()}/dashboard/instagram`
     const sign = "\n\nTým Chrlit"
 

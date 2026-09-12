@@ -169,7 +169,7 @@ export async function revisePost(
                         clientId
                     ).then(({ memoriesCreated }) => {
                         if (memoriesCreated > 0) console.log(`🧠 Revision learning: ${memoriesCreated} new memories`)
-                    }).catch((err: any) => console.warn(`⚠️ učení z revize selhalo: ${err?.message?.slice(0, 120)}`))
+                    }).catch((err: unknown) => console.warn(`⚠️ učení z revize selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
                 )
             } catch { /* non-fatal — revision already saved */ }
         }

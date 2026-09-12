@@ -134,8 +134,12 @@ const missingGuard = exported.filter(name => {
 })
 check("každá akce volá requireSuperAdmin()", missingGuard.length === 0, missingGuard.join(", "))
 
+// Brána cronů je od 9/2026 jedna (`requireCron` v lib/cron-auth.ts, konstantní čas,
+// fail closed) — route ji volá, literál CRON_SECRET drží jen ten modul.
 const cron = codeOnly("app/api/cron/tasks-sync/route.ts")
-check("cron route kontroluje CRON_SECRET", cron.includes("CRON_SECRET") && cron.includes("Bearer"))
+check("cron route kontroluje CRON_SECRET", cron.includes('from "@/lib/cron-auth"') && /requireCron\(req\)/.test(cron))
+const cronAuth = codeOnly("lib/cron-auth.ts")
+check("brána cronu čte CRON_SECRET a Bearer", cronAuth.includes("CRON_SECRET") && cronAuth.includes("Bearer") && cronAuth.includes("timingSafeEqual"))
 
 // Zakládací formulář byl dlouho jen „název + vlastník" a zbytek polí se nedal
 // vyplnit odnikud. Termín a klient musí jít zadat rovnou, jinak se nedoplní nikdy.

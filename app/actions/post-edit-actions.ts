@@ -334,7 +334,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch((err: any) => console.warn(`⚠️ učení z revize selhalo: ${err?.message?.slice(0, 120)}`))
+                ).catch((err: unknown) => console.warn(`⚠️ učení z revize selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — the edit is already saved */ }
 
@@ -353,7 +353,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                     content: `Úprava vizuálu na přání klienta: ${instruction.trim().slice(0, 160)}`,
                     confidence: 0.3,
                     sourcePostIds: [postId],
-                }).catch((err: any) => console.warn(`⚠️ učení z úpravy vizuálu selhalo: ${err?.message?.slice(0, 120)}`))
+                }).catch((err: unknown) => console.warn(`⚠️ učení z úpravy vizuálu selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — the edit is already saved */ }
 
@@ -497,7 +497,7 @@ export async function saveManualText(
                     saved.caption || "",
                     [postId],
                     clientId,
-                ).catch((err: any) => console.warn(`⚠️ učení z revize selhalo: ${err?.message?.slice(0, 120)}`))
+                ).catch((err: unknown) => console.warn(`⚠️ učení z revize selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
             )
         } catch { /* non-fatal — text je uložený */ }
 

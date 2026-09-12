@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { requireCron } from "@/lib/cron-auth"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
@@ -215,8 +216,8 @@ export async function GET(req: Request) {
     // brání účtovat položku dvakrát. Tok se nemění (kampaň jede dál), ale selhání
     // jde do logu i do Sentry, aby se na nevrácený kredit přišlo dřív než od zákazníka.
     const mustSucceed = async (what: string, fn: () => Promise<void>) => {
-        try { await fn() } catch (e: any) {
-            console.error(`🚨 campaign ${campaign.id}: ${what} SELHALO — ${e?.message}`)
+        try { await fn() } catch (e) {
+            console.error(`🚨 campaign ${campaign.id}: ${what} SELHALO — ${(e as Error)?.message}`)
             Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
                 tags: { area: "credits", campaign_id: campaign.id, op: what },
             })

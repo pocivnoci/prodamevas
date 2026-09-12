@@ -196,9 +196,12 @@ async function armClient(clientId: string, slug: string, config: Record<string, 
     // četl plánovač jen config.postingTimes, které nikdo nezapisoval.
     const { resolvePostingTimes } = await import("@/lib/schedule-planner")
     const { measuredTimeSlots } = await import("@/instagram/performance")
+    // config je tu surové JSONB (Record<string, unknown>) — resolvePostingTimes si
+    // tvar sám prověří (jen HH:MM projde), takže stačí bezpečně sáhnout dovnitř.
+    const baseline = (config.igBaseline as { bestPostingTimes?: unknown } | undefined)?.bestPostingTimes
     const times = resolvePostingTimes({
         measured: await measuredTimeSlots(clientId).catch(() => null),
-        baseline: config.igBaseline?.bestPostingTimes,
+        baseline: Array.isArray(baseline) ? (baseline as string[]) : null,
         configured: config.postingTimes,
     })
     const slots = distributeSchedule(armable.length, { postsPerWeek: perWeek, startDate, timeSlots: times })
