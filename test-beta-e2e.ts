@@ -1402,7 +1402,7 @@ test("12.9 feed-pattern grid count matches FeedTab's grid", () => {
     assert(f.includes('p.image_url && p.media_type !== "story"'), "FeedTab grid must filter on image_url AND exclude stories — keep countFeedPosts in sync")
 })
 
-test("12.10 měsíc plánu je kalendářní měsíc, ne čtyři týdny", () => {
+test("12.12 měsíc plánu je kalendářní měsíc, ne čtyři týdny", () => {
     // Počítadlo plánu předpokládalo na třech místech 7 položek = týden, 28 dní
     // = měsíc a 30 postů = měsíční plán. Délku měsíce zná jen schedule-planner.
     const p = fileContent("app/actions/content-plan-actions.ts")
