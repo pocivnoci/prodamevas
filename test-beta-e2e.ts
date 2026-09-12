@@ -2819,6 +2819,50 @@ test("23.17 opuštěná značka se deaktivuje, nemaže", () => {
         "aktivita se měří skutečným obsahem, ne zamčenými teasery")
 })
 
+test("23.21 druhý stupeň úklidu nesmí smazat daňové doklady", () => {
+    // `invoices.client_id` i `payments.client_id` mají ON DELETE CASCADE
+    // (20260730_billing_invoices.sql), takže DELETE klienta vezme s sebou
+    // vystavené doklady. Zásady zpracování (`app/privacy/page.tsx`) přitom
+    // slibují daňovou evidenci ~10 let a výslovně říkají, že tuhle povinnost
+    // nelze zkrátit žádostí o výmaz. Proto platící historie = anonymizace,
+    // nikdy DELETE.
+    const src = codeOnly("scripts/smazat-opustene-klienty.ts")
+    assert(/from\('invoices'\)/.test(src) && /from\('payments'\)/.test(src),
+        "mazací skript se musí zeptat na doklady i na platby, než cokoli smaže")
+    assert(/maPenize/.test(src) && /\.delete\(\)/.test(src),
+        "rozhodnutí smazat/anonymizovat musí viset na existenci peněz")
+    // Ani jednu z peněžních tabulek skript nesmí mazat sám.
+    for (const t of ["invoices", "payments", "subscriptions", "credit_transactions"]) {
+        assert(!new RegExp(`from\\('${t}'\\)\\s*\\.delete`).test(src),
+            `${t} se v úklidu klientů nemaže — daňová a účetní stopa`)
+    }
+
+    // Výloha ani reference nejsou zákazníci a jejich obsah drží marketingová
+    // zeď; pravidlo „kdo je zákazník" má jediný zdroj v lib/audience.ts.
+    assert(/isShowcaseConfig/.test(src) && /isReference/.test(src),
+        "výloha ani reference nesmí padnout do úklidu opuštěných značek")
+
+    // Mazání je nevratné: výchozí běh smí jen ukazovat.
+    assert(/--yes/.test(src) && /includes\('--yes'\)/.test(src),
+        "ostrý běh musí vyžadovat --yes, dry run je výchozí")
+    // Podmíněný claim, ne slepé mazání — oživená značka vypadne z dávky.
+    assert(/\.eq\('is_active', false\)/.test(src),
+        "před mazáním musí být podmíněný claim na is_active = false")
+
+    // Karanténa potřebuje razítko; bez něj by druhý stupeň neměl od čeho
+    // počítat „30 dní po zrušení účtu".
+    const prvni = codeOnly("scripts/neaktivni-klienti.ts")
+    assert(/deactivated_at/.test(prvni),
+        "deaktivace musí zapsat deactivated_at — začátek karantény")
+    assert(/deactivated_at/.test(fileContent("supabase/migrations/20260912_karantena_klientu.sql")),
+        "sloupec karantény musí mít migraci")
+
+    // Sdílený bucket (`audit-screenshots`) patří víc značkám naráz — jeden
+    // klient ho nesmí vyprázdnit. Seznam bucketů se nikdy nepíše natvrdo.
+    assert(/storageBucket/.test(src) && /SDILENE_BUCKETY/.test(src),
+        "bucket se bere z config.storageBucket a sdílený se vynechává")
+})
+
 test("23.16 zamčená atrapa není nález faktické brány", () => {
     // `plan_locked` je teaser měsíčního plánu: text je natvrdo napsaná atrapa
     // z PLACEHOLDER_HOOKS („5 tipů jak zvýšit engagement o 200 %"), uživatel ji

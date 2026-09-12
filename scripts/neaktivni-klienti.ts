@@ -3,7 +3,7 @@
  * ==================================================
  *   npx tsx scripts/neaktivni-klienti.ts              # jen ukáže, nic nemění
  *   npx tsx scripts/neaktivni-klienti.ts --dny=180    # přísnější/mírnější hranice
- *   npx tsx scripts/neaktivni-klienti.ts --deaktivuj  # nastaví is_active = false
+ *   npx tsx scripts/neaktivni-klienti.ts --deaktivuj  # is_active = false + deactivated_at
  *
  * DEAKTIVUJE, NIKDY NEMAŽE. „Promazat" je v zadání, ale mazání by tu bylo
  * horší řešení téhož problému:
@@ -15,6 +15,10 @@
  *     člověk vrátil, přijde o konfiguraci značky, hotové příspěvky i naučené
  *     preference — tedy přesně o to, co ho může přivést zpátky.
  *   • Doktrína repozitáře: podmíněný claim, nikdy destruktivní fallback.
+ *
+ * Deaktivace zapisuje i `deactivated_at` — razítko začátku karantény. Po 30 dnech
+ * ticha v karanténě jde značka do druhého stupně (`scripts/smazat-opustene-klienty.ts`),
+ * který maže nebo anonymizuje. Tenhle skript sám dál nemaže nic.
  *
  * Na skutečné smazání je `scripts/delete-reference-clients.ts` — ten ale maže
  * jen značky označené `isReference`, tedy naše vlastní výmysly.
@@ -157,11 +161,16 @@ async function main() {
 
     // Podmíněný claim, ne slepý update: kdyby značku mezitím někdo oživil,
     // `eq('is_active', true)` nevrátí řádek a deaktivace se u ní nestane.
+    //
+    // `deactivated_at` je razítko začátku karantény (migrace
+    // 20260912_karantena_klientu.sql). Bez něj by druhý stupeň úklidu
+    // (`scripts/smazat-opustene-klienty.ts`) neměl od čeho počítat 30 dní,
+    // které zásady zpracování slibují mezi zrušením účtu a smazáním dat.
     let hotovo = 0
     for (const k of kandidati) {
         const { data, error: err } = await supabaseAdmin
             .from('clients')
-            .update({ is_active: false })
+            .update({ is_active: false, deactivated_at: new Date().toISOString() })
             .eq('id', k.id)
             .eq('is_active', true)
             .select('id')
@@ -170,7 +179,8 @@ async function main() {
         if (!data) { console.log(`  ⏭️  ${k.slug}: mezitím se změnil, přeskakuji`); continue }
         hotovo++
     }
-    console.log(`\n✅ Deaktivováno: ${hotovo} z ${kandidati.length}. Zpět se to vrací nastavením is_active = true.\n`)
+    console.log(`\n✅ Deaktivováno: ${hotovo} z ${kandidati.length}. Zpět se to vrací nastavením is_active = true.`)
+    console.log(`   Karanténa běží od teď; druhý stupeň: npx tsx scripts/smazat-opustene-klienty.ts\n`)
 }
 
 main().catch(err => { console.error('❌', err); process.exit(1) })
