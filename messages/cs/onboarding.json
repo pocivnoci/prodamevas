@@ -1,3 +1,179 @@
 {
-  "onboarding": {}
+  "onboarding": {
+    "back": "← Zpět",
+    "fields": {
+      "igHandle": "Instagram handle",
+      "igPlaceholder": "@tvujinstagram"
+    },
+    "errors": {
+      "connectionLost": "Ztratilo se spojení se serverem. Zkus to prosím znovu — rozdělaná práce se neztratila, běží dál na serveru.",
+      "taskFailed": "Úloha selhala.",
+      "taskTimeout": "Příprava trvá neobvykle dlouho. Zkus to prosím znovu.",
+      "analysisFailed": "Analýza selhala",
+      "configFailed": "Generování konfigurace selhalo"
+    },
+    "taskProgress": {
+      "starting": "Startuji…",
+      "runsOnServer": "Běží na serveru — tohle okno můžeš nechat být"
+    },
+    "choose": {
+      "title": "Nastavíme tvůj Chrlit",
+      "subtitle": "Jak chceš začít?",
+      "website": {
+        "title": "Mám webovou stránku",
+        "body": "AI analyzuje tvůj web a nastaví vše automaticky."
+      },
+      "manual": {
+        "title": "Nemám web",
+        "body": "Vyplníš pár otázek a AI nastaví vše za tebe."
+      }
+    },
+    "input": {
+      "title": "Zadej svůj web",
+      "subtitle": "AI analyzuje tvou značku a nastaví vše za tebe.",
+      "urlLabel": "Webová stránka",
+      "urlPlaceholder": "https://tvujweb.cz",
+      "optional": "Volitelné",
+      "submit": "🔍 Analyzovat web"
+    },
+    "manual": {
+      "title": "Řekni nám o svém podnikání",
+      "subtitle": "Pár otázek a AI nastaví vše za tebe.",
+      "nameLabel": "Název firmy / značky",
+      "namePlaceholder": "např. Café Pohoda",
+      "categoryLabel": "Kategorie",
+      "categories": {
+        "kavarna": "Kavárna",
+        "restaurace": "Restaurace",
+        "salon": "Salon",
+        "fitness": "Fitness",
+        "eshop": "E-shop",
+        "remeslnik": "Řemeslník",
+        "poradce": "Poradce",
+        "fotograf": "Fotograf",
+        "ubytovani": "Ubytování",
+        "zdravi": "Zdraví / estetika",
+        "reality": "Reality",
+        "vinarstvi": "Vinařství",
+        "jine": "Jiné"
+      },
+      "descriptionLabel": "Co děláte? Popište své podnikání",
+      "descriptionPlaceholder": "např. Útulná kavárna v centru Brna, pražíme vlastní kávu, děláme domácí dezerty...",
+      "productsLabel": "Produkty / služby",
+      "productsHint": "(oddělte čárkou)",
+      "productsPlaceholder": "např. Espresso, Cappuccino, Cheesecake, Brunch menu",
+      "toneLabel": "Jak chcete komunikovat?",
+      "tones": {
+        "friendly": "Přátelský",
+        "professional": "Profesionální",
+        "cheeky": "Drzý / Vtipný",
+        "expert": "Expertní"
+      },
+      "igOptional": "(volitelné)",
+      "submit": "🚀 Analyzovat a nastavit"
+    },
+    "analyzing": {
+      "title": "AI analyzuje tvůj web",
+      "body": "Čtu obsah, učím se značku, chystám otázky na míru."
+    },
+    "questions": {
+      "title": "Doplňující otázky",
+      "body": "Na základě analýzy tvého webu máme pár doplňujících otázek.",
+      "answerPlaceholder": "Napiš svou odpověď...",
+      "submit": "Vygenerovat konfiguraci"
+    },
+    "building": {
+      "title": "Generuji konfiguraci",
+      "body": "Stavím hlas značky, pilíře obsahu a vizuální styl."
+    },
+    "review": {
+      "title": "Zkontroluj konfiguraci",
+      "body": "Projdi si jednotlivé sekce. Pokud je něco špatně, klikni 👎 a napiš co změnit.",
+      "style": {
+        "title": "Doporučený styl komunikace",
+        "badge": "AI na míru",
+        "dos": "Dělat",
+        "donts": "Vyhnout se"
+      },
+      "sections": {
+        "brand_voice": "Brand Voice & Persona",
+        "pillars": "Content Pilíře & Kategorie",
+        "products": "Produkty & Služby",
+        "visual": "Vizuální Identita",
+        "hooks_cta": "Hook Templates & CTA"
+      },
+      "fields": {
+        "persona": "Persona",
+        "tone": "Tón",
+        "values": "Hodnoty",
+        "antiPatterns": "Nepoužíváme",
+        "feel": "Feel",
+        "font": "Font",
+        "gradient": "Gradient preview",
+        "ctaSoft": "CTA (soft)"
+      },
+      "factCheck": {
+        "title": "Kontrola tvrzení",
+        "body": "AI si čísla a roky domýšlí stejně plynule, jako je opisuje. Fakta z vašeho webu už načtená máme; tohle říká, co se stane s tvrzením, které v nich oporu nemá. Ani jeden konec posuvníku nepustí lež — mění se jen to, kdo ji vyřeší.",
+        "modes": {
+          "off": {
+            "label": "Vypnuto",
+            "detail": "Kontrola neběží. AI má pořád zakázáno vymýšlet si údaje, ale nikdo to po ní nekontroluje."
+          },
+          "safe": {
+            "label": "Opatrné",
+            "detail": "Opraví všechno, na co si troufne, včetně nadpisů v obrázku. Nejbezpečnější — a občas nejnudnější."
+          },
+          "balanced": {
+            "label": "Vyvážené",
+            "detail": "V textu příspěvku opraví, v nadpisu vymění jen špatné číslo za správné. Nadpis bez opory nechá být a označí ho vám."
+          },
+          "bold": {
+            "label": "Odvážné",
+            "detail": "Nepřepisuje nic. Text si drží úder a všechna riziková tvrzení dostanete označená k rozhodnutí."
+          }
+        }
+      },
+      "noProducts": "Žádné produkty detekovány",
+      "saveAll": "Vše schváleno — Uložit a pokračovat",
+      "approvedCount": "{approved} / {total} sekcí schváleno",
+      "approveAll": "Schval všechny sekce pro pokračování",
+      "card": {
+        "refining": "Přegenerovávám...",
+        "feedbackPlaceholder": "Co je špatně? Co chceš změnit?",
+        "maxRefines": "Max. počet úprav — doladíš v Settings",
+        "attempt": "Pokus {n}/{max}",
+        "refiningButton": "⏳ Přepracovávám...",
+        "refine": "Přegenerovat"
+      }
+    },
+    "saving": {
+      "title": "Ukládám konfiguraci",
+      "body": "Vytvářím bucket, propojuji účet..."
+    },
+    "generating": {
+      "firstplan": {
+        "title": "Připravuji tvůj první plán obsahu...",
+        "body": "Skládám témata a hooky na míru tvé značce — podle toho, co ti na Instagramu už funguje.",
+        "note": "Tvůj týdenní plán bude čekat v dashboardu"
+      },
+      "bootstrap": {
+        "title": "Spouštím přípravu ukázkového obsahu...",
+        "body": "Plním zásobník témat a zadávám 3 ukázkové příspěvky. Ty se dogenerují na serveru — nemusíš na ně čekat.",
+        "note": "Ukázkové příspěvky se generují na pozadí — najdeš je v Příspěvcích"
+      }
+    },
+    "done": {
+      "reonboard": {
+        "title": "Konfigurace aktualizována! 🔄",
+        "body": "Tvá nová konfigurace je uložená. Všechny budoucí posty budou využívat nové nastavení.",
+        "cta": "Zpět do Dashboardu"
+      },
+      "new": {
+        "title": "Vše je připravené! 🎉",
+        "body": "Tvá schválená konfigurace je uložená. Můžeš začít generovat.",
+        "cta": "Zkontrolovat můj první plán"
+      }
+    }
+  }
 }

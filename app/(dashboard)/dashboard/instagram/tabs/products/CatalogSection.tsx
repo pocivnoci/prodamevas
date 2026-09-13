@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     getProducts,
     createProduct,
@@ -51,6 +52,7 @@ interface CatalogProduct {
 }
 
 export function CatalogSection({ projectId }: { projectId: string }) {
+    const t = useTranslations("products.catalog")
     const [products, setProducts] = useState<any[]>([])
     const [lines, setLines] = useState<LineRow[]>([])
     const [loading, setLoading] = useState(true)
@@ -106,7 +108,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
     }, [products, lineFilter])
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Smazat produkt? Tato akce je nevratná.")) return
+        if (!confirm(t("deleteConfirm"))) return
         await deleteProduct(id, projectId)
         await load()
     }
@@ -145,7 +147,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
             // Duplicitu nech odškrtnutou — druhý import téhož odkazu je skoro vždy omyl
             setDraftsOff(new Set(res.drafts.flatMap((d, i) => (d.ok && !d.duplicateOf ? [] : [i]))))
         } else {
-            setImportError(res.error || "Načtení selhalo")
+            setImportError(res.error || t("import.loadFailed"))
         }
         setImporting(false)
     }
@@ -170,13 +172,11 @@ export function CatalogSection({ projectId }: { projectId: string }) {
         })))
         setSavingImport(false)
         if (res.success) {
-            setImportResult(
-                `Uloženo ${res.inserted} produktů · ${res.images} fotek${res.skipped ? ` · ${res.skipped} přeskočeno` : ""}`
-            )
+            setImportResult(t("import.saved", { inserted: res.inserted, images: res.images, skipped: res.skipped }))
             resetImport()
             await load()
         } else {
-            setImportError(res.error || "Uložení selhalo")
+            setImportError(res.error || t("common.saveFailed"))
         }
     }
 
@@ -194,12 +194,12 @@ export function CatalogSection({ projectId }: { projectId: string }) {
             <div className="bg-[#050505] border border-white/5 rounded-sm p-5">
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                        <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">Produktový katalog</h3>
+                        <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">{t("header.title")}</h3>
                         <p className="text-[10px] text-white/30 mt-1">
-                            Zdroj pravdy pro generování obsahu. Produkty se do postů přiřazují přes @ mention v content planu.
+                            {t("header.intro")}
                         </p>
                         {products.length > 0 && (
-                            <p className="text-[10px] text-white/30 mt-2">{products.length} produktů v katalogu</p>
+                            <p className="text-[10px] text-white/30 mt-2">{t("header.count", { count: products.length })}</p>
                         )}
                         {scrapeResult && <p className="text-[10px] text-white/50 mt-1">{scrapeResult}</p>}
                         {importResult && <p className="text-[10px] text-emerald-400/70 mt-1">{importResult}</p>}
@@ -215,7 +215,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                                 : "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20"}`}
                         >
                             <Link2 className="w-3 h-3" />
-                            Vložit odkaz
+                            {t("header.importLink")}
                         </button>
                         <button
                             onClick={async () => {
@@ -223,17 +223,17 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                                 setScrapeResult(null)
                                 const res = await scrapeProductsFromWebsite(projectId)
                                 if (res.success) {
-                                    setScrapeResult(`Nalezeno ${res.found} · vloženo ${res.inserted} nových · ${res.images} fotek staženo`)
+                                    setScrapeResult(t("header.scrapeResult", { found: res.found, inserted: res.inserted, images: res.images }))
                                     await load()
                                 } else {
-                                    setScrapeResult(`Chyba: ${res.error}`)
+                                    setScrapeResult(t("header.scrapeError", { error: res.error ?? "" }))
                                 }
                                 setScraping(false)
                             }}
                             disabled={scraping}
                             className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 disabled:opacity-50 whitespace-nowrap transition-all"
                         >
-                            {scraping ? "Scanuji web…" : "Načíst z webu"}
+                            {scraping ? t("header.scraping") : t("header.scrape")}
                         </button>
                     </div>
                 </div>
@@ -244,10 +244,9 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                 <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
                     className="bg-[#0f0f0f] border border-amber-500/20 rounded-sm p-5 space-y-4">
                     <div>
-                        <h4 className="text-[11px] uppercase tracking-widest font-bold text-amber-400/80">Import z odkazů</h4>
+                        <h4 className="text-[11px] uppercase tracking-widest font-bold text-amber-400/80">{t("import.title")}</h4>
                         <p className="text-[10px] text-white/30 mt-1">
-                            Vlož odkaz na konkrétní produkt — jeden na řádek, max 10 najednou. Načtu název,
-                            cenu, popis i fotky a ukážu ti je k potvrzení, než se uloží.
+                            {t("import.intro")}
                         </p>
                     </div>
 
@@ -257,7 +256,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                         rows={4}
                         spellCheck={false}
                         className={`${INPUT} font-mono text-xs resize-y`}
-                        placeholder={"https://obchod.cz/produkt/keramicka-ochrana\nhttps://obchod.cz/produkt/sampon"}
+                        placeholder={t("import.placeholder")}
                     />
 
                     {importError && <p className="text-[10px] text-red-400/80">{importError}</p>}
@@ -265,11 +264,11 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                     <div className="flex items-center justify-end gap-3">
                         <button onClick={resetImport}
                             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
-                            Zavřít
+                            {t("common.close")}
                         </button>
                         <button onClick={handlePreviewUrls} disabled={importing || !importUrls.trim()}
                             className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-40 transition-all">
-                            {importing ? "Načítám…" : drafts ? "Načíst znovu" : "Načíst produkty"}
+                            {importing ? t("import.loading") : drafts ? t("import.reload") : t("import.load")}
                         </button>
                     </div>
 
@@ -303,43 +302,43 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                                                     {d.url}
                                                 </a>
                                                 <Badge tone={d.extraction === "ai" ? "amber" : "neutral"}>
-                                                    {d.extraction === "structured" ? "Odečteno ze stránky" : d.extraction === "mixed" ? "Odečteno + doplněno AI" : "Dopočítala AI"}
+                                                    {t(`import.extraction.${d.extraction}`)}
                                                 </Badge>
-                                                {d.duplicateOf && <Badge tone="red">Už v katalogu: {d.duplicateOf}</Badge>}
+                                                {d.duplicateOf && <Badge tone="red">{t("import.duplicate", { name: d.duplicateOf })}</Badge>}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <div className="space-y-1.5 md:col-span-2">
-                                                    <label className={LABEL}>Název</label>
+                                                    <label className={LABEL}>{t("import.name")}</label>
                                                     <input value={d.name} className={INPUT}
                                                         onChange={(e) => patchDraft(i, { name: e.target.value })} />
                                                 </div>
                                                 <div className="space-y-1.5">
-                                                    <label className={LABEL}>Typ / kategorie</label>
-                                                    <input value={d.type} className={INPUT} placeholder="produkt"
+                                                    <label className={LABEL}>{t("common.type")}</label>
+                                                    <input value={d.type} className={INPUT} placeholder={t("import.typePlaceholder")}
                                                         onChange={(e) => patchDraft(i, { type: e.target.value })} />
                                                 </div>
                                                 <div className="space-y-1.5">
-                                                    <label className={LABEL}>Cena</label>
-                                                    <input value={d.price} className={INPUT} placeholder="990 Kč"
+                                                    <label className={LABEL}>{t("common.price")}</label>
+                                                    <input value={d.price} className={INPUT} placeholder={t("common.pricePlaceholder")}
                                                         onChange={(e) => patchDraft(i, { price: e.target.value })} />
                                                 </div>
                                                 <div className="space-y-1.5 md:col-span-2">
-                                                    <label className={LABEL}>Slug (URL)</label>
+                                                    <label className={LABEL}>{t("common.slug")}</label>
                                                     <input value={d.slug} className={`${INPUT} font-mono`}
                                                         onChange={(e) => patchDraft(i, { slug: e.target.value })} />
                                                 </div>
                                                 <div className="space-y-1.5 md:col-span-2">
-                                                    <label className={LABEL}>Popis</label>
+                                                    <label className={LABEL}>{t("import.description")}</label>
                                                     <textarea value={d.description} rows={2} className={`${INPUT} resize-y`}
-                                                        placeholder="Co produkt dělá, pro koho je, čím se liší."
+                                                        placeholder={t("common.descriptionPlaceholder")}
                                                         onChange={(e) => patchDraft(i, { description: e.target.value })} />
                                                 </div>
                                             </div>
 
                                             <div className="space-y-1.5">
                                                 <label className={LABEL}>
-                                                    Fotky {d.imageUrls.length > 0 ? `(${d.imageUrls.length}) — křížkem vyhodíš, co není produkt` : "— žádné nenalezeny"}
+                                                    {d.imageUrls.length > 0 ? t("import.photos", { count: d.imageUrls.length }) : t("import.photosNone")}
                                                 </label>
                                                 {d.imageUrls.length > 0 && (
                                                     <div className="flex gap-2 flex-wrap">
@@ -349,7 +348,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                                                                     className="w-16 h-16 object-cover rounded-sm border border-white/10 bg-[#050505]" />
                                                                 <button
                                                                     onClick={() => patchDraft(i, { imageUrls: d.imageUrls.filter((_, k) => k !== imgIndex) })}
-                                                                    title="Odebrat fotku"
+                                                                    title={t("common.removePhoto")}
                                                                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#0a0a0a] border border-white/20 text-white/50 hover:text-red-400 hover:border-red-400/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                                                                     <X className="w-3 h-3" />
                                                                 </button>
@@ -365,12 +364,12 @@ export function CatalogSection({ projectId }: { projectId: string }) {
 
                             <div className="flex items-center justify-between gap-3 pt-1">
                                 <span className="text-[9px] uppercase tracking-widest font-bold text-white/30">
-                                    {drafts.filter((d, i) => d.ok && !draftsOff.has(i)).length} k uložení
+                                    {t("import.toSave", { count: drafts.filter((d, i) => d.ok && !draftsOff.has(i)).length })}
                                 </span>
                                 <button onClick={handleSaveImport}
                                     disabled={savingImport || drafts.every((d, i) => !d.ok || draftsOff.has(i))}
                                     className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition-all">
-                                    {savingImport ? "Ukládám…" : "Uložit do katalogu"}
+                                    {savingImport ? t("common.saving") : t("import.save")}
                                 </button>
                             </div>
                         </div>
@@ -381,13 +380,13 @@ export function CatalogSection({ projectId }: { projectId: string }) {
             {/* Line filter */}
             {lines.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                    <FilterChip active={lineFilter === "all"} onClick={() => setLineFilter("all")}>Vše</FilterChip>
+                    <FilterChip active={lineFilter === "all"} onClick={() => setLineFilter("all")}>{t("filter.all")}</FilterChip>
                     {lines.map(l => (
                         <FilterChip key={l.id} active={lineFilter === l.id} onClick={() => setLineFilter(l.id)}>
                             {l.name}
                         </FilterChip>
                     ))}
-                    <FilterChip active={lineFilter === "none"} onClick={() => setLineFilter("none")}>Bez řady</FilterChip>
+                    <FilterChip active={lineFilter === "none"} onClick={() => setLineFilter("none")}>{t("filter.none")}</FilterChip>
                 </div>
             )}
 
@@ -402,14 +401,14 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                             }}
                             className="text-[9px] text-white/40 hover:text-white/70 font-bold uppercase tracking-widest transition-colors"
                         >
-                            {selectedIds.size === visible.length ? "Odznačit vše" : "Vybrat vše"}
+                            {selectedIds.size === visible.length ? t("bulk.deselectAll") : t("bulk.selectAll")}
                         </button>
-                        {selectedIds.size > 0 && <span className="text-[9px] text-white/30">{selectedIds.size} vybráno</span>}
+                        {selectedIds.size > 0 && <span className="text-[9px] text-white/30">{t("bulk.selected", { count: selectedIds.size })}</span>}
                     </div>
                     {selectedIds.size > 0 && (
                         <button
                             onClick={async () => {
-                                if (!confirm(`Smazat ${selectedIds.size} produktů? Tato akce je nevratná.`)) return
+                                if (!confirm(t("bulk.deleteConfirm", { count: selectedIds.size }))) return
                                 setBulkDeleting(true)
                                 await deleteProducts(Array.from(selectedIds), projectId)
                                 setSelectedIds(new Set())
@@ -419,7 +418,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                             disabled={bulkDeleting}
                             className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 disabled:opacity-50 transition-all"
                         >
-                            {bulkDeleting ? "Mažu…" : `Smazat ${selectedIds.size}`}
+                            {bulkDeleting ? t("bulk.deleting") : t("bulk.delete", { count: selectedIds.size })}
                         </button>
                     )}
                 </div>
@@ -427,7 +426,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
 
             {visible.length === 0 && (
                 <p className="text-[10px] text-white/30 text-center py-8 uppercase tracking-widest font-bold">
-                    Žádné produkty — vložte odkaz na produkt, načtěte je z webu, přidejte ručně, nebo nechte AI navrhnout celou řadu.
+                    {t("empty")}
                 </p>
             )}
 
@@ -482,21 +481,21 @@ export function CatalogSection({ projectId }: { projectId: string }) {
                             <div className="flex items-center flex-wrap gap-3 mt-2">
                                 {p.price && <span className="text-[10px] text-emerald-400/70 font-bold">{p.price}</span>}
                                 <span className="text-[8px] text-white/20 font-mono">/{p.slug}</span>
-                                <span className="text-[8px] text-white/20">{(p.image_urls || []).length} fotek</span>
+                                <span className="text-[8px] text-white/20">{t("item.photos", { count: (p.image_urls || []).length })}</span>
                                 {p.specs?.volume && <span className="text-[8px] text-white/25">{p.specs.volume}</span>}
                             </div>
                         </div>
 
                         <div className="flex items-center gap-1 flex-shrink-0">
-                            <label className={`p-2 text-white/20 hover:text-blue-400/80 cursor-pointer transition-colors ${uploading === p.id ? "animate-pulse" : ""}`} title="Nahrát obrázek">
+                            <label className={`p-2 text-white/20 hover:text-blue-400/80 cursor-pointer transition-colors ${uploading === p.id ? "animate-pulse" : ""}`} title={t("item.upload")}>
                                 <Camera className="w-3 h-3 text-[10px]" />
                                 <input type="file" accept="image/*" className="hidden"
                                     onChange={(e) => handleImageUpload(p.id, e)} disabled={uploading === p.id} />
                             </label>
-                            <button onClick={() => setEditing(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title="Upravit">
+                            <button onClick={() => setEditing(p)} className="p-2 text-white/20 hover:text-white/60 transition-colors" title={t("item.edit")}>
                                 <Pencil className="w-3 h-3 text-[10px]" />
                             </button>
-                            <button onClick={() => handleDelete(p.id)} className="p-2 text-white/20 hover:text-red-400/80 transition-colors" title="Smazat">
+                            <button onClick={() => handleDelete(p.id)} className="p-2 text-white/20 hover:text-red-400/80 transition-colors" title={t("item.delete")}>
                                 <X className="w-3 h-3 text-[10px]" />
                             </button>
                         </div>
@@ -515,7 +514,7 @@ export function CatalogSection({ projectId }: { projectId: string }) {
 
             <button onClick={() => setEditing("new")}
                 className="w-full py-4 border border-dashed border-white/15 rounded-sm text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all">
-                + Přidat produkt
+                {t("add")}
             </button>
 
             {/* Úpravy produktu žijí v modálu, ne pod seznamem. Formulář se vykresloval
@@ -550,6 +549,7 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
     onSaved: () => void | Promise<void>
     onImagesChanged: () => void | Promise<void>
 }) {
+    const t = useTranslations("products.catalog")
     const editingId: string | null = product?.id ?? null
 
     const [form, setForm] = useState(() => product ? {
@@ -594,7 +594,7 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
             : await createProduct(projectId, payload)
         setSaving(false)
         if (!res?.success) {
-            setError(res?.error || "Uložení selhalo")
+            setError(res?.error || t("common.saveFailed"))
             return
         }
         await onSaved()
@@ -611,7 +611,7 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
         const res = await uploadProductImage(projectId, editingId, fd)
         setUploading(false)
         if (!res.success || !res.publicUrl) {
-            setError(res.error || "Nahrání selhalo")
+            setError(res.error || t("form.uploadFailed"))
             return
         }
         setImages(list => [...list, res.publicUrl!])
@@ -625,7 +625,7 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
         const res = await deleteProductImage(projectId, editingId, url)
         setBusyImage(null)
         if (!res.success) {
-            setError(res.error || "Smazání fotky selhalo")
+            setError(res.error || t("form.deleteImageFailed"))
             return
         }
         setImages(list => list.filter(u => u !== url))
@@ -648,9 +648,9 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
             >
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 shrink-0">
                     <h4 className="text-sm font-black uppercase tracking-widest text-white/70">
-                        {editingId ? "Upravit produkt" : "Nový produkt"}
+                        {editingId ? t("form.editTitle") : t("form.newTitle")}
                     </h4>
-                    <button onClick={onClose} className="p-1.5 text-white/30 hover:text-white/70 transition-colors" title="Zavřít">
+                    <button onClick={onClose} className="p-1.5 text-white/30 hover:text-white/70 transition-colors" title={t("common.close")}>
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -658,45 +658,45 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className={LABEL}>Název produktu</label>
-                            <input value={form.name} className={INPUT} placeholder="Keramická ochrana laku"
+                            <label className={LABEL}>{t("form.name")}</label>
+                            <input value={form.name} className={INPUT} placeholder={t("form.namePlaceholder")}
                                 onChange={(e) => {
                                     const name = e.target.value
                                     setForm(f => ({ ...f, name, slug: editingId ? f.slug : autoSlug(name) }))
                                 }} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className={LABEL}>Slug (URL)</label>
-                            <input value={form.slug} className={`${INPUT} font-mono`} placeholder="keramicka-ochrana"
+                            <label className={LABEL}>{t("common.slug")}</label>
+                            <input value={form.slug} className={`${INPUT} font-mono`} placeholder={t("form.slugPlaceholder")}
                                 onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className={LABEL}>Typ / kategorie</label>
-                            <input value={form.type} className={INPUT} placeholder="Autokosmetika, Balíček, Služba…"
+                            <label className={LABEL}>{t("common.type")}</label>
+                            <input value={form.type} className={INPUT} placeholder={t("form.typePlaceholder")}
                                 onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className={LABEL}>Cena</label>
-                            <input value={form.price} className={INPUT} placeholder="990 Kč"
+                            <label className={LABEL}>{t("common.price")}</label>
+                            <input value={form.price} className={INPUT} placeholder={t("common.pricePlaceholder")}
                                 onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))} />
                         </div>
                         <div className="space-y-1.5">
-                            <label className={LABEL}>Počet variant (volitelné)</label>
-                            <input value={form.variants} type="number" min={0} className={INPUT} placeholder="3"
+                            <label className={LABEL}>{t("form.variants")}</label>
+                            <input value={form.variants} type="number" min={0} className={INPUT} placeholder={t("form.variantsPlaceholder")}
                                 onChange={(e) => setForm(f => ({ ...f, variants: e.target.value }))} />
                         </div>
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Popis — čím konkrétnější, tím lepší captions</label>
+                        <label className={LABEL}>{t("form.description")}</label>
                         <textarea value={form.description} rows={3} className={`${INPUT} resize-y`}
-                            placeholder="Co produkt dělá, pro koho je, čím se liší."
+                            placeholder={t("common.descriptionPlaceholder")}
                             onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} />
                     </div>
 
                     {/* Fotky — jen u existujícího produktu: upload potřebuje id řádku. */}
                     <div className="space-y-2 border-t border-white/5 pt-4">
-                        <label className={LABEL}>Fotky produktu</label>
+                        <label className={LABEL}>{t("form.photos")}</label>
                         {editingId ? (
                             <div className="flex flex-wrap gap-2">
                                 {images.map(url => (
@@ -705,7 +705,7 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
                                         <button
                                             onClick={() => handleRemoveImage(url)}
                                             disabled={busyImage === url}
-                                            title="Odebrat fotku"
+                                            title={t("common.removePhoto")}
                                             className="absolute top-0.5 right-0.5 p-1 rounded-sm bg-black/70 text-white/60 hover:text-red-400 transition-colors disabled:opacity-40"
                                         >
                                             <X className="w-3 h-3" />
@@ -714,12 +714,12 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
                                 ))}
                                 <label className={`w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-white/15 text-white/30 hover:text-white/60 hover:border-white/30 transition-all cursor-pointer ${uploading ? "animate-pulse" : ""}`}>
                                     <Plus className="w-4 h-4" />
-                                    <span className="text-[8px] uppercase tracking-widest font-bold">Fotka</span>
+                                    <span className="text-[8px] uppercase tracking-widest font-bold">{t("form.addPhoto")}</span>
                                     <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
                                 </label>
                             </div>
                         ) : (
-                            <p className="text-[10px] text-white/30">Fotky půjdou přidat, jakmile produkt uložíš.</p>
+                            <p className="text-[10px] text-white/30">{t("form.photosAfterSave")}</p>
                         )}
                     </div>
 
@@ -731,11 +731,11 @@ function ProductFormModal({ projectId, product, onClose, onSaved, onImagesChange
                 <div className="flex items-center justify-end gap-3 px-5 py-3.5 border-t border-white/10 bg-[#050505] shrink-0">
                     <button onClick={onClose}
                         className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors">
-                        Zrušit
+                        {t("form.cancel")}
                     </button>
                     <button onClick={handleSubmit} disabled={saving || !form.name || !form.slug}
                         className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition-all">
-                        {saving ? "Ukládám…" : editingId ? "Uložit změny" : "Vytvořit produkt"}
+                        {saving ? t("common.saving") : editingId ? t("form.saveChanges") : t("form.create")}
                     </button>
                 </div>
             </motion.div>

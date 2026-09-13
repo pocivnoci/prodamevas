@@ -1,3 +1,360 @@
 {
-  "products": {}
+  "products": {
+    "tab": {
+      "sections": {
+        "catalog": "Katalog",
+        "lines": "Řady",
+        "ideas": "Nápady",
+        "design": "Design pro tisk",
+        "categories": "Kategorie"
+      },
+      "typeGrid": {
+        "empty": "Žádné produktové kategorie. Přidej je v záložce \"Kategorie\"."
+      },
+      "loading": "Generuji... může to chvíli trvat",
+      "unknownError": "Neznámá chyba",
+      "share": {
+        "text": "Koukni na tenhle AI design z Chrlit Studia!",
+        "copied": "Odkaz na obrázek byl zkopírován do schránky.",
+        "failed": "Při sdílení přes nativní menu došlo k chybě. Odkaz zkopíruj ručně.",
+        "downloadFailed": "Nepodařilo se stáhnout obrázek napřímo. Zkus ho otevřít v plné velikosti a uložit."
+      },
+      "promo": {
+        "created": "Promo post vytvořen!\n\nCaption:\n{caption}...\n\nNajdeš ho v záložce Posts jako Draft.",
+        "createFailed": "Vytvoření selhalo.",
+        "postFailed": "Vytvoření postu selhalo"
+      },
+      "ideas": {
+        "title": "Product Ideas Brainstorm",
+        "intro": "AI vygeneruje kreativní nápady na nové produkty — nejen oblečení, ale i gadgety, doplňky a originální merch.",
+        "theme": "Téma (volitelné)",
+        "themePlaceholder": "letní kolekce, valentýn...",
+        "count": "Počet nápadů",
+        "generate": "Generovat nápady",
+        "saved": "\"{name}\" uložen",
+        "saveFailed": "Uložení selhalo: {error} (client: {client})",
+        "saveError": "Save error: {error} (client: {client})",
+        "rejectFailed": "Zamítnutí selhalo: {error}",
+        "rejectError": "Reject error: {error}",
+        "uploadFailed": "Upload failed",
+        "uploadError": "Chyba uploadu: {error}",
+        "generateFailed": "Generování selhalo",
+        "visualizeFailed": "Vizualizace selhala",
+        "analysisFailed": "Analýza selhala",
+        "reviseFailed": "Revize selhala",
+        "generating": "⏳ Generuji...",
+        "custom": {
+          "title": "Vlastní produkt — napiš co chceš vizualizovat",
+          "placeholder": "např. černý keramický hrnek, zippo zapalovač, snapback čepice...",
+          "create": "Vytvořit vizualizaci",
+          "alt": "Custom product",
+          "fullSize": "📸 Plná velikost"
+        },
+        "card": {
+          "save": "Uložit nápad",
+          "reject": "Zahodit",
+          "names": "Varianty názvů",
+          "price": "Cena:",
+          "material": "Mat.:",
+          "dimensions": "Rozm.:",
+          "manufacturing": "Výr.:",
+          "viralAngle": "Virální angle",
+          "whyItWorks": "Proč to bude fungovat",
+          "production": "Produkce",
+          "fullSize": "Plná velikost",
+          "visualize": "Vizualizovat produkt",
+          "briefGenerating": "⏳ Brief...",
+          "brief": "Brief"
+        },
+        "savedTitle": "Uložené Nápady",
+        "savedCard": {
+          "badge": "Saved",
+          "rating": "Hodnocení",
+          "zoom": "Zvětšit",
+          "details": "Všechny parametry & Dodavatel",
+          "upload": "Nahrát referenční fotku",
+          "visualizeFuse": "Fuse vizualizace (i2i)",
+          "visualizeText": "Vizualizovat z textu",
+          "promoCreating": "⏳ Vytvářím...",
+          "promo": "Vytvoř promo post",
+          "briefGenerating": "⏳ Generuji brief...",
+          "businessBrief": "Business Brief",
+          "revised": "Produkt přepracován",
+          "feedbackPlaceholder": "💬 Feedback: uprav název, zdraž, změň varianty...",
+          "revising": "Přeprac..."
+        }
+      },
+      "categories": {
+        "title": "Produktové kategorie",
+        "customSubtitle": "Vlastní kategorie tohoto klienta",
+        "globalSubtitle": "Globální výchozí kategorie — přidej vlastní pro tento brand",
+        "hintLabel": "proč na katalogu záleží",
+        "close": "Zavřít",
+        "new": "＋ Nová kategorie",
+        "form": {
+          "editTitle": "✏️ Upravit: {label}",
+          "newTitle": "Nová produktová kategorie",
+          "slug": "Slug (bez diakritiky) *",
+          "slugPlaceholder": "sklenicka",
+          "name": "Název *",
+          "namePlaceholder": "Sklenička",
+          "icon": "Emoji ikona",
+          "iconPlaceholder": "🥃",
+          "designGuide": "AI instrukce pro vizualizaci (design_guide) *",
+          "designGuidePlaceholder": "Zobraz křišťálovou skleničku s gravírovaným vzorem, studio osvětlení, průhledné sklo, detailní lom světla na tmavém pozadí...",
+          "mockupPrompt": "Mockup prompt (EN)",
+          "mockupPromptPlaceholder": "blank crystal glass tumbler on dark background...",
+          "material": "Materiál",
+          "materialPlaceholder": "křišťál, borosilikát, sklo",
+          "manufacturing": "Výroba",
+          "manufacturingPlaceholder": "gravírování, pískování, malování",
+          "saveChanges": "Uložit změny",
+          "cancel": "Zrušit",
+          "saving": "⏳ Ukládám...",
+          "add": "＋ Přidat kategorii"
+        },
+        "edited": "Kategorie upravena",
+        "editFailed": "Upravení selhalo",
+        "fillRequired": "Vyplň slug, název a AI instrukce",
+        "added": "Kategorie \"{label}\" přidána ✅",
+        "addFailed": "Přidání selhalo",
+        "deleteConfirm": "Smazat kategorii \"{label}\"?",
+        "deleteFailed": "Smazání selhalo",
+        "edit": "Upravit",
+        "delete": "Smazat",
+        "global": "Global",
+        "globalNote": "ℹ️ Zobrazují se globální výchozí kategorie. Jakmile přidáš první vlastní kategorii, budou se zobrazovat jen tvé vlastní."
+      }
+    },
+    "catalog": {
+      "header": {
+        "title": "Produktový katalog",
+        "intro": "Zdroj pravdy pro generování obsahu. Produkty se do postů přiřazují přes @ mention v content planu.",
+        "count": "{count, plural, one {# produkt} few {# produkty} other {# produktů}} v katalogu",
+        "importLink": "Vložit odkaz",
+        "scraping": "Scanuji web…",
+        "scrape": "Načíst z webu",
+        "scrapeResult": "Nalezeno {found} · {inserted, plural, one {vložen # nový} few {vloženy # nové} other {vloženo # nových}} · {images, plural, one {# fotka stažena} few {# fotky staženy} other {# fotek staženo}}",
+        "scrapeError": "Chyba: {error}"
+      },
+      "deleteConfirm": "Smazat produkt? Tato akce je nevratná.",
+      "common": {
+        "close": "Zavřít",
+        "saving": "Ukládám…",
+        "saveFailed": "Uložení selhalo",
+        "removePhoto": "Odebrat fotku",
+        "slug": "Slug (URL)",
+        "type": "Typ / kategorie",
+        "price": "Cena",
+        "pricePlaceholder": "990 Kč",
+        "descriptionPlaceholder": "Co produkt dělá, pro koho je, čím se liší."
+      },
+      "import": {
+        "title": "Import z odkazů",
+        "intro": "Vlož odkaz na konkrétní produkt — jeden na řádek, max 10 najednou. Načtu název, cenu, popis i fotky a ukážu ti je k potvrzení, než se uloží.",
+        "placeholder": "https://obchod.cz/produkt/keramicka-ochrana\nhttps://obchod.cz/produkt/sampon",
+        "loadFailed": "Načtení selhalo",
+        "saved": "{inserted, plural, one {Uložen # produkt} few {Uloženy # produkty} other {Uloženo # produktů}} · {images, plural, one {# fotka} few {# fotky} other {# fotek}}{skipped, plural, =0 {} other { · # přeskočeno}}",
+        "loading": "Načítám…",
+        "reload": "Načíst znovu",
+        "load": "Načíst produkty",
+        "extraction": {
+          "structured": "Odečteno ze stránky",
+          "mixed": "Odečteno + doplněno AI",
+          "ai": "Dopočítala AI"
+        },
+        "duplicate": "Už v katalogu: {name}",
+        "name": "Název",
+        "typePlaceholder": "produkt",
+        "description": "Popis",
+        "photos": "Fotky ({count}) — křížkem vyhodíš, co není produkt",
+        "photosNone": "Fotky — žádné nenalezeny",
+        "toSave": "{count} k uložení",
+        "save": "Uložit do katalogu"
+      },
+      "filter": {
+        "all": "Vše",
+        "none": "Bez řady"
+      },
+      "bulk": {
+        "deselectAll": "Odznačit vše",
+        "selectAll": "Vybrat vše",
+        "selected": "{count, plural, one {# vybrán} few {# vybrány} other {# vybráno}}",
+        "deleteConfirm": "Smazat {count, plural, one {# produkt} few {# produkty} other {# produktů}}? Tato akce je nevratná.",
+        "deleting": "Mažu…",
+        "delete": "Smazat {count}"
+      },
+      "empty": "Žádné produkty — vložte odkaz na produkt, načtěte je z webu, přidejte ručně, nebo nechte AI navrhnout celou řadu.",
+      "item": {
+        "photos": "{count, plural, one {# fotka} few {# fotky} other {# fotek}}",
+        "upload": "Nahrát obrázek",
+        "edit": "Upravit",
+        "delete": "Smazat"
+      },
+      "add": "+ Přidat produkt",
+      "form": {
+        "uploadFailed": "Nahrání selhalo",
+        "deleteImageFailed": "Smazání fotky selhalo",
+        "editTitle": "Upravit produkt",
+        "newTitle": "Nový produkt",
+        "name": "Název produktu",
+        "namePlaceholder": "Keramická ochrana laku",
+        "slugPlaceholder": "keramicka-ochrana",
+        "typePlaceholder": "Autokosmetika, Balíček, Služba…",
+        "variants": "Počet variant (volitelné)",
+        "variantsPlaceholder": "3",
+        "description": "Popis — čím konkrétnější, tím lepší captions",
+        "photos": "Fotky produktu",
+        "addPhoto": "Fotka",
+        "photosAfterSave": "Fotky půjdou přidat, jakmile produkt uložíš.",
+        "cancel": "Zrušit",
+        "saveChanges": "Uložit změny",
+        "create": "Vytvořit produkt"
+      }
+    },
+    "print": {
+      "errors": {
+        "noCategory": "Vyber typ produktu",
+        "noTheme": "Zadej téma designu",
+        "generateFailed": "Generování selhalo",
+        "editFailed": "Úprava selhala",
+        "mockupFailed": "Mockup selhal"
+      },
+      "starting": "Startuji…",
+      "brief": {
+        "title": "Podklad pro tisk",
+        "intro": "AI vytvoří plochou tiskovou grafiku ve správném poměru stran, zkontroluje text v jazyce značky a doškáluje ji na fyzický rozměr při 300 DPI. Výstup je <em>návrh pro tiskaře</em> — pro velké formáty ho nechte převést do vektorů.",
+        "category": "Typ produktu",
+        "sizeMm": "{size} mm",
+        "theme": "Téma / inspirace",
+        "themePlaceholder": "např. dílenská estetika, výrazná typografie",
+        "description": "Popis grafiky (volitelné)",
+        "descriptionPlaceholder": "Konkrétní přání — kompozice, motivy, čemu se vyhnout",
+        "overlayText": "Text na artworku (volitelné)",
+        "overlayTextPlaceholder": "přesné znění včetně diakritiky",
+        "product": "Produkt z katalogu (volitelné)",
+        "productNone": "— žádný —",
+        "line": "Řada (sjednotí vzhled se sourozenci)",
+        "lineNone": "— žádná —",
+        "includeLogo": "Zapojit logo",
+        "abMode": "Dva návrhy na výběr (2× kredity)",
+        "generating": "Generuji…",
+        "createVariants": "Vytvořit 2 varianty",
+        "create": "Vytvořit podklad"
+      },
+      "kind": {
+        "flat": "Potisk",
+        "label": "Etiketa",
+        "wrap": "Ovin",
+        "poster": "Plakát"
+      },
+      "detail": {
+        "untitled": "Design",
+        "variantsTitle": "Varianty — vyber vítěze",
+        "winner": "Vítěz",
+        "pick": "Vybrat",
+        "winnerNote": "Výběr vítěze se uloží do vizuální paměti značky a ovlivní i Instagram art directora.",
+        "artwork": "Artwork",
+        "dieline": "Die-line (spadávka + bezpečný okraj)",
+        "mockup": "Mockup",
+        "spec": {
+          "title": "Tiskové zadání",
+          "format": "Formát",
+          "formatValue": "{width} × {height} mm",
+          "resolution": "Rozlišení",
+          "resolutionValue": "{width} × {height} px",
+          "bleed": "Spadávka",
+          "safeMargin": "Bezpečný okraj",
+          "mmValue": "{value} mm"
+        },
+        "edit": "Upravit tenhle design (nezačíná od nuly)",
+        "editPlaceholder": "např. zvětši nadpis, přidej text „Krok 2“",
+        "editButton": "Upravit",
+        "downloadPrint": "Stáhnout tiskový PNG",
+        "downloadDieline": "Stáhnout die-line",
+        "rendering": "Renderuji…",
+        "createMockup": "Vytvořit mockup"
+      },
+      "history": "Historie designů ({count})",
+      "factChip": {
+        "title": "V textu zůstalo tvrzení bez opory v ověřených faktech:\n{flags}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo text uprav před tiskem.",
+        "label": "Ověř fakta"
+      },
+      "qa": {
+        "pass": "QA OK",
+        "retry_pass": "QA OK (oprava)",
+        "native_forced": "Nejlepší pokus",
+        "edited": "Upraveno",
+        "failed": "Chyba"
+      }
+    },
+    "lines": {
+      "errors": {
+        "noCategory": "Zadej kategorii řady (např. autokosmetika)",
+        "generateFailed": "Generování selhalo",
+        "reviseFailed": "Úprava selhala",
+        "approveFailed": "Schválení selhalo",
+        "discardFailed": "Zahození selhalo"
+      },
+      "starting": "Startuji…",
+      "approved": "{created, plural, one {Do katalogu přidán # produkt} few {Do katalogu přidány # produkty} other {Do katalogu přidáno # produktů}} · {ideas, plural, one {# launch téma} few {# launch témata} other {# launch témat}} do zásobníku nápadů",
+      "brief": {
+        "title": "Nová produktová řada",
+        "intro": "AI navrhne řadu jako systém — každý produkt dostane svůj krok v procesu, roli, specifikaci a místo v cenovém žebříčku.",
+        "category": "Kategorie řady",
+        "categoryPlaceholder": "autokosmetika, péče o vousy, doplňky…",
+        "skuCount": "Počet produktů: {count}",
+        "priceTier": "Cenová hladina",
+        "positioning": "Pozicování (volitelné)",
+        "positioningPlaceholder": "proti čemu se vymezujeme",
+        "audience": "Cílová skupina (volitelné)",
+        "audiencePlaceholder": "kdo to kupuje",
+        "mustInclude": "Musí obsahovat (oddělené čárkou)",
+        "mustIncludePlaceholder": "šampon, keramická ochrana…",
+        "generating": "Generuji…",
+        "generate": "Navrhnout řadu",
+        "generatingNote": "Běží hluboká analýza (~1–2 min). Můžeš zavřít záložku, výsledek se uloží."
+      },
+      "tier": {
+        "budget": {
+          "label": "Dostupná",
+          "hint": "Cena je argument"
+        },
+        "mid": {
+          "label": "Střední",
+          "hint": "Poměr cena/výkon"
+        },
+        "premium": {
+          "label": "Prémiová",
+          "hint": "Rozhoduje výsledek"
+        }
+      },
+      "issues": {
+        "title": "Výhrady k návrhu",
+        "note": "Můžeš je opravit ručně nebo přes zpětnou vazbu u konkrétního produktu."
+      },
+      "list": {
+        "title": "Řady ({count})",
+        "skuCount": "{count} SKU"
+      },
+      "detail": {
+        "systemLogic": "Systém řady",
+        "namingConvention": "Pravidlo pojmenování",
+        "targetAudience": "Cílová skupina",
+        "price": "{price, number} Kč",
+        "feedbackPlaceholder": "Co na tomhle produktu změnit?",
+        "revise": "Upravit",
+        "approving": "Schvaluji…",
+        "approve": "Schválit do katalogu ({count})",
+        "discard": "Zahodit",
+        "archive": "Archivovat řadu"
+      },
+      "status": {
+        "draft": "Návrh",
+        "active": "Aktivní",
+        "archived": "Archiv",
+        "failed": "Chyba"
+      }
+    }
+  }
 }

@@ -1,3 +1,187 @@
 {
-  "adminOnboard": {}
+  "adminOnboard": {
+    "access": {
+      "checking": "Checking permissions...",
+      "adminsOnly": "Administrators only"
+    },
+    "errors": {
+      "analysisFailed": "Analysis failed",
+      "configFailed": "Generating the configuration failed",
+      "saveFailed": "Saving failed",
+      "connectionLost": "Lost the connection to the server. Please try again — the work in progress is not lost, it keeps running on the server.",
+      "taskFailed": "The task failed.",
+      "taskTimeout": "Preparation is taking unusually long. Please try again."
+    },
+    "sections": {
+      "brand_voice": "Brand Voice",
+      "pillars": "Content Pillars",
+      "products": "Products",
+      "visual": "Visual identity",
+      "hooks_cta": "Hooks & CTA"
+    },
+    "common": {
+      "back": "← Back"
+    },
+    "choose": {
+      "title": "Onboard a new client",
+      "subtitle": "How do you want to start?",
+      "howItWorks": {
+        "summary": "How it all works (and whether the client has to sign up)",
+        "step1": "You onboard the brand here — the client doesn't need to be around.",
+        "step2": "The brand is created under your account. The client can't see it yet.",
+        "step3": "You hand it over to their e-mail — at the bottom of this screen, or any time later in <strong>Settings → Manage</strong>.",
+        "step4": "The client creates the account <strong>themselves</strong> — we can't create it for them (address confirmation and consent to the terms). The invitation pre-fills the code and e-mail, so all that's left is a password or Google.",
+        "step5": "On their first sign-in the brand is assigned automatically. It has to be <strong>the same e-mail</strong> you handed over to.",
+        "docs": "Details: docs/ONBOARDING_A_PREDANI.md"
+      },
+      "withWebsite": {
+        "title": "I have a website",
+        "body": "The AI analyses the website and sets everything up automatically."
+      },
+      "withoutWebsite": {
+        "title": "No website",
+        "body": "Answer a few questions and the AI sets everything up for you."
+      },
+      "historyTitle": "Onboarded today"
+    },
+    "input": {
+      "title": "Client website",
+      "subtitle": "The AI analyses the website and creates the configuration.",
+      "urlLabel": "Website",
+      "urlPlaceholder": "https://clientwebsite.com",
+      "igLabel": "Instagram handle",
+      "igPlaceholder": "@client",
+      "optional": "Optional",
+      "analyze": "Analyse website"
+    },
+    "manual": {
+      "title": "Manual onboarding",
+      "subtitle": "Fill in the basics — the AI creates the configuration without a website.",
+      "nameLabel": "Company / brand name",
+      "namePlaceholder": "e.g. Café Pohoda",
+      "categoryLabel": "Category",
+      "category": {
+        "kavarna": "Café",
+        "restaurace": "Restaurant",
+        "salon": "Salon",
+        "fitness": "Fitness",
+        "eshop": "E-shop",
+        "remeslnik": "Tradesperson",
+        "poradce": "Consultant",
+        "fotograf": "Photographer",
+        "jine": "Other"
+      },
+      "descriptionLabel": "What do you do? Describe the business",
+      "descriptionPlaceholder": "e.g. A cosy café in the centre of Brno, we roast our own coffee...",
+      "productsLabel": "Products / services",
+      "productsHint": "(comma-separated)",
+      "productsPlaceholder": "e.g. Espresso, Cappuccino, Cheesecake",
+      "toneLabel": "Tone of voice",
+      "tone": {
+        "friendly": "Friendly",
+        "professional": "Professional",
+        "cheeky": "Cheeky / Funny",
+        "expert": "Expert"
+      },
+      "igLabel": "Instagram handle",
+      "igOptional": "(optional)",
+      "igPlaceholder": "@client",
+      "enhancedTitle": "Optional — for better results",
+      "audienceLabel": "Target audience",
+      "audiencePlaceholder": "e.g. Women 25-40, into a healthy lifestyle, living in Brno...",
+      "competitorsLabel": "Inspiration / IG accounts",
+      "competitorsPlaceholder": "e.g. @kavarnarovnost, @doubleshot.cz",
+      "visualStyleLabel": "Visual style",
+      "visualStyle": {
+        "dark": "Dark",
+        "light": "Light",
+        "colorful": "Colourful",
+        "minimalist": "Minimalist",
+        "luxury": "Luxury"
+      },
+      "insightsTitle": "Instagram insights (optional)",
+      "followersLabel": "Followers",
+      "followersPlaceholder": "e.g. 1500",
+      "locationsLabel": "Top locations",
+      "locationsPlaceholder": "Prague, Brno",
+      "genderLabel": "Audience",
+      "gender": {
+        "mostly_female": "Mostly women",
+        "mostly_male": "Mostly men",
+        "mixed": "Mixed",
+        "unknown": "Not sure"
+      },
+      "submit": "Analyse and set up"
+    },
+    "analyzing": {
+      "title": "The AI is analysing the client",
+      "body": "Reading the content, learning the brand, preparing tailored questions."
+    },
+    "questions": {
+      "title": "Follow-up questions",
+      "subtitle": "Based on the analysis we have a few follow-up questions.",
+      "answerPlaceholder": "Write your answer...",
+      "submit": "Generate configuration"
+    },
+    "building": {
+      "title": "Generating the configuration",
+      "body": "Building the brand voice, content pillars and visual style."
+    },
+    "review": {
+      "title": "Configuration review",
+      "subtitle": "Go through each section — approve 👍 or have it regenerated 👎",
+      "fields": {
+        "persona": "Persona",
+        "voiceTraits": "Voice Traits",
+        "antiPatterns": "Anti-Patterns",
+        "visualStyle": "Visual style",
+        "gradient": "Gradient",
+        "hookTemplates": "Hook templates",
+        "ctaSoft": "CTA (soft)"
+      },
+      "noProducts": "No products",
+      "save": "Save configuration",
+      "approveAll": "Approve all {total} sections ({approved}/{total})",
+      "card": {
+        "refining": "Regenerating...",
+        "version": "v{n}",
+        "feedbackPlaceholder": "What's wrong? What do you want to change?",
+        "maxRefines": "Max. number of edits — fine-tune it in Settings",
+        "attempt": "Attempt {n}/{max}",
+        "refineBusy": "⏳ Reworking...",
+        "refine": "Regenerate"
+      }
+    },
+    "saving": {
+      "title": "Saving the configuration",
+      "body": "Writing to the database, creating the bucket..."
+    },
+    "done": {
+      "title": "Client onboarded! 🎉",
+      "slug": "slug: {slug}",
+      "handoff": {
+        "title": "Hand over to the customer",
+        "body": "The brand is still under your account. Enter the customer's e-mail — they will see it in their dashboard and pass the beta gate. If they don't have an account yet, an invitation goes out and they get the brand on their first sign-up. You can also hand it over later in Settings → Manage.",
+        "emailPlaceholder": "customer@company.com",
+        "submitting": "Handing over…",
+        "submit": "Hand over",
+        "release": "Disconnect my account from the project (as an admin you can still get in)",
+        "success": "Handed over.",
+        "failed": "Handover failed.",
+        "copied": "Copied",
+        "copyInvite": "Copy invitation link"
+      },
+      "brief": {
+        "loading": "Generating the shot list...",
+        "title": "Shot list for the client",
+        "copy": "Copy",
+        "must": "IMPORTANT",
+        "footer": "Send this list to the client — then upload the photos in the \"Brand photos\" section of the dashboard.",
+        "clipboardTitle": "📸 Shot list for {name}",
+        "clipboardFallbackName": "the client"
+      },
+      "onboardAnother": "Onboard another",
+      "reload": "↻ Reload dashboard"
+    }
+  }
 }

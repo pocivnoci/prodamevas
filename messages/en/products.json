@@ -1,3 +1,351 @@
 {
-  "products": {}
+  "products": {
+    "tab": {
+      "sections": {
+        "catalog": "Catalogue",
+        "lines": "Lines",
+        "ideas": "Ideas",
+        "design": "Print design",
+        "categories": "Categories"
+      },
+      "typeGrid": {
+        "empty": "No product categories. Add them in the \"Categories\" tab."
+      },
+      "loading": "Generating... this may take a moment",
+      "unknownError": "Unknown error",
+      "share": {
+        "text": "Check out this AI design from Chrlit Studio!",
+        "copied": "The image link was copied to the clipboard.",
+        "failed": "Sharing via the native menu failed. Copy the link manually.",
+        "downloadFailed": "The image could not be downloaded directly. Try opening it in full size and saving it."
+      },
+      "promo": {
+        "created": "Promo post created!\n\nCaption:\n{caption}...\n\nYou will find it in the Posts tab as a Draft.",
+        "createFailed": "Creating failed.",
+        "postFailed": "Creating the post failed"
+      },
+      "ideas": {
+        "title": "Product Ideas Brainstorm",
+        "intro": "The AI generates creative ideas for new products — not just clothing, but gadgets, accessories and original merch.",
+        "theme": "Theme (optional)",
+        "themePlaceholder": "summer collection, Valentine's Day...",
+        "count": "Number of ideas",
+        "generate": "Generate ideas",
+        "saved": "\"{name}\" saved",
+        "saveFailed": "Saving failed: {error} (client: {client})",
+        "saveError": "Save error: {error} (client: {client})",
+        "rejectFailed": "Rejecting failed: {error}",
+        "rejectError": "Reject error: {error}",
+        "uploadFailed": "Upload failed",
+        "uploadError": "Upload error: {error}",
+        "generateFailed": "Generating failed",
+        "visualizeFailed": "Visualisation failed",
+        "analysisFailed": "Analysis failed",
+        "reviseFailed": "Revision failed",
+        "generating": "⏳ Generating...",
+        "custom": {
+          "title": "Custom product — describe what you want to visualise",
+          "placeholder": "e.g. black ceramic mug, zippo lighter, snapback cap...",
+          "create": "Create visualisation",
+          "alt": "Custom product",
+          "fullSize": "📸 Full size"
+        },
+        "card": {
+          "save": "Save idea",
+          "reject": "Discard",
+          "names": "Name variants",
+          "price": "Price:",
+          "material": "Mat.:",
+          "dimensions": "Dim.:",
+          "manufacturing": "Mfg.:",
+          "viralAngle": "Viral angle",
+          "whyItWorks": "Why it will work",
+          "production": "Production",
+          "fullSize": "Full size",
+          "visualize": "Visualise product",
+          "briefGenerating": "⏳ Brief...",
+          "brief": "Brief"
+        },
+        "savedTitle": "Saved Ideas",
+        "savedCard": {
+          "badge": "Saved",
+          "rating": "Rating",
+          "zoom": "Zoom in",
+          "details": "All parameters & Supplier",
+          "upload": "Upload a reference photo",
+          "visualizeFuse": "Fuse visualisation (i2i)",
+          "visualizeText": "Visualise from text",
+          "promoCreating": "⏳ Creating...",
+          "promo": "Create promo post",
+          "briefGenerating": "⏳ Generating brief...",
+          "businessBrief": "Business Brief",
+          "revised": "Product reworked",
+          "feedbackPlaceholder": "💬 Feedback: change the name, raise the price, change the variants...",
+          "revising": "Reworking..."
+        }
+      },
+      "categories": {
+        "title": "Product categories",
+        "customSubtitle": "Custom categories of this client",
+        "globalSubtitle": "Global default categories — add your own for this brand",
+        "hintLabel": "why the catalogue matters",
+        "close": "Close",
+        "new": "＋ New category",
+        "form": {
+          "editTitle": "✏️ Edit: {label}",
+          "newTitle": "New product category",
+          "slug": "Slug (no diacritics) *",
+          "slugPlaceholder": "tumbler",
+          "name": "Name *",
+          "namePlaceholder": "Tumbler",
+          "icon": "Emoji icon",
+          "iconPlaceholder": "🥃",
+          "designGuide": "AI instructions for visualisation (design_guide) *",
+          "designGuidePlaceholder": "Show a crystal tumbler with an engraved pattern, studio lighting, transparent glass, detailed light refraction on a dark background...",
+          "mockupPrompt": "Mockup prompt (EN)",
+          "mockupPromptPlaceholder": "blank crystal glass tumbler on dark background...",
+          "material": "Material",
+          "materialPlaceholder": "crystal, borosilicate, glass",
+          "manufacturing": "Manufacturing",
+          "manufacturingPlaceholder": "engraving, sandblasting, painting",
+          "saveChanges": "Save changes",
+          "cancel": "Cancel",
+          "saving": "⏳ Saving...",
+          "add": "＋ Add category"
+        },
+        "edited": "Category updated",
+        "editFailed": "Updating failed",
+        "fillRequired": "Fill in the slug, name and AI instructions",
+        "added": "Category \"{label}\" added ✅",
+        "addFailed": "Adding failed",
+        "deleteConfirm": "Delete the category \"{label}\"?",
+        "deleteFailed": "Deleting failed",
+        "edit": "Edit",
+        "delete": "Delete",
+        "global": "Global",
+        "globalNote": "ℹ️ Showing the global default categories. Once you add your first custom category, only your own will be shown."
+      }
+    },
+    "catalog": {
+      "header": {
+        "title": "Product catalogue",
+        "intro": "The source of truth for content generation. Products are assigned to posts via @ mention in the content plan.",
+        "count": "{count, plural, one {# product} other {# products}} in the catalogue",
+        "importLink": "Paste a link",
+        "scraping": "Scanning the website…",
+        "scrape": "Load from website",
+        "scrapeResult": "Found {found} · {inserted, plural, one {# new one added} other {# new ones added}} · {images, plural, one {# photo downloaded} other {# photos downloaded}}",
+        "scrapeError": "Error: {error}"
+      },
+      "deleteConfirm": "Delete the product? This action cannot be undone.",
+      "common": {
+        "close": "Close",
+        "saving": "Saving…",
+        "saveFailed": "Saving failed",
+        "removePhoto": "Remove photo",
+        "slug": "Slug (URL)",
+        "type": "Type / category",
+        "price": "Price",
+        "pricePlaceholder": "990 CZK",
+        "descriptionPlaceholder": "What the product does, who it is for, how it differs."
+      },
+      "import": {
+        "title": "Import from links",
+        "intro": "Paste a link to a specific product — one per line, max 10 at once. I will load the name, price, description and photos and show them to you for confirmation before saving.",
+        "placeholder": "https://shop.com/product/ceramic-coating\nhttps://shop.com/product/shampoo",
+        "loadFailed": "Loading failed",
+        "saved": "{inserted, plural, one {Saved # product} other {Saved # products}} · {images, plural, one {# photo} other {# photos}}{skipped, plural, =0 {} other { · # skipped}}",
+        "loading": "Loading…",
+        "reload": "Load again",
+        "load": "Load products",
+        "extraction": {
+          "structured": "Read from the page",
+          "mixed": "Read + completed by AI",
+          "ai": "Inferred by AI"
+        },
+        "duplicate": "Already in the catalogue: {name}",
+        "name": "Name",
+        "typePlaceholder": "product",
+        "description": "Description",
+        "photos": "Photos ({count}) — use the cross to remove what is not the product",
+        "photosNone": "Photos — none found",
+        "toSave": "{count} to save",
+        "save": "Save to catalogue"
+      },
+      "filter": {
+        "all": "All",
+        "none": "No line"
+      },
+      "bulk": {
+        "deselectAll": "Deselect all",
+        "selectAll": "Select all",
+        "selected": "{count, plural, one {# selected} other {# selected}}",
+        "deleteConfirm": "Delete {count, plural, one {# product} other {# products}}? This action cannot be undone.",
+        "deleting": "Deleting…",
+        "delete": "Delete {count}"
+      },
+      "empty": "No products — paste a product link, load them from the website, add them manually, or let the AI design a whole line.",
+      "item": {
+        "photos": "{count, plural, one {# photo} other {# photos}}",
+        "upload": "Upload image",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "add": "+ Add product",
+      "form": {
+        "uploadFailed": "Upload failed",
+        "deleteImageFailed": "Deleting the photo failed",
+        "editTitle": "Edit product",
+        "newTitle": "New product",
+        "name": "Product name",
+        "namePlaceholder": "Ceramic paint protection",
+        "slugPlaceholder": "ceramic-protection",
+        "typePlaceholder": "Car care, Bundle, Service…",
+        "variants": "Number of variants (optional)",
+        "variantsPlaceholder": "3",
+        "description": "Description — the more specific, the better the captions",
+        "photos": "Product photos",
+        "addPhoto": "Photo",
+        "photosAfterSave": "You can add photos once the product is saved.",
+        "cancel": "Cancel",
+        "saveChanges": "Save changes",
+        "create": "Create product"
+      }
+    },
+    "print": {
+      "errors": {
+        "noCategory": "Choose a product type",
+        "noTheme": "Enter a design theme",
+        "generateFailed": "Generating failed",
+        "editFailed": "Editing failed",
+        "mockupFailed": "Mockup failed"
+      },
+      "starting": "Starting…",
+      "brief": {
+        "title": "Print artwork",
+        "intro": "The AI creates flat print graphics in the right aspect ratio, checks the text and scales it to the physical size at 300 DPI. The output is <em>a draft for the printer</em> — for large formats have it converted to vectors.",
+        "category": "Product type",
+        "sizeMm": "{size} mm",
+        "theme": "Theme / inspiration",
+        "themePlaceholder": "e.g. workshop aesthetics, bold typography",
+        "description": "Artwork description (optional)",
+        "descriptionPlaceholder": "Specific wishes — composition, motifs, what to avoid",
+        "overlayText": "Text on the artwork (optional)",
+        "overlayTextPlaceholder": "exact wording including diacritics",
+        "product": "Product from the catalogue (optional)",
+        "productNone": "— none —",
+        "line": "Line (unifies the look with its siblings)",
+        "lineNone": "— none —",
+        "includeLogo": "Include logo",
+        "abMode": "Two designs to choose from (2× credits)",
+        "generating": "Generating…",
+        "createVariants": "Create 2 variants",
+        "create": "Create artwork"
+      },
+      "kind": {
+        "flat": "Print",
+        "label": "Label",
+        "wrap": "Wrap",
+        "poster": "Poster"
+      },
+      "detail": {
+        "untitled": "Design",
+        "variantsTitle": "Variants — pick the winner",
+        "winner": "Winner",
+        "pick": "Pick",
+        "winnerNote": "The winner is saved to the brand's visual memory and also influences the Instagram art director.",
+        "artwork": "Artwork",
+        "dieline": "Die-line (bleed + safe margin)",
+        "mockup": "Mockup",
+        "spec": {
+          "title": "Print specification",
+          "format": "Format",
+          "formatValue": "{width} × {height} mm",
+          "resolution": "Resolution",
+          "resolutionValue": "{width} × {height} px",
+          "bleed": "Bleed",
+          "safeMargin": "Safe margin",
+          "mmValue": "{value} mm"
+        },
+        "edit": "Edit this design (does not start from scratch)",
+        "editPlaceholder": "e.g. enlarge the headline, add the text “Step 2”",
+        "editButton": "Edit",
+        "downloadPrint": "Download print PNG",
+        "downloadDieline": "Download die-line",
+        "rendering": "Rendering…",
+        "createMockup": "Create mockup"
+      },
+      "history": "Design history ({count})",
+      "factChip": {
+        "title": "The text still contains a claim not backed by verified facts:\n{flags}\n\nAdd the fact in Settings → Verified facts, or edit the text before printing.",
+        "label": "Verify facts"
+      },
+      "qa": {
+        "pass": "QA OK",
+        "retry_pass": "QA OK (fixed)",
+        "native_forced": "Best attempt",
+        "edited": "Edited",
+        "failed": "Error"
+      }
+    },
+    "lines": {
+      "errors": {
+        "noCategory": "Enter the line category (e.g. car care)",
+        "generateFailed": "Generating failed",
+        "reviseFailed": "Editing failed",
+        "approveFailed": "Approval failed",
+        "discardFailed": "Discarding failed"
+      },
+      "starting": "Starting…",
+      "approved": "{created, plural, one {# product added to the catalogue} other {# products added to the catalogue}} · {ideas, plural, one {# launch topic} other {# launch topics}} added to the idea bank",
+      "brief": {
+        "title": "New product line",
+        "intro": "The AI designs the line as a system — every product gets its step in the process, a role, a specification and a place on the price ladder.",
+        "category": "Line category",
+        "categoryPlaceholder": "car care, beard care, accessories…",
+        "skuCount": "Number of products: {count}",
+        "priceTier": "Price tier",
+        "positioning": "Positioning (optional)",
+        "positioningPlaceholder": "what we set ourselves apart from",
+        "audience": "Target audience (optional)",
+        "audiencePlaceholder": "who buys it",
+        "mustInclude": "Must include (comma-separated)",
+        "mustIncludePlaceholder": "shampoo, ceramic coating…",
+        "generating": "Generating…",
+        "generate": "Design the line",
+        "generatingNote": "Deep analysis is running (~1–2 min). You can close the tab, the result will be saved."
+      },
+      "tier": {
+        "budget": { "label": "Budget", "hint": "Price is the argument" },
+        "mid": { "label": "Mid-range", "hint": "Value for money" },
+        "premium": { "label": "Premium", "hint": "The result decides" }
+      },
+      "issues": {
+        "title": "Reservations about the proposal",
+        "note": "You can fix them manually or via feedback on a specific product."
+      },
+      "list": {
+        "title": "Lines ({count})",
+        "skuCount": "{count} SKU"
+      },
+      "detail": {
+        "systemLogic": "Line system",
+        "namingConvention": "Naming rule",
+        "targetAudience": "Target audience",
+        "price": "{price, number} CZK",
+        "feedbackPlaceholder": "What to change about this product?",
+        "revise": "Edit",
+        "approving": "Approving…",
+        "approve": "Approve to catalogue ({count})",
+        "discard": "Discard",
+        "archive": "Archive line"
+      },
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "archived": "Archived",
+        "failed": "Error"
+      }
+    }
+  }
 }

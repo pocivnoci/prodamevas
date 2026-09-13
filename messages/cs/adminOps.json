@@ -1,3 +1,243 @@
 {
-  "adminOps": {}
+  "adminOps": {
+    "tasks": {
+      "loading": "Načítání…",
+      "open": "Otevřených",
+      "searchPlaceholder": "Hledat v názvu…",
+      "allClients": "Všichni klienti",
+      "reload": "Načíst znovu",
+      "newTask": "Nový úkol",
+      "unassigned": "Nezadáno",
+      "empty": "Nic tu není. Přidej úkol, nebo zruš filtr.",
+      "filters": {
+        "all": "Vše ({count})",
+        "me": "{name} (já)"
+      },
+      "ai": {
+        "title": "Roztřídí nové úkoly a navrhne, co ze stavu systému plyne",
+        "run": "Projet AI",
+        "running": "Běží…",
+        "started": "AI se do toho pustila — seznam se doplní sám během chvilky.",
+        "done": "Hotovo — seznam je aktuální."
+      },
+      "groups": {
+        "awaiting": "Čeká na tvou odpověď",
+        "mine": "Moje",
+        "unassigned": "Nezařazené",
+        "others": "Ostatní otevřené",
+        "blocked": "Blokované",
+        "closed": "Hotové a zahozené"
+      },
+      "sleeping": {
+        "show": "Zobrazit {count}× s termínem v budoucnu",
+        "hide": "Skrýt {count}× s termínem v budoucnu"
+      },
+      "status": {
+        "todo": "Ke zpracování",
+        "doing": "Dělá se",
+        "blocked": "Čeká na někoho",
+        "done": "Hotovo",
+        "dropped": "Neděláme"
+      },
+      "priority": {
+        "p1": "1 — hoří",
+        "p2": "2 — tenhle týden",
+        "p3": "3 — až bude čas"
+      },
+      "effort": {
+        "S": "do 30 min",
+        "M": "půl dne",
+        "L": "víc než den"
+      },
+      "agentKind": {
+        "ops": "AI: uvnitř systému",
+        "code": "AI: skončí PR"
+      },
+      "roles": {
+        "founder": "Zakladatel",
+        "manager": "Obchod",
+        "investor": "Investor"
+      },
+      "row": {
+        "moveTo": "Posunout na: {status}",
+        "blockedUntil": "· do {date}",
+        "prio": "Prio {n}",
+        "due": "termín {date}",
+        "overdue": "po termínu {date}",
+        "origin": {
+          "ai": "návrh AI",
+          "sheet": "z tabulky",
+          "app": "v appce"
+        },
+        "effortTitle": "Odhad velikosti",
+        "agentTitle": "Tohle umí vzít AI",
+        "openStudio": "Otevřít studio: {name}",
+        "expandTitle": "Zadání, úprava a vlákno"
+      },
+      "detail": {
+        "fields": {
+          "title": "Název",
+          "priority": "Priorita",
+          "noPriority": "bez priority",
+          "due": "Termín",
+          "client": "Klient",
+          "companyTask": "firemní úkol",
+          "note": "Poznámka"
+        },
+        "waiting": {
+          "label": "Čekám na",
+          "placeholder": "Např. verifikace v bance",
+          "until": "Do kdy",
+          "postpone": "Odložit",
+          "unblock": "Odblokovat"
+        },
+        "spec": {
+          "goal": "Cíl:",
+          "done": "Hotovo, když:",
+          "start": "Začni:",
+          "none": "Zadání zatím není — AI úkol ještě neviděla."
+        },
+        "result": {
+          "placeholder": "Výsledek — odkaz na PR, doklad, rozhodnutí…",
+          "save": "Uložit"
+        },
+        "thread": {
+          "loading": "Načítám vlákno…",
+          "empty": "Vlákno je prázdné.",
+          "answerPlaceholder": "Odpověz AI jednou větou…",
+          "notePlaceholder": "Poznámka do vlákna…",
+          "answer": "Odpovědět AI",
+          "noteOnly": "Jen poznámka",
+          "retriageTitle": "Přečti úkol znovu a přepiš zadání"
+        },
+        "source": {
+          "sheet": "Z tabulky · ruční import ho může vrátit",
+          "app": "Založeno v appce"
+        },
+        "delete": "Smazat",
+        "deleteConfirm": "Opravdu smazat?"
+      },
+      "form": {
+        "titlePlaceholder": "Co je potřeba udělat *",
+        "notePlaceholder": "Poznámka (nepovinné)",
+        "noPriority": "Bez priority",
+        "companyTask": "Firemní úkol",
+        "create": "Založit",
+        "creating": "Zakládám…",
+        "cancel": "Zrušit",
+        "aiHint": "AI ho roztřídí sama při nejbližším běhu"
+      },
+      "errors": {
+        "load": "Načtení selhalo.",
+        "status": "Změna stavu selhala.",
+        "delete": "Smazání selhalo.",
+        "agentStart": "Spuštění selhalo.",
+        "retriage": "Přetřídění selhalo.",
+        "assign": "Přiřazení selhalo.",
+        "save": "Uložení selhalo.",
+        "assignClient": "Přiřazení klienta selhalo.",
+        "postpone": "Odložení selhalo.",
+        "unblock": "Odblokování selhalo.",
+        "saveResult": "Uložení výsledku selhalo.",
+        "create": "Založení selhalo."
+      }
+    },
+    "approvals": {
+      "intro": "Tyto akce navrhl agent, ale jsou rizikové (odchozí / utrácí / nevratné), takže nic neproběhne bez vašeho souhlasu.",
+      "empty": {
+        "title": "Nic nečeká na schválení",
+        "body": "Akce agentů, které utrácí peníze nebo míří na zákazníky, se objeví tady"
+      },
+      "policies": {
+        "title": "Dělám sám, bez ptaní",
+        "body": "Rozhodl jsi jednou pro celý druh akce. Nad denní strop se zeptám jako dřív.",
+        "today": "dnes {used}/{cap}",
+        "revoke": "Zrušit",
+        "confirmRevoke": "Zrušit stálý souhlas „{label}\"?\n\nAkce toho druhu se zase začnou objevovat tady ke schválení."
+      },
+      "risk": {
+        "outbound": "Odchozí (zákazník)",
+        "spending": "Utrácí peníze",
+        "irreversible": "Nevratné",
+        "internal": "Interní",
+        "reversible": "Vratné"
+      },
+      "openStudio": "Otevřít studio klienta",
+      "systemWide": "OPS · celý systém",
+      "approve": "Schválit",
+      "reject": "Zamítnout",
+      "approveAlways": "Schválit a příště se neptat ({label})",
+      "confirmAlways": "Zapnout, že „{label}\" budu posílat sám, bez ptaní?\n\nOstatních druhů se budu ptát dál. Vypnout to jde tady v přehledu níž.",
+      "errors": {
+        "decide": "Rozhodnutí se nepodařilo uložit.",
+        "generic": "Nepodařilo se"
+      }
+    },
+    "company": {
+      "errors": {
+        "title": "Přehled se nenačetl",
+        "load": "Přehled se nepodařilo načíst.",
+        "retry": "Zkusit znovu"
+      },
+      "empty": "Zatím žádní klienti",
+      "quarantine": "V karanténě",
+      "stats": {
+        "active": "Aktivních klientů",
+        "atRisk": "V riziku",
+        "stalledOnboarding": "Nedokončený onboarding"
+      },
+      "filter": {
+        "active": "Aktivní",
+        "all": "Vše"
+      },
+      "columns": {
+        "client": "Klient",
+        "plan": "Plán",
+        "risks": "Rizika",
+        "content14d": "Obsah 14 d",
+        "lastContent": "Poslední obsah",
+        "credits": "Kredity",
+        "ig": "IG"
+      },
+      "footer": "Sestaveno {date} · stejná data pohánějí ranní brief · karanténa = deaktivovaná značka čekající na úklid (akce dělá brief, ne tenhle přehled)",
+      "row": {
+        "openStudio": "Otevřít studio klienta",
+        "quarantineSince": "v karanténě od {date}",
+        "noSubscription": "bez předplatného",
+        "ok": "v pořádku",
+        "risk": {
+          "dunning": "Selhává platba",
+          "credits_out": "Došly kredity",
+          "expiring": "Končí plán",
+          "dormant": "Spí",
+          "ig_disconnected": "Odpojený IG",
+          "cancelled": "Vypověděl"
+        },
+        "followUp": {
+          "title": "Založit úkol ozvat se — s odkazem na klienta",
+          "action": "úkol",
+          "done": "úkol založen",
+          "error": "nepovedlo se"
+        },
+        "lastContent": {
+          "never": "nikdy",
+          "today": "dnes",
+          "yesterday": "včera",
+          "daysAgo": "před {count, plural, one {# dnem} few {# dny} other {# dny}}"
+        }
+      }
+    },
+    "logs": {
+      "count": "{count, plural, one {# záznam} few {# záznamy} other {# záznamů}}",
+      "columns": {
+        "model": "Model",
+        "tokens": "Tokeny",
+        "time": "Čas",
+        "post": "Post",
+        "error": "Error",
+        "date": "Datum"
+      },
+      "empty": "Žádné logy"
+    }
+  }
 }

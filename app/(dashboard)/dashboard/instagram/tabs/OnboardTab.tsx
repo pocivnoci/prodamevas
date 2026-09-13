@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from "next-intl"
 import { checkIsAdmin, transferClientToUser } from '@/app/actions/admin-actions'
 import {
     startWebsiteAnalysis,
@@ -24,15 +25,15 @@ interface OnboardedClient {
     slug: string
 }
 
-const REVIEW_SECTIONS: { id: ReviewSection; Icon: LucideIcon; title: string }[] = [
-    { id: 'brand_voice', Icon: Mic, title: 'Brand Voice' },
-    { id: 'pillars', Icon: ChartColumn, title: 'Content Pillars' },
-    { id: 'products', Icon: Package, title: 'Produkty' },
-    { id: 'visual', Icon: Palette, title: 'Vizuální identita' },
-    { id: 'hooks_cta', Icon: Anchor, title: 'Hooks & CTA' },
-]
-
 export function OnboardTab() {
+    const t = useTranslations("adminOnboard")
+    const REVIEW_SECTIONS: { id: ReviewSection; Icon: LucideIcon; title: string }[] = [
+        { id: 'brand_voice', Icon: Mic, title: t("sections.brand_voice") },
+        { id: 'pillars', Icon: ChartColumn, title: t("sections.pillars") },
+        { id: 'products', Icon: Package, title: t("sections.products") },
+        { id: 'visual', Icon: Palette, title: t("sections.visual") },
+        { id: 'hooks_cta', Icon: Anchor, title: t("sections.hooks_cta") },
+    ]
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [step, setStep] = useState<Step>('choose')
     const [url, setUrl] = useState('')
@@ -91,9 +92,15 @@ export function OnboardTab() {
         checkIsAdmin().then(setIsAdmin)
     }, [])
 
+    // Zvýrazněný kus věty v návodu — ve zprávě je <strong>, vykreslí se stejný span jako dřív.
+    const howItWorksStrong = (chunks: React.ReactNode) => <span className="text-white/70">{chunks}</span>
+
     // ─── Step 1A → 2: Analyze website ────────────────────────
     // Práce běží jako durable agent_task — prohlížeč ji jen zařadí, šťouchne a ptá se.
-    const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress)
+    // Věty, které vznikají v prohlížeči (ne na serveru), jdou v jazyce UI; průběh
+    // a chyby ze serveru se zobrazují tak, jak přijdou.
+    const taskMessages = { connectionLost: t("errors.connectionLost"), taskFailed: t("errors.taskFailed"), taskTimeout: t("errors.taskTimeout") }
+    const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress, taskMessages)
 
     type AnalyzeResult = { analysis: WebsiteAnalysis; questions: OnboardingQuestion[] }
     type StartResult = { success: boolean; taskId?: string; error?: string }
@@ -106,14 +113,14 @@ export function OnboardTab() {
     async function runAnalysis(start: () => Promise<StartResult>, backTo: Step) {
         try {
             const started = await start()
-            if (!started.success || !started.taskId) throw new Error(started.error || 'Analýza selhala')
+            if (!started.success || !started.taskId) throw new Error(started.error || t("errors.analysisFailed"))
             setAnalyzeTaskId(started.taskId)
             const { analysis, questions } = await awaitTask<AnalyzeResult>(started.taskId)
             setAnalysis(analysis)
             setQuestions(questions)
             setStep('questions')
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep(backTo)
         }
     }
@@ -143,7 +150,7 @@ export function OnboardTab() {
             category,
             description: manualDescription.trim(),
             products: manualProducts.trim(),
-            tone: manualTone || 'přátelský',
+            tone: manualTone || 'přátelský', // i18n-ignore: hodnota jde doslova do promptu analýzy (core.ts), ne do UI
             igHandle: igHandle.trim(),
             targetAudience: targetAudience.trim() || undefined,
             competitors: competitors.trim() || undefined,
@@ -166,7 +173,7 @@ export function OnboardTab() {
         try {
             const started = await startConfigPreview(analyzeTaskId, answers, url.trim(), igHandle.trim())
             if (!started.success || !started.taskId) {
-                throw new Error(started.error || 'Generování konfigurace selhalo')
+                throw new Error(started.error || t("errors.configFailed"))
             }
             const { config } = await awaitTask<{ config: ClientConfig }>(started.taskId)
             setConfigPreview(config)
@@ -176,7 +183,7 @@ export function OnboardTab() {
             setRefineCounts({ brand_voice: 0, pillars: 0, products: 0, visual: 0, hooks_cta: 0 })
             setStep('review')
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep('questions')
         }
     }
@@ -219,7 +226,7 @@ export function OnboardTab() {
         try {
             const result = await saveReviewedConfig(configPreview, analysis)
             if (!result.success) {
-                throw new Error(result.error || 'Uložení selhalo')
+                throw new Error(result.error || t("errors.saveFailed"))
             }
 
             const client = { name: analysis.companyName, slug: result.clientSlug || '' }
@@ -246,7 +253,7 @@ export function OnboardTab() {
                 .then(res => { if (res.success && res.brief) setImageBrief(res.brief) })
                 .finally(() => setBriefLoading(false))
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep('review')
         }
     }
@@ -299,12 +306,12 @@ export function OnboardTab() {
             const res = await transferClientToUser(onboarded.slug, handoffEmail, { releaseAdminAccess: handoffRelease })
             setHandoffResult({
                 ok: !!res.success,
-                text: res.success ? (res.message || 'Předáno.') : (res.error || 'Předání selhalo.'),
+                text: res.success ? (res.message || t("done.handoff.success")) : (res.error || t("done.handoff.failed")),
                 inviteUrl: res.inviteUrl,
             })
             if (res.success) setHandoffEmail('')
         } catch (err) {
-            setHandoffResult({ ok: false, text: err instanceof Error ? err.message : 'Předání selhalo.' })
+            setHandoffResult({ ok: false, text: err instanceof Error ? err.message : t("done.handoff.failed") })
         } finally {
             setHandoffBusy(false)
         }
@@ -314,18 +321,18 @@ export function OnboardTab() {
         const text = imageBrief.map(cat =>
             `${cat.emoji} ${cat.category} (${cat.count})\n${cat.items.map(item => `  □ ${item}`).join('\n')}`
         ).join('\n\n')
-        navigator.clipboard.writeText(`📸 Shot list pro ${onboarded?.name || 'klienta'}\n${'━'.repeat(30)}\n\n${text}`)
+        navigator.clipboard.writeText(`${t("done.brief.clipboardTitle", { name: onboarded?.name || t("done.brief.clipboardFallbackName") })}\n${'━'.repeat(30)}\n\n${text}`)
     }
 
     // ─── Access guard ────────────────────────────────────────
     if (isAdmin === null) {
-        return <div className="text-center py-20 text-white/40">Ověřuji oprávnění...</div>
+        return <div className="text-center py-20 text-white/40">{t("access.checking")}</div>
     }
     if (!isAdmin) {
         return (
             <div className="text-center py-20">
                 <div className="text-4xl mb-4">🔒</div>
-                <p className="text-white/50">Pouze pro administrátory</p>
+                <p className="text-white/50">{t("access.adminsOnly")}</p>
             </div>
         )
     }
@@ -352,8 +359,8 @@ export function OnboardTab() {
             {step === 'choose' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Plus className="w-5 h-5 shrink-0" />Onboardovat nového klienta</h2>
-                        <p className="text-white/50 text-sm">Jak chceš začít?</p>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Plus className="w-5 h-5 shrink-0" />{t("choose.title")}</h2>
+                        <p className="text-white/50 text-sm">{t("choose.subtitle")}</p>
                     </div>
 
                     {/* Postup — nejčastější dotaz obchodu: „musí se klient registrovat?"
@@ -361,15 +368,15 @@ export function OnboardTab() {
                         si nikdo neotevře uprostřed hovoru s klientem. */}
                     <details className="mb-4 bg-white/[0.03] border border-white/10 rounded-xl">
                         <summary className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-white/50 cursor-pointer hover:text-white/80 transition-colors">
-                            Jak to celé funguje (a jestli se klient musí registrovat)
+                            {t("choose.howItWorks.summary")}
                         </summary>
                         <div className="px-4 pb-4 pt-1 space-y-2 text-[11px] text-white/50 leading-relaxed">
-                            <p><span className="text-white/70 font-bold">1.</span> Onboarduješ značku tady — klient u toho být nemusí.</p>
-                            <p><span className="text-white/70 font-bold">2.</span> Značka vznikne pod tvým účtem. Klient ji zatím nevidí.</p>
-                            <p><span className="text-white/70 font-bold">3.</span> Předáš ji na jeho e-mail — dole na téhle obrazovce, nebo kdykoli později v <span className="text-white/70">Nastavení → Správa</span>.</p>
-                            <p><span className="text-white/70 font-bold">4.</span> Účet si zakládá <span className="text-white/70">klient sám</span> — my mu ho založit nemůžeme (potvrzení adresy a souhlas s podmínkami). Pozvánka mu ale předvyplní kód i e-mail, takže mu zbyde heslo nebo Google.</p>
-                            <p><span className="text-white/70 font-bold">5.</span> Při jeho prvním přihlášení se značka připíše sama. Musí to být <span className="text-white/70">tentýž e-mail</span>, na který jsi předával.</p>
-                            <p className="text-white/30 pt-1">Podrobně: docs/ONBOARDING_A_PREDANI.md</p>
+                            <p><span className="text-white/70 font-bold">1.</span> {t("choose.howItWorks.step1")}</p>
+                            <p><span className="text-white/70 font-bold">2.</span> {t("choose.howItWorks.step2")}</p>
+                            <p><span className="text-white/70 font-bold">3.</span> {t.rich("choose.howItWorks.step3", { strong: howItWorksStrong })}</p>
+                            <p><span className="text-white/70 font-bold">4.</span> {t.rich("choose.howItWorks.step4", { strong: howItWorksStrong })}</p>
+                            <p><span className="text-white/70 font-bold">5.</span> {t.rich("choose.howItWorks.step5", { strong: howItWorksStrong })}</p>
+                            <p className="text-white/30 pt-1">{t("choose.howItWorks.docs")}</p>
                         </div>
                     </details>
 
@@ -379,23 +386,23 @@ export function OnboardTab() {
                             className="p-5 bg-white/5 border border-white/10 rounded-xl text-left hover:border-emerald-500/40 transition-all cursor-pointer group"
                         >
                             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-lg mb-3 group-hover:scale-110 transition-transform">🌐</div>
-                            <h3 className="font-bold text-white text-sm mb-1">Mám web</h3>
-                            <p className="text-xs text-white/40">AI analyzuje web a nastaví vše automaticky.</p>
+                            <h3 className="font-bold text-white text-sm mb-1">{t("choose.withWebsite.title")}</h3>
+                            <p className="text-xs text-white/40">{t("choose.withWebsite.body")}</p>
                         </button>
                         <button
                             onClick={() => setStep('manual')}
                             className="p-5 bg-white/5 border border-white/10 rounded-xl text-left hover:border-blue-500/40 transition-all cursor-pointer group"
                         >
                             <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-lg mb-3 group-hover:scale-110 transition-transform">✏️</div>
-                            <h3 className="font-bold text-white text-sm mb-1">Nemám web</h3>
-                            <p className="text-xs text-white/40">Vyplníš pár otázek a AI nastaví vše za tebe.</p>
+                            <h3 className="font-bold text-white text-sm mb-1">{t("choose.withoutWebsite.title")}</h3>
+                            <p className="text-xs text-white/40">{t("choose.withoutWebsite.body")}</p>
                         </button>
                     </div>
 
                     {/* History */}
                     {history.length > 0 && (
                         <div className="mt-8 p-4 bg-white/5 border border-white/10 rounded-xl">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">Dnes onboardovaní</h4>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">{t("choose.historyTitle")}</h4>
                             <div className="space-y-2">
                                 {history.map((c, i) => (
                                     <div key={i} className="flex items-center gap-2 text-sm text-white/60">
@@ -414,8 +421,8 @@ export function OnboardTab() {
             {step === 'input' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Globe className="w-5 h-5 shrink-0" />Webová stránka klienta</h2>
-                        <p className="text-white/50 text-sm">AI analyzuje web a vytvoří konfiguraci.</p>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Globe className="w-5 h-5 shrink-0" />{t("input.title")}</h2>
+                        <p className="text-white/50 text-sm">{t("input.subtitle")}</p>
                     </div>
 
                     {error && <ErrorBanner message={error} />}
@@ -423,37 +430,37 @@ export function OnboardTab() {
                     <form onSubmit={handleAnalyze} className="space-y-5">
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
                             <div>
-                                <label htmlFor="onboard-url" className="block text-sm font-medium text-gray-300 mb-2">Webová stránka</label>
+                                <label htmlFor="onboard-url" className="block text-sm font-medium text-gray-300 mb-2">{t("input.urlLabel")}</label>
                                 <input
                                     id="onboard-url"
                                     type="text"
                                     value={url}
                                     onChange={e => setUrl(e.target.value)}
                                     required
-                                    placeholder="https://klientweb.cz"
+                                    placeholder={t("input.urlPlaceholder")}
                                     className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all text-sm"
                                 />
                             </div>
                             <div>
-                                <label htmlFor="onboard-ig" className="block text-sm font-medium text-gray-300 mb-2">Instagram handle</label>
+                                <label htmlFor="onboard-ig" className="block text-sm font-medium text-gray-300 mb-2">{t("input.igLabel")}</label>
                                 <input
                                     id="onboard-ig"
                                     type="text"
                                     value={igHandle}
                                     onChange={e => setIgHandle(e.target.value)}
-                                    placeholder="@klient"
+                                    placeholder={t("input.igPlaceholder")}
                                     className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all text-sm"
                                 />
-                                <p className="mt-1.5 text-xs text-gray-500">Volitelné</p>
+                                <p className="mt-1.5 text-xs text-gray-500">{t("input.optional")}</p>
                             </div>
                         </div>
 
                         <div className="flex gap-3">
-                            <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-lg border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                            <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-lg border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">{t("common.back")}</button>
                             <button
                                 type="submit"
                                 className="flex-1 rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                            ><Search className="w-3.5 h-3.5 shrink-0" />Analyzovat web</button>
+                            ><Search className="w-3.5 h-3.5 shrink-0" />{t("input.analyze")}</button>
                         </div>
                     </form>
                 </div>
@@ -463,8 +470,8 @@ export function OnboardTab() {
             {step === 'manual' && (
                 <div>
                     <div className="mb-8">
-                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Pencil className="w-5 h-5 shrink-0" />Manuální onboarding</h2>
-                        <p className="text-white/50 text-sm">Vyplň základní info — AI vytvoří konfiguraci bez webu.</p>
+                        <h2 className="inline-flex items-center gap-1.5 text-2xl font-bold text-white mb-2"><Pencil className="w-5 h-5 shrink-0" />{t("manual.title")}</h2>
+                        <p className="text-white/50 text-sm">{t("manual.subtitle")}</p>
                     </div>
 
                     {error && <ErrorBanner message={error} />}
@@ -473,22 +480,22 @@ export function OnboardTab() {
                         {/* Core fields */}
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Název firmy / značky</label>
-                                <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder="např. Café Pohoda" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.nameLabel")}</label>
+                                <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder={t("manual.namePlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.categoryLabel")}</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'kavarna', label: 'Kavárna' },
-                                        { id: 'restaurace', label: 'Restaurace' },
-                                        { id: 'salon', label: 'Salon' },
-                                        { id: 'fitness', label: 'Fitness' },
-                                        { id: 'eshop', label: 'E-shop' },
-                                        { id: 'remeslnik', label: 'Řemeslník' },
-                                        { id: 'poradce', label: 'Poradce' },
-                                        { id: 'fotograf', label: 'Fotograf' },
-                                        { id: 'jine', label: 'Jiné' },
+                                        { id: 'kavarna', label: t("manual.category.kavarna") },
+                                        { id: 'restaurace', label: t("manual.category.restaurace") },
+                                        { id: 'salon', label: t("manual.category.salon") },
+                                        { id: 'fitness', label: t("manual.category.fitness") },
+                                        { id: 'eshop', label: t("manual.category.eshop") },
+                                        { id: 'remeslnik', label: t("manual.category.remeslnik") },
+                                        { id: 'poradce', label: t("manual.category.poradce") },
+                                        { id: 'fotograf', label: t("manual.category.fotograf") },
+                                        { id: 'jine', label: t("manual.category.jine") },
                                     ].map(cat => (
                                         <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -498,55 +505,55 @@ export function OnboardTab() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Co děláte? Popište podnikání</label>
-                                <textarea value={manualDescription} onChange={e => setManualDescription(e.target.value)} required placeholder="např. Útulná kavárna v centru Brna, pražíme vlastní kávu..." rows={3} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.descriptionLabel")}</label>
+                                <textarea value={manualDescription} onChange={e => setManualDescription(e.target.value)} required placeholder={t("manual.descriptionPlaceholder")} rows={3} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Produkty / služby <span className="text-gray-500">(oddělte čárkou)</span></label>
-                                <input type="text" value={manualProducts} onChange={e => setManualProducts(e.target.value)} placeholder="např. Espresso, Cappuccino, Cheesecake" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.productsLabel")} <span className="text-gray-500">{t("manual.productsHint")}</span></label>
+                                <input type="text" value={manualProducts} onChange={e => setManualProducts(e.target.value)} placeholder={t("manual.productsPlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Tón komunikace</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.toneLabel")}</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { id: 'přátelský', label: 'Přátelský' },
-                                        { id: 'profesionální', label: 'Profesionální' },
-                                        { id: 'drzý', label: 'Drzý / Vtipný' },
-                                        { id: 'expertní', label: 'Expertní' },
-                                    ].map(t => (
-                                        <button key={t.id} type="button" onClick={() => setManualTone(t.id)}
+                                        { id: 'přátelský', label: t("manual.tone.friendly") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'profesionální', label: t("manual.tone.professional") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'drzý', label: t("manual.tone.cheeky") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'expertní', label: t("manual.tone.expert") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                    ].map(tone => (
+                                        <button key={tone.id} type="button" onClick={() => setManualTone(tone.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
-                                                manualTone === t.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
-                                            }`}>{t.label}</button>
+                                                manualTone === tone.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
+                                            }`}>{tone.label}</button>
                                     ))}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Instagram handle <span className="text-gray-500">(volitelné)</span></label>
-                                <input type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder="@klient" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.igLabel")} <span className="text-gray-500">{t("manual.igOptional")}</span></label>
+                                <input type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder={t("manual.igPlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                             </div>
                         </div>
 
                         {/* Enhanced fields */}
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40">Volitelné — pro lepší výsledky</h4>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-white/40">{t("manual.enhancedTitle")}</h4>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Cílová skupina</label>
-                                <textarea value={targetAudience} onChange={e => setTargetAudience(e.target.value)} placeholder="např. Ženy 25-40, zajímají se o zdravý životní styl, žijí v Brně..." rows={2} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.audienceLabel")}</label>
+                                <textarea value={targetAudience} onChange={e => setTargetAudience(e.target.value)} placeholder={t("manual.audiencePlaceholder")} rows={2} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Inspirace / IG účty</label>
-                                <input type="text" value={competitors} onChange={e => setCompetitors(e.target.value)} placeholder="např. @kavarnarovnost, @doubleshot.cz" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.competitorsLabel")}</label>
+                                <input type="text" value={competitors} onChange={e => setCompetitors(e.target.value)} placeholder={t("manual.competitorsPlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Vizuální styl</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.visualStyleLabel")}</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'tmavý', label: 'Tmavý' },
-                                        { id: 'světlý', label: 'Světlý' },
-                                        { id: 'barevný', label: 'Barevný' },
-                                        { id: 'minimalistický', label: 'Minimalistický' },
-                                        { id: 'luxusní', label: 'Luxusní' },
+                                        { id: 'tmavý', label: t("manual.visualStyle.dark") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'světlý', label: t("manual.visualStyle.light") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'barevný', label: t("manual.visualStyle.colorful") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'minimalistický', label: t("manual.visualStyle.minimalist") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
+                                        { id: 'luxusní', label: t("manual.visualStyle.luxury") }, // i18n-ignore: id jde doslova do promptu analýzy (core.ts), ne do UI
                                     ].map(v => (
                                         <button key={v.id} type="button" onClick={() => setVisualStyle(v.id)}
                                             className={`px-3 py-2 rounded-lg text-sm transition-all cursor-pointer text-left ${
@@ -559,25 +566,25 @@ export function OnboardTab() {
 
                         {/* IG Insights */}
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-5">
-                            <h4 className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white/40"><ChartColumn className="w-3.5 h-3.5 shrink-0" />Instagram insights (volitelné)</h4>
+                            <h4 className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white/40"><ChartColumn className="w-3.5 h-3.5 shrink-0" />{t("manual.insightsTitle")}</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Followerů</label>
-                                    <input type="number" value={followerCount} onChange={e => setFollowerCount(e.target.value)} placeholder="např. 1500" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.followersLabel")}</label>
+                                    <input type="number" value={followerCount} onChange={e => setFollowerCount(e.target.value)} placeholder={t("manual.followersPlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Top lokace</label>
-                                    <input type="text" value={topLocations} onChange={e => setTopLocations(e.target.value)} placeholder="Praha, Brno" className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.locationsLabel")}</label>
+                                    <input type="text" value={topLocations} onChange={e => setTopLocations(e.target.value)} placeholder={t("manual.locationsPlaceholder")} className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Publikum</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">{t("manual.genderLabel")}</label>
                                 <div className="grid grid-cols-4 gap-2">
                                     {[
-                                        { id: 'mostly_female', label: 'Převážně ženy' },
-                                        { id: 'mostly_male', label: 'Převážně muži' },
-                                        { id: 'mixed', label: 'Mix' },
-                                        { id: 'unknown', label: 'Nevím' },
+                                        { id: 'mostly_female', label: t("manual.gender.mostly_female") },
+                                        { id: 'mostly_male', label: t("manual.gender.mostly_male") },
+                                        { id: 'mixed', label: t("manual.gender.mixed") },
+                                        { id: 'unknown', label: t("manual.gender.unknown") },
                                     ].map(g => (
                                         <button key={g.id} type="button" onClick={() => setAudienceGender(g.id)}
                                             className={`px-3 py-2 rounded-lg text-xs transition-all cursor-pointer text-center ${
@@ -589,12 +596,12 @@ export function OnboardTab() {
                         </div>
 
                         <div className="flex gap-3">
-                            <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-lg border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                            <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-lg border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">{t("common.back")}</button>
                             <button
                                 type="submit"
                                 disabled={!businessName || !category || !manualDescription}
                                 className="flex-1 rounded-lg bg-blue-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            ><Rocket className="w-3.5 h-3.5 shrink-0" />Analyzovat a nastavit</button>
+                            ><Rocket className="w-3.5 h-3.5 shrink-0" />{t("manual.submit")}</button>
                         </div>
                     </form>
                 </div>
@@ -606,8 +613,8 @@ export function OnboardTab() {
                     <div className="inline-flex rounded-2xl bg-blue-500/10 p-5 mb-8 ring-1 ring-inset ring-blue-500/20">
                         <div className="w-10 h-10 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-3">AI analyzuje klienta</h2>
-                    <p className="text-white/40 text-sm mb-8">Čtu obsah, učím se značku, chystám otázky na míru.</p>
+                    <h2 className="text-xl font-bold text-white mb-3">{t("analyzing.title")}</h2>
+                    <p className="text-white/40 text-sm mb-8">{t("analyzing.body")}</p>
                     <TaskProgress {...taskProgress} accent="bg-blue-400" />
                 </div>
             )}
@@ -630,8 +637,8 @@ export function OnboardTab() {
                                 </span>
                             ))}
                         </div>
-                        <h3 className="text-lg font-bold text-white">Doplňující otázky</h3>
-                        <p className="text-white/40 text-xs mt-1">Na základě analýzy máme pár doplňujících otázek.</p>
+                        <h3 className="text-lg font-bold text-white">{t("questions.title")}</h3>
+                        <p className="text-white/40 text-xs mt-1">{t("questions.subtitle")}</p>
                     </div>
 
                     {error && <ErrorBanner message={error} />}
@@ -675,7 +682,7 @@ export function OnboardTab() {
                                     <textarea
                                         value={(answers[q.id] as string) || ''}
                                         onChange={e => setAnswer(q.id, e.target.value)}
-                                        placeholder={q.placeholder || 'Napiš odpověď...'}
+                                        placeholder={q.placeholder || t("questions.answerPlaceholder")}
                                         rows={2}
                                         className="w-full px-4 py-3 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all text-sm resize-none"
                                     />
@@ -698,7 +705,7 @@ export function OnboardTab() {
                         <button
                             type="submit"
                             className="inline-flex items-center gap-1.5 justify-center w-full rounded-lg bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        ><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</button>
+                        ><Rocket className="w-3.5 h-3.5 shrink-0" />{t("questions.submit")}</button>
                     </form>
                 </div>
             )}
@@ -709,8 +716,8 @@ export function OnboardTab() {
                     <div className="inline-flex rounded-2xl bg-purple-500/10 p-5 mb-8 ring-1 ring-inset ring-purple-500/20">
                         <div className="w-10 h-10 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-3">Generuji konfiguraci</h2>
-                    <p className="text-white/40 text-sm mb-8">Stavím hlas značky, pilíře obsahu a vizuální styl.</p>
+                    <h2 className="text-xl font-bold text-white mb-3">{t("building.title")}</h2>
+                    <p className="text-white/40 text-sm mb-8">{t("building.body")}</p>
                     <TaskProgress {...taskProgress} accent="bg-purple-400" />
                 </div>
             )}
@@ -719,8 +726,8 @@ export function OnboardTab() {
             {step === 'review' && configPreview && (
                 <div>
                     <div className="mb-6">
-                        <h2 className="inline-flex items-center gap-1.5 text-xl font-bold text-white mb-1"><ClipboardList className="w-4 h-4 shrink-0" />Review konfigurace</h2>
-                        <p className="text-white/40 text-sm">Projdi každou sekci — schval 👍 nebo nech přegenerovat 👎</p>
+                        <h2 className="inline-flex items-center gap-1.5 text-xl font-bold text-white mb-1"><ClipboardList className="w-4 h-4 shrink-0" />{t("review.title")}</h2>
+                        <p className="text-white/40 text-sm">{t("review.subtitle")}</p>
                     </div>
 
                     {error && <ErrorBanner message={error} />}
@@ -728,7 +735,7 @@ export function OnboardTab() {
                     <div className="space-y-4">
                         {/* Brand Voice */}
                         <ReviewCard
-                            section="brand_voice" Icon={Mic} title="Brand Voice"
+                            section="brand_voice" Icon={Mic} title={t("sections.brand_voice")}
                             status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice}
                             refineCount={refineCounts.brand_voice} isRefining={sectionStatuses.brand_voice === 'refining'}
                             onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
@@ -736,15 +743,15 @@ export function OnboardTab() {
                             onRefine={() => handleRefineSection('brand_voice')}
                         >
                             <div className="space-y-2">
-                                <ReviewField label="Persona" value={configPreview.brandVoice?.persona} />
-                                <ReviewField label="Voice Traits" value={configPreview.brandVoice?.voiceTraits?.join(', ')} />
-                                <ReviewField label="Anti-Patterns" value={configPreview.brandVoice?.antiPatterns?.slice(0, 3).join(' • ')} />
+                                <ReviewField label={t("review.fields.persona")} value={configPreview.brandVoice?.persona} />
+                                <ReviewField label={t("review.fields.voiceTraits")} value={configPreview.brandVoice?.voiceTraits?.join(', ')} />
+                                <ReviewField label={t("review.fields.antiPatterns")} value={configPreview.brandVoice?.antiPatterns?.slice(0, 3).join(' • ')} />
                             </div>
                         </ReviewCard>
 
                         {/* Pillars */}
                         <ReviewCard
-                            section="pillars" Icon={ChartColumn} title="Content Pillars"
+                            section="pillars" Icon={ChartColumn} title={t("sections.pillars")}
                             status={sectionStatuses.pillars} feedback={sectionFeedback.pillars}
                             refineCount={refineCounts.pillars} isRefining={sectionStatuses.pillars === 'refining'}
                             onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -764,7 +771,7 @@ export function OnboardTab() {
 
                         {/* Products */}
                         <ReviewCard
-                            section="products" Icon={Package} title="Produkty"
+                            section="products" Icon={Package} title={t("sections.products")}
                             status={sectionStatuses.products} feedback={sectionFeedback.products}
                             refineCount={refineCounts.products} isRefining={sectionStatuses.products === 'refining'}
                             onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -776,14 +783,14 @@ export function OnboardTab() {
                                     <span key={i} className="text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">{p.name}</span>
                                 ))}
                                 {(!configPreview.products || configPreview.products.length === 0) && (
-                                    <span className="text-xs text-white/30">Žádné produkty</span>
+                                    <span className="text-xs text-white/30">{t("review.noProducts")}</span>
                                 )}
                             </div>
                         </ReviewCard>
 
                         {/* Visual */}
                         <ReviewCard
-                            section="visual" Icon={Palette} title="Vizuální identita"
+                            section="visual" Icon={Palette} title={t("sections.visual")}
                             status={sectionStatuses.visual} feedback={sectionFeedback.visual}
                             refineCount={refineCounts.visual} isRefining={sectionStatuses.visual === 'refining'}
                             onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
@@ -791,10 +798,10 @@ export function OnboardTab() {
                             onRefine={() => handleRefineSection('visual')}
                         >
                             <div className="space-y-2">
-                                <ReviewField label="Vizuální styl" value={configPreview.feedAesthetic?.feel} />
+                                <ReviewField label={t("review.fields.visualStyle")} value={configPreview.feedAesthetic?.feel} />
                                 {configPreview.overlayGradient && (
                                     <div>
-                                        <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Gradient</span>
+                                        <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">{t("review.fields.gradient")}</span>
                                         <div className="flex gap-2 items-center">
                                             {[configPreview.overlayGradient.topColor, configPreview.overlayGradient.midColor, configPreview.overlayGradient.bottomColor].map((color, i) => (
                                                 <div key={i} className="flex items-center gap-1.5">
@@ -810,7 +817,7 @@ export function OnboardTab() {
 
                         {/* Hooks & CTA */}
                         <ReviewCard
-                            section="hooks_cta" Icon={Anchor} title="Hooks & CTA"
+                            section="hooks_cta" Icon={Anchor} title={t("sections.hooks_cta")}
                             status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta}
                             refineCount={refineCounts.hooks_cta} isRefining={sectionStatuses.hooks_cta === 'refining'}
                             onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -818,8 +825,8 @@ export function OnboardTab() {
                             onRefine={() => handleRefineSection('hooks_cta')}
                         >
                             <div className="space-y-2">
-                                <ReviewField label="Hook šablony" value={configPreview.brandVoice?.hookTemplates?.slice(0, 3).join(' | ')} />
-                                <ReviewField label="CTA (soft)" value={configPreview.ctaStrategies?.soft?.slice(0, 2).join(' | ')} />
+                                <ReviewField label={t("review.fields.hookTemplates")} value={configPreview.brandVoice?.hookTemplates?.slice(0, 3).join(' | ')} />
+                                <ReviewField label={t("review.fields.ctaSoft")} value={configPreview.ctaStrategies?.soft?.slice(0, 2).join(' | ')} />
                             </div>
                         </ReviewCard>
                     </div>
@@ -835,7 +842,7 @@ export function OnboardTab() {
                                     : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
                             }`}
                         >
-                            {allApproved ? 'Uložit konfiguraci' : `Schval všech 5 sekcí (${REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length}/5)`}
+                            {allApproved ? t("review.save") : t("review.approveAll", { approved: REVIEW_SECTIONS.filter(s => sectionStatuses[s.id] === 'approved').length, total: REVIEW_SECTIONS.length })}
                         </button>
                     </div>
                 </div>
@@ -847,8 +854,8 @@ export function OnboardTab() {
                     <div className="inline-flex rounded-2xl bg-emerald-500/10 p-5 mb-8 ring-1 ring-inset ring-emerald-500/20">
                         <div className="w-10 h-10 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-3">Ukládám konfiguraci</h2>
-                    <p className="text-white/40 text-sm">Zapisuji do databáze, vytvářím bucket...</p>
+                    <h2 className="text-xl font-bold text-white mb-3">{t("saving.title")}</h2>
+                    <p className="text-white/40 text-sm">{t("saving.body")}</p>
                 </div>
             )}
 
@@ -861,26 +868,24 @@ export function OnboardTab() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Klient onboardován! 🎉</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("done.title")}</h2>
                         <p className="text-white/40 mb-1">{onboarded.name}</p>
-                        <p className="text-xs text-white/20 font-mono">slug: {onboarded.slug}</p>
+                        <p className="text-xs text-white/20 font-mono">{t("done.slug", { slug: onboarded.slug })}</p>
                     </div>
 
                     {/* Předání majiteli. Onboarding zapsal vazbu na TVŮJ účet — bez
                         tohohle kroku zákazník svoji značku v dashboardu neuvidí. */}
                     <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
-                        <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm mb-1"><Rocket className="w-3.5 h-3.5 shrink-0" />Předat zákazníkovi</h3>
+                        <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm mb-1"><Rocket className="w-3.5 h-3.5 shrink-0" />{t("done.handoff.title")}</h3>
                         <p className="text-[11px] text-white/30 mb-4 leading-relaxed">
-                            Značka je zatím vedená pod tvým účtem. Zadej e-mail zákazníka — tím ji uvidí ve svém
-                            dashboardu a projde branou bety. Když ještě nemá účet, odejde mu pozvánka a značku
-                            dostane při první registraci. Předat jde i později v Nastavení → Správa.
+                            {t("done.handoff.body")}
                         </p>
                         <div className="flex flex-col sm:flex-row gap-2">
                             <input
                                 type="email"
                                 value={handoffEmail}
                                 onChange={e => setHandoffEmail(e.target.value)}
-                                placeholder="zakaznik@firma.cz"
+                                placeholder={t("done.handoff.emailPlaceholder")}
                                 disabled={handoffBusy}
                                 className="flex-1 px-4 py-2.5 rounded-lg bg-[#050505] border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 text-sm"
                             />
@@ -888,11 +893,11 @@ export function OnboardTab() {
                                 onClick={handleHandoff}
                                 disabled={handoffBusy || !handoffEmail.trim()}
                                 className="px-5 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 text-xs font-bold uppercase tracking-widest hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-                            >{handoffBusy ? 'Předávám…' : 'Předat'}</button>
+                            >{handoffBusy ? t("done.handoff.submitting") : t("done.handoff.submit")}</button>
                         </div>
                         <label className="mt-3 flex items-center gap-2 text-[11px] text-white/30 cursor-pointer">
                             <input type="checkbox" checked={handoffRelease} onChange={e => setHandoffRelease(e.target.checked)} className="accent-emerald-500" />
-                            Odpojit můj účet od projektu (jako správce se do něj dostaneš dál)
+                            {t("done.handoff.release")}
                         </label>
                         {handoffResult && (
                             <div className="mt-3 space-y-2">
@@ -904,7 +909,7 @@ export function OnboardTab() {
                                         onClick={() => { navigator.clipboard.writeText(handoffResult.inviteUrl!); setHandoffCopied(true); setTimeout(() => setHandoffCopied(false), 2000) }}
                                         className="text-[10px] uppercase tracking-widest font-bold text-white/40 hover:text-white transition-colors cursor-pointer"
                                     >
-                                        {handoffCopied ? 'Zkopírováno' : 'Zkopírovat odkaz s pozvánkou'}
+                                        {handoffCopied ? t("done.handoff.copied") : t("done.handoff.copyInvite")}
                                     </button>
                                 )}
                             </div>
@@ -915,18 +920,18 @@ export function OnboardTab() {
                     {briefLoading && (
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6 text-center">
                             <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-sm text-white/40">Generuji shot list...</p>
+                            <p className="text-sm text-white/40">{t("done.brief.loading")}</p>
                         </div>
                     )}
 
                     {imageBrief.length > 0 && (
                         <div className="p-6 bg-white/5 border border-white/10 rounded-xl mb-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm"><Camera className="w-3.5 h-3.5 shrink-0" />Shot list pro klienta</h3>
+                                <h3 className="inline-flex items-center gap-1.5 font-bold text-white text-sm"><Camera className="w-3.5 h-3.5 shrink-0" />{t("done.brief.title")}</h3>
                                 <button
                                     onClick={copyBriefToClipboard}
                                     className="inline-flex items-center gap-1.5 justify-center px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                                ><ClipboardList className="w-3.5 h-3.5 shrink-0" />Kopírovat</button>
+                                ><ClipboardList className="w-3.5 h-3.5 shrink-0" />{t("done.brief.copy")}</button>
                             </div>
                             <div className="space-y-4">
                                 {imageBrief.map((cat, i) => (
@@ -935,7 +940,7 @@ export function OnboardTab() {
                                             <span>{cat.emoji}</span>
                                             <span className="text-sm font-medium text-white/80">{cat.category}</span>
                                             <span className="text-[10px] text-white/30">({cat.count})</span>
-                                            {cat.priority === 'must' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/20">DŮLEŽITÉ</span>}
+                                            {cat.priority === 'must' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/20">{t("done.brief.must")}</span>}
                                         </div>
                                         <div className="space-y-1 ml-6">
                                             {cat.items.map((item, j) => (
@@ -949,7 +954,7 @@ export function OnboardTab() {
                                 ))}
                             </div>
                             <p className="mt-4 text-[10px] text-white/30">
-                                Pošli tento seznam klientovi — fotky pak nahraj v sekci &quot;Brand & Fotky&quot; v dashboardu.
+                                {t("done.brief.footer")}
                             </p>
                         </div>
                     )}
@@ -958,12 +963,12 @@ export function OnboardTab() {
                         <button
                             onClick={handleReset}
                             className="inline-flex items-center gap-1.5 justify-center px-6 py-3 rounded-lg bg-emerald-600 text-sm font-medium text-white transition-all hover:bg-emerald-500 cursor-pointer"
-                        ><Plus className="w-3.5 h-3.5 shrink-0" />Onboardovat dalšího</button>
+                        ><Plus className="w-3.5 h-3.5 shrink-0" />{t("done.onboardAnother")}</button>
                         <button
                             onClick={() => window.location.reload()}
                             className="px-6 py-3 rounded-lg bg-white/10 border border-white/10 text-sm font-medium text-white/70 transition-all hover:bg-white/15 cursor-pointer"
                         >
-                            ↻ Obnovit dashboard
+                            {t("done.reload")}
                         </button>
                     </div>
                 </div>
@@ -1020,6 +1025,7 @@ function ReviewCard({
     onRefine: () => void
     children: React.ReactNode
 }) {
+    const t = useTranslations("adminOnboard")
     const maxRefines = 3
     const borderColor = status === 'approved' ? 'border-emerald-500/30'
         : status === 'rejected' ? 'border-amber-500/30'
@@ -1033,8 +1039,8 @@ function ReviewCard({
                     <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
                     {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
-                    {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
-                    {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
+                    {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">{t("review.card.refining")}</span>}
+                    {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">{t("review.card.version", { n: refineCount + 1 })}</span>}
                 </div>
                 <div className="flex gap-1.5">
                     <button onClick={onApprove}
@@ -1061,20 +1067,20 @@ function ReviewCard({
                     <textarea
                         value={feedback}
                         onChange={(e) => onFeedbackChange(e.target.value)}
-                        placeholder="Co je špatně? Co chceš změnit?"
+                        placeholder={t("review.card.feedbackPlaceholder")}
                         rows={2}
                         className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all text-xs resize-none"
                     />
                     <div className="flex items-center justify-between">
                         <span className="text-[9px] text-gray-500">
-                            {refineCount >= maxRefines ? 'Max. počet úprav — doladíš v Settings' : `Pokus ${refineCount + 1}/${maxRefines}`}
+                            {refineCount >= maxRefines ? t("review.card.maxRefines") : t("review.card.attempt", { n: refineCount + 1, max: maxRefines })}
                         </span>
                         <button
                             onClick={onRefine}
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
+                            {isRefining ? t("review.card.refineBusy") : t("review.card.refine")}
                         </button>
                     </div>
                 </div>

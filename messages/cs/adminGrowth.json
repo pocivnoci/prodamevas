@@ -1,3 +1,261 @@
 {
-  "adminGrowth": {}
+  "adminGrowth": {
+    "leads": {
+      "header": {
+        "title": "Evidence klientů",
+        "searchPlaceholder": "Hledat firmu, člověka, telefon…",
+        "reload": "Načíst znovu",
+        "newContact": "Nový kontakt"
+      },
+      "filter": {
+        "all": "Vše",
+        "includeClosed": "I uzavřené"
+      },
+      "loading": "Načítám…",
+      "loadFailed": "Načtení selhalo.",
+      "empty": {
+        "title": "Zatím tu nikdo není",
+        "body": "Přidej první firmu, nebo zruš filtr."
+      },
+      "row": {
+        "noName": "Bez názvu"
+      },
+      "status": {
+        "new": "Nový",
+        "qualified": "Kvalifikovaný",
+        "rejected": "Vyřazený",
+        "contacted": "Kontaktován",
+        "replied": "Odpověděl",
+        "negotiating": "Jednání",
+        "offer": "Nabídka",
+        "active": "Aktivní",
+        "won": "Uzavřený",
+        "lost": "Ztracený",
+        "inactive": "Neaktivní"
+      },
+      "priority": {
+        "vysoka": "Vysoká",
+        "stredni": "Střední",
+        "nizka": "Nízká"
+      },
+      "clientType": {
+        "firma": "Firma",
+        "osvc": "OSVČ",
+        "jednotlivec": "Jednotlivec",
+        "partner": "Partner",
+        "jine": "Jiné"
+      },
+      "contactKind": {
+        "call": "Telefon",
+        "email": "E-mail",
+        "meeting": "Schůzka",
+        "online": "Online",
+        "note": "Poznámka",
+        "discovered": "Nalezen",
+        "qualified": "Kvalifikován",
+        "sent": "Odeslán e-mail",
+        "opened": "Otevřel",
+        "clicked": "Prokliknul",
+        "previewed": "Prohlédl ukázku",
+        "replied": "Odpověděl",
+        "unsubscribed": "Odhlásil se",
+        "bounced": "Nedoručeno",
+        "blocked": "Blokován",
+        "status": "Změna stavu"
+      },
+      "detail": {
+        "statusLabel": "Stav",
+        "fields": {
+          "company": "Firma / klient",
+          "contactPerson": "Kontaktní osoba",
+          "phone": "Telefon",
+          "email": "E-mail",
+          "website": "Web",
+          "clientType": "Typ klienta",
+          "priority": "Priorita",
+          "owner": "Odpovědná osoba",
+          "meetingAt": "Termín osobní schůzky",
+          "nextContactAt": "Další kontakt",
+          "budget": "Cena / rozpočet",
+          "nextStep": "Další kroky",
+          "requirements": "Konkrétní požadavky",
+          "offered": "Co jsme nabídli",
+          "notes": "Poznámky"
+        },
+        "taskTitle": "Zavolat: {name}",
+        "taskFallbackName": "kontakt",
+        "taskFailed": "Úkol se nepodařilo založit.",
+        "saveFailed": "Uložení selhalo.",
+        "statusFailed": "Změna stavu selhala.",
+        "deleteFailed": "Smazání selhalo.",
+        "taskDone": "Úkol založen",
+        "createTask": "Založit úkol",
+        "writeEmail": "Napsat e-mail",
+        "founded": "Založeno {date} · {source}",
+        "sourceManual": "ručně",
+        "confirmDelete": "Opravdu smazat?",
+        "delete": "Smazat"
+      },
+      "thread": {
+        "title": "Historie kontaktů",
+        "notePlaceholder": "Jak to dopadlo — jednou větou",
+        "nextStepPlaceholder": "Další krok (nepovinné)",
+        "saving": "Ukládám…",
+        "submit": "Zapsat",
+        "empty": "Zatím žádný záznam.",
+        "agent": "agent"
+      },
+      "newLead": {
+        "companyPlaceholder": "Firma *",
+        "creating": "Zakládám…",
+        "create": "Založit",
+        "cancel": "Zrušit",
+        "noSendNote": "Nic se neodesílá · robot ručně zavedený kontakt neosloví",
+        "createFailed": "Založení selhalo."
+      }
+    },
+    "mailing": {
+      "readFailed": "Soubor „{name}\" se nepodařilo přečíst.",
+      "sending": "Odesílám…",
+      "segments": {
+        "label": "Komu",
+        "waitlist": { "label": "Zájemci z webu", "hint": "Kdo na landingu nechal kontakt" },
+        "activeClients": { "label": "Aktivní klienti", "hint": "Platící + trial" },
+        "expired": { "label": "Vypršelí", "hint": "Předplatné doběhlo" },
+        "manual": { "label": "Ruční adresy", "hint": "Napíšeš je sám (nový klient, lead)" },
+        "loadFailed": "Nepodařilo se načíst segmenty (jen pro super-admina).",
+        "dailyCap": "⚠️ Resend free tier posílá max {cap}/den — odešle se prvních {cap}, zbytek ({rest}) další den. Pro víc: placený Resend (~$20/měs → 50k)."
+      },
+      "manual": {
+        "label": "Adresy — oddělené čárkou, středníkem nebo řádkem",
+        "placeholder": "novy.klient@firma.cz, dalsi@firma.cz",
+        "loaded": "Načteno {count} · každý dostane vlastní e-mail, ne kopii.",
+        "optOutNote": "Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven.",
+        "load": "Načíst adresy",
+        "rejected": "⚠️ Vynecháno ({count}): {list} — překlep, nebo se adresa odhlásila."
+      },
+      "recipients": {
+        "title": "Příjemci · {selected}/{total}",
+        "selectAll": "Vybrat vše",
+        "clear": "Zrušit výběr",
+        "loading": "Načítám…",
+        "emptyManual": "Zatím žádné adresy — napiš je do pole výš.",
+        "emptySegment": "V tomto segmentu nikdo není."
+      },
+      "template": {
+        "label": "Šablona",
+        "custom": "Vlastní text"
+      },
+      "templates": {
+        "news": "Novinky",
+        "announcement": "Prosté oznámení",
+        "promo": "Akce / promo",
+        "cold_offer": "Oslovení firmy (první dotek)",
+        "offer": "Nabídka (podrobná)",
+        "offer_followup": "Nabídka — připomenutí (follow-up)",
+        "subscription_renewal": "Předplatné — blíží se obnova",
+        "subscription_charge_failed": "Předplatné — platba neprošla",
+        "subscription_expired": "Předplatné — doběhlo",
+        "subscription_winback": "Předplatné — nabídka na návrat",
+        "welcome": "Uvítání po registraci",
+        "receipt": "Potvrzení platby",
+        "client_handoff": "Předání značky — pozvánka",
+        "client_handoff_done": "Předání značky — hotovo",
+        "waitlist_welcome": "Waitlist — potvrzení zápisu",
+        "waitlist_invite": "Waitlist — pozvánka s kódem"
+      },
+      "custom": {
+        "subjectLabel": "Předmět",
+        "subjectPlaceholder": "Např. Chrlit spouštíme — máte přednostní přístup",
+        "bodyLabel": "Text (prázdný řádek = nový odstavec)",
+        "bodyPlaceholder": "Dobrý den,\n\nspouštíme Chrlit — AI, která vám vytvoří obsah na Instagram na celý měsíc...\n\nTým Chrlit"
+      },
+      "attachments": {
+        "label": "Přílohy",
+        "counter": "· {count}/{max}",
+        "remove": "Odebrat",
+        "add": "+ Přidat přílohu",
+        "limits": "Nejvýš {max, plural, one {# soubor} few {# soubory} other {# souborů}}, {perFile} na soubor, {total} dohromady. Stejná příloha jde každému příjemci zvlášť — u velkého segmentu to zdrží rozesílku.",
+        "tooMany": "Nejvýš {max, plural, one {# příloha} few {# přílohy} other {# příloh}} na jeden e-mail.",
+        "tooBig": "„{name}\" má {size}, strop je {max} na soubor.",
+        "totalTooBig": "Přílohy dohromady mají {size}, strop je {max}.",
+        "loadFailed": "Přílohu se nepodařilo načíst."
+      },
+      "preview": {
+        "label": "Náhled · {subject}",
+        "iframeTitle": "Náhled e-mailu",
+        "textVersion": "Textová verze",
+        "failed": "Náhled se nepodařilo vykreslit."
+      },
+      "test": {
+        "sent": "Testovací zpráva odeslána na {to}.",
+        "failed": "Testovací odeslání selhalo.",
+        "button": "Poslat test sobě"
+      },
+      "send": {
+        "failed": "Odeslání selhalo.",
+        "result": "✅ Odesláno: {sent} · Selhalo: {failed}{remaining, plural, =0 {} other { · Zbývá na příště: #}}",
+        "button": "Odeslat → {count, plural, one {# příjemce} few {# příjemci} other {# příjemců}}"
+      },
+      "confirm": {
+        "title": "Opravdu odeslat?",
+        "body": "E-mail „{subject}\" půjde na <strong>{count}</strong> {count, plural, one {vybraného příjemce} other {vybraných příjemců}}{attachmentCount, plural, =0 {} one { s přílohou <strong>{names}</strong>} other { s přílohami <strong>{names}</strong>}}. Akce je nevratná.",
+        "cancel": "Zrušit",
+        "send": "Odeslat"
+      }
+    },
+    "waitlist": {
+      "loading": "Načítání...",
+      "errors": {
+        "create": "Chyba při vytváření kódu: {error}",
+        "contacted": "Chyba při označení: {error}",
+        "toggle": "Chyba při změně stavu: {error}"
+      },
+      "create": {
+        "title": "Vytvořit invite kód",
+        "codeLabel": "Kód",
+        "codePlaceholder": "Např. VIP2026",
+        "maxUsesLabel": "Max použití",
+        "creating": "Vytvářím...",
+        "submit": "Vytvořit"
+      },
+      "codes": {
+        "title": "Existující kódy",
+        "inactive": "Neaktivní",
+        "exhausted": "Vyčerpáno",
+        "used": "Použito: {used} / {max}",
+        "deactivate": "Deaktivovat",
+        "activate": "Aktivovat",
+        "empty": "Žádné kódy zatím nebyly vytvořeny."
+      },
+      "list": {
+        "title": "Zájemci z webu",
+        "counter": "{waiting} čeká · {total} celkem",
+        "interest": "zájem: {plan}",
+        "interestTerm": "{term} m.",
+        "invited": "pozvánka odeslána",
+        "contacted": "ozváno",
+        "markContacted": "Ozval jsem se",
+        "empty": "Zatím se nikdo neozval."
+      }
+    },
+    "emails": {
+      "loadFailed": "Galerii se nepodařilo načíst (jen pro super-admina).",
+      "rendering": "Renderuji šablony…",
+      "title": "Šablony e-mailů",
+      "subtitle": "{count, plural, one {# šablona} few {# šablony} other {# šablon}} · vyrenderováno z ukázkových dat",
+      "groups": {
+        "waitlist": "Waitlist",
+        "subscription": "Předplatné",
+        "news": "Novinky",
+        "promo": "Akce",
+        "transactional": "Transakční"
+      },
+      "kind": {
+        "notification": "lze odhlásit",
+        "transactional": "transakční"
+      },
+      "hideText": "Skrýt text"
+    }
+  }
 }

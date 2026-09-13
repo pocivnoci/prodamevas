@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 /**
  * Skutečný průběh dlouhé onboardingové úlohy, čtený z `agent_tasks`.
  *
@@ -16,6 +18,7 @@ export function TaskProgress({ progress, message, accent }: {
     /** Tailwind třída pro výplň lišty, ať si každý krok drží svou barvu. */
     accent: string
 }) {
+    const t = useTranslations('onboarding.taskProgress')
     return (
         <div className="max-w-sm mx-auto">
             <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -24,9 +27,9 @@ export function TaskProgress({ progress, message, accent }: {
                     style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
                 />
             </div>
-            <p className="mt-5 text-sm text-gray-400 min-h-[1.25rem]">{message || 'Startuji…'}</p>
+            <p className="mt-5 text-sm text-gray-400 min-h-[1.25rem]">{message || t('starting')}</p>
             <p className="mt-2 text-[10px] uppercase tracking-widest font-bold text-gray-600">
-                Běží na serveru — tohle okno můžeš nechat být
+                {t('runsOnServer')}
             </p>
         </div>
     )

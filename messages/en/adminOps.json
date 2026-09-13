@@ -1,3 +1,243 @@
 {
-  "adminOps": {}
+  "adminOps": {
+    "tasks": {
+      "loading": "Loading…",
+      "open": "Open",
+      "searchPlaceholder": "Search by title…",
+      "allClients": "All clients",
+      "reload": "Reload",
+      "newTask": "New task",
+      "unassigned": "Unassigned",
+      "empty": "Nothing here. Add a task or clear the filter.",
+      "filters": {
+        "all": "All ({count})",
+        "me": "{name} (me)"
+      },
+      "ai": {
+        "title": "Sorts new tasks and suggests what follows from the state of the system",
+        "run": "Run AI",
+        "running": "Running…",
+        "started": "The AI is on it — the list will fill in by itself in a moment.",
+        "done": "Done — the list is up to date."
+      },
+      "groups": {
+        "awaiting": "Waiting for your answer",
+        "mine": "Mine",
+        "unassigned": "Unassigned",
+        "others": "Other open",
+        "blocked": "Blocked",
+        "closed": "Done and dropped"
+      },
+      "sleeping": {
+        "show": "Show {count} with a future date",
+        "hide": "Hide {count} with a future date"
+      },
+      "status": {
+        "todo": "To do",
+        "doing": "In progress",
+        "blocked": "Waiting on someone",
+        "done": "Done",
+        "dropped": "Not doing"
+      },
+      "priority": {
+        "p1": "1 — urgent",
+        "p2": "2 — this week",
+        "p3": "3 — when there is time"
+      },
+      "effort": {
+        "S": "under 30 min",
+        "M": "half a day",
+        "L": "more than a day"
+      },
+      "agentKind": {
+        "ops": "AI: inside the system",
+        "code": "AI: ends in a PR"
+      },
+      "roles": {
+        "founder": "Founder",
+        "manager": "Sales",
+        "investor": "Investor"
+      },
+      "row": {
+        "moveTo": "Move to: {status}",
+        "blockedUntil": "· until {date}",
+        "prio": "Prio {n}",
+        "due": "due {date}",
+        "overdue": "overdue {date}",
+        "origin": {
+          "ai": "AI proposal",
+          "sheet": "from the sheet",
+          "app": "in the app"
+        },
+        "effortTitle": "Size estimate",
+        "agentTitle": "The AI can take this",
+        "openStudio": "Open studio: {name}",
+        "expandTitle": "Brief, editing and thread"
+      },
+      "detail": {
+        "fields": {
+          "title": "Title",
+          "priority": "Priority",
+          "noPriority": "no priority",
+          "due": "Due date",
+          "client": "Client",
+          "companyTask": "company task",
+          "note": "Note"
+        },
+        "waiting": {
+          "label": "Waiting for",
+          "placeholder": "E.g. bank verification",
+          "until": "Until",
+          "postpone": "Postpone",
+          "unblock": "Unblock"
+        },
+        "spec": {
+          "goal": "Goal:",
+          "done": "Done when:",
+          "start": "Start with:",
+          "none": "No brief yet — the AI has not seen the task."
+        },
+        "result": {
+          "placeholder": "Result — link to a PR, document, decision…",
+          "save": "Save"
+        },
+        "thread": {
+          "loading": "Loading thread…",
+          "empty": "The thread is empty.",
+          "answerPlaceholder": "Answer the AI in one sentence…",
+          "notePlaceholder": "Note for the thread…",
+          "answer": "Answer AI",
+          "noteOnly": "Just a note",
+          "retriageTitle": "Re-read the task and rewrite the brief"
+        },
+        "source": {
+          "sheet": "From the sheet · a manual import can bring it back",
+          "app": "Created in the app"
+        },
+        "delete": "Delete",
+        "deleteConfirm": "Really delete?"
+      },
+      "form": {
+        "titlePlaceholder": "What needs to be done *",
+        "notePlaceholder": "Note (optional)",
+        "noPriority": "No priority",
+        "companyTask": "Company task",
+        "create": "Create",
+        "creating": "Creating…",
+        "cancel": "Cancel",
+        "aiHint": "The AI will sort it on its next run"
+      },
+      "errors": {
+        "load": "Loading failed.",
+        "status": "Status change failed.",
+        "delete": "Deletion failed.",
+        "agentStart": "Start failed.",
+        "retriage": "Re-sorting failed.",
+        "assign": "Assignment failed.",
+        "save": "Saving failed.",
+        "assignClient": "Client assignment failed.",
+        "postpone": "Postponing failed.",
+        "unblock": "Unblocking failed.",
+        "saveResult": "Saving the result failed.",
+        "create": "Creating the task failed."
+      }
+    },
+    "approvals": {
+      "intro": "The agent proposed these actions, but they are risky (outbound / spending / irreversible), so nothing happens without your consent.",
+      "empty": {
+        "title": "Nothing awaits approval",
+        "body": "Agent actions that spend money or reach customers show up here"
+      },
+      "policies": {
+        "title": "Done on my own, no asking",
+        "body": "You decided once for the whole kind of action. Above the daily cap I ask as before.",
+        "today": "today {used}/{cap}",
+        "revoke": "Revoke",
+        "confirmRevoke": "Revoke the standing consent “{label}”?\n\nActions of that kind will start showing up here for approval again."
+      },
+      "risk": {
+        "outbound": "Outbound (customer)",
+        "spending": "Spends money",
+        "irreversible": "Irreversible",
+        "internal": "Internal",
+        "reversible": "Reversible"
+      },
+      "openStudio": "Open the client’s studio",
+      "systemWide": "OPS · whole system",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveAlways": "Approve and don’t ask next time ({label})",
+      "confirmAlways": "Turn on sending “{label}” on my own, without asking?\n\nI keep asking about the other kinds. You can turn it off in the overview below.",
+      "errors": {
+        "decide": "The decision could not be saved.",
+        "generic": "Failed"
+      }
+    },
+    "company": {
+      "errors": {
+        "title": "The overview did not load",
+        "load": "The overview could not be loaded.",
+        "retry": "Try again"
+      },
+      "empty": "No clients yet",
+      "quarantine": "In quarantine",
+      "stats": {
+        "active": "Active clients",
+        "atRisk": "At risk",
+        "stalledOnboarding": "Unfinished onboarding"
+      },
+      "filter": {
+        "active": "Active",
+        "all": "All"
+      },
+      "columns": {
+        "client": "Client",
+        "plan": "Plan",
+        "risks": "Risks",
+        "content14d": "Content 14 d",
+        "lastContent": "Last content",
+        "credits": "Credits",
+        "ig": "IG"
+      },
+      "footer": "Built {date} · the same data powers the morning brief · quarantine = a deactivated brand waiting for cleanup (the brief takes the action, not this overview)",
+      "row": {
+        "openStudio": "Open the client’s studio",
+        "quarantineSince": "in quarantine since {date}",
+        "noSubscription": "no subscription",
+        "ok": "all good",
+        "risk": {
+          "dunning": "Payment failing",
+          "credits_out": "Out of credits",
+          "expiring": "Plan ending",
+          "dormant": "Dormant",
+          "ig_disconnected": "IG disconnected",
+          "cancelled": "Cancelled"
+        },
+        "followUp": {
+          "title": "Create a follow-up task — linked to the client",
+          "action": "task",
+          "done": "task created",
+          "error": "failed"
+        },
+        "lastContent": {
+          "never": "never",
+          "today": "today",
+          "yesterday": "yesterday",
+          "daysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+        }
+      }
+    },
+    "logs": {
+      "count": "{count, plural, one {# record} other {# records}}",
+      "columns": {
+        "model": "Model",
+        "tokens": "Tokens",
+        "time": "Time",
+        "post": "Post",
+        "error": "Error",
+        "date": "Date"
+      },
+      "empty": "No logs"
+    }
+  }
 }

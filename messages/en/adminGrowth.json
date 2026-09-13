@@ -1,3 +1,261 @@
 {
-  "adminGrowth": {}
+  "adminGrowth": {
+    "leads": {
+      "header": {
+        "title": "Client records",
+        "searchPlaceholder": "Search company, person, phone…",
+        "reload": "Reload",
+        "newContact": "New contact"
+      },
+      "filter": {
+        "all": "All",
+        "includeClosed": "Closed too"
+      },
+      "loading": "Loading…",
+      "loadFailed": "Loading failed.",
+      "empty": {
+        "title": "Nobody here yet",
+        "body": "Add the first company, or clear the filter."
+      },
+      "row": {
+        "noName": "No name"
+      },
+      "status": {
+        "new": "New",
+        "qualified": "Qualified",
+        "rejected": "Rejected",
+        "contacted": "Contacted",
+        "replied": "Replied",
+        "negotiating": "Negotiating",
+        "offer": "Offer",
+        "active": "Active",
+        "won": "Won",
+        "lost": "Lost",
+        "inactive": "Inactive"
+      },
+      "priority": {
+        "vysoka": "High",
+        "stredni": "Medium",
+        "nizka": "Low"
+      },
+      "clientType": {
+        "firma": "Company",
+        "osvc": "Sole trader",
+        "jednotlivec": "Individual",
+        "partner": "Partner",
+        "jine": "Other"
+      },
+      "contactKind": {
+        "call": "Phone",
+        "email": "E-mail",
+        "meeting": "Meeting",
+        "online": "Online",
+        "note": "Note",
+        "discovered": "Discovered",
+        "qualified": "Qualified",
+        "sent": "E-mail sent",
+        "opened": "Opened",
+        "clicked": "Clicked",
+        "previewed": "Viewed the demo",
+        "replied": "Replied",
+        "unsubscribed": "Unsubscribed",
+        "bounced": "Bounced",
+        "blocked": "Blocked",
+        "status": "Status change"
+      },
+      "detail": {
+        "statusLabel": "Status",
+        "fields": {
+          "company": "Company / client",
+          "contactPerson": "Contact person",
+          "phone": "Phone",
+          "email": "E-mail",
+          "website": "Website",
+          "clientType": "Client type",
+          "priority": "Priority",
+          "owner": "Owner",
+          "meetingAt": "In-person meeting date",
+          "nextContactAt": "Next contact",
+          "budget": "Price / budget",
+          "nextStep": "Next steps",
+          "requirements": "Specific requirements",
+          "offered": "What we offered",
+          "notes": "Notes"
+        },
+        "taskTitle": "Call: {name}",
+        "taskFallbackName": "contact",
+        "taskFailed": "Could not create the task.",
+        "saveFailed": "Saving failed.",
+        "statusFailed": "Status change failed.",
+        "deleteFailed": "Deleting failed.",
+        "taskDone": "Task created",
+        "createTask": "Create task",
+        "writeEmail": "Write e-mail",
+        "founded": "Created {date} · {source}",
+        "sourceManual": "manually",
+        "confirmDelete": "Really delete?",
+        "delete": "Delete"
+      },
+      "thread": {
+        "title": "Contact history",
+        "notePlaceholder": "How it went — in one sentence",
+        "nextStepPlaceholder": "Next step (optional)",
+        "saving": "Saving…",
+        "submit": "Log it",
+        "empty": "No entries yet.",
+        "agent": "agent"
+      },
+      "newLead": {
+        "companyPlaceholder": "Company *",
+        "creating": "Creating…",
+        "create": "Create",
+        "cancel": "Cancel",
+        "noSendNote": "Nothing is sent · the bot never reaches out to a manually added contact",
+        "createFailed": "Creating failed."
+      }
+    },
+    "mailing": {
+      "readFailed": "File “{name}” could not be read.",
+      "sending": "Sending…",
+      "segments": {
+        "label": "To",
+        "waitlist": { "label": "Website leads", "hint": "Left their contact on the landing page" },
+        "activeClients": { "label": "Active clients", "hint": "Paying + trial" },
+        "expired": { "label": "Expired", "hint": "Subscription ran out" },
+        "manual": { "label": "Manual addresses", "hint": "You type them yourself (new client, lead)" },
+        "loadFailed": "Could not load segments (super-admin only).",
+        "dailyCap": "⚠️ Resend free tier sends max {cap}/day — the first {cap} go out now, the rest ({rest}) the next day. For more: paid Resend (~$20/mo → 50k)."
+      },
+      "manual": {
+        "label": "Addresses — separated by comma, semicolon or line break",
+        "placeholder": "new.client@company.com, another@company.com",
+        "loaded": "Loaded {count} · everyone gets their own e-mail, not a copy.",
+        "optOutNote": "Unsubscribed addresses are dropped here too — opting out applies to every way out.",
+        "load": "Load addresses",
+        "rejected": "⚠️ Skipped ({count}): {list} — a typo, or the address unsubscribed."
+      },
+      "recipients": {
+        "title": "Recipients · {selected}/{total}",
+        "selectAll": "Select all",
+        "clear": "Clear selection",
+        "loading": "Loading…",
+        "emptyManual": "No addresses yet — type them into the field above.",
+        "emptySegment": "Nobody in this segment."
+      },
+      "template": {
+        "label": "Template",
+        "custom": "Custom text"
+      },
+      "templates": {
+        "news": "News",
+        "announcement": "Plain announcement",
+        "promo": "Promotion / promo",
+        "cold_offer": "Company outreach (first touch)",
+        "offer": "Offer (detailed)",
+        "offer_followup": "Offer — reminder (follow-up)",
+        "subscription_renewal": "Subscription — renewal coming up",
+        "subscription_charge_failed": "Subscription — payment failed",
+        "subscription_expired": "Subscription — expired",
+        "subscription_winback": "Subscription — win-back offer",
+        "welcome": "Welcome after sign-up",
+        "receipt": "Payment confirmation",
+        "client_handoff": "Brand handoff — invitation",
+        "client_handoff_done": "Brand handoff — done",
+        "waitlist_welcome": "Waitlist — sign-up confirmation",
+        "waitlist_invite": "Waitlist — invitation with a code"
+      },
+      "custom": {
+        "subjectLabel": "Subject",
+        "subjectPlaceholder": "E.g. Chrlit is launching — you have priority access",
+        "bodyLabel": "Text (empty line = new paragraph)",
+        "bodyPlaceholder": "Hello,\n\nwe are launching Chrlit — an AI that creates a whole month of Instagram content for you...\n\nThe Chrlit team"
+      },
+      "attachments": {
+        "label": "Attachments",
+        "counter": "· {count}/{max}",
+        "remove": "Remove",
+        "add": "+ Add attachment",
+        "limits": "At most {max, plural, one {# file} other {# files}}, {perFile} per file, {total} in total. The same attachment goes to every recipient separately — with a large segment it slows the broadcast down.",
+        "tooMany": "At most {max, plural, one {# attachment} other {# attachments}} per e-mail.",
+        "tooBig": "“{name}” is {size}, the cap is {max} per file.",
+        "totalTooBig": "Attachments add up to {size}, the cap is {max}.",
+        "loadFailed": "Could not load the attachment."
+      },
+      "preview": {
+        "label": "Preview · {subject}",
+        "iframeTitle": "E-mail preview",
+        "textVersion": "Text version",
+        "failed": "Could not render the preview."
+      },
+      "test": {
+        "sent": "Test message sent to {to}.",
+        "failed": "Test send failed.",
+        "button": "Send a test to myself"
+      },
+      "send": {
+        "failed": "Sending failed.",
+        "result": "✅ Sent: {sent} · Failed: {failed}{remaining, plural, =0 {} other { · Left for next time: #}}",
+        "button": "Send → {count, plural, one {# recipient} other {# recipients}}"
+      },
+      "confirm": {
+        "title": "Really send?",
+        "body": "The e-mail “{subject}” will go to <strong>{count}</strong> selected {count, plural, one {recipient} other {recipients}}{attachmentCount, plural, =0 {} one { with the attachment <strong>{names}</strong>} other { with the attachments <strong>{names}</strong>}}. This cannot be undone.",
+        "cancel": "Cancel",
+        "send": "Send"
+      }
+    },
+    "waitlist": {
+      "loading": "Loading...",
+      "errors": {
+        "create": "Error creating the code: {error}",
+        "contacted": "Error marking as contacted: {error}",
+        "toggle": "Error changing the status: {error}"
+      },
+      "create": {
+        "title": "Create an invite code",
+        "codeLabel": "Code",
+        "codePlaceholder": "E.g. VIP2026",
+        "maxUsesLabel": "Max uses",
+        "creating": "Creating...",
+        "submit": "Create"
+      },
+      "codes": {
+        "title": "Existing codes",
+        "inactive": "Inactive",
+        "exhausted": "Used up",
+        "used": "Used: {used} / {max}",
+        "deactivate": "Deactivate",
+        "activate": "Activate",
+        "empty": "No codes have been created yet."
+      },
+      "list": {
+        "title": "Website leads",
+        "counter": "{waiting} waiting · {total} total",
+        "interest": "interest: {plan}",
+        "interestTerm": "{term} mo.",
+        "invited": "invitation sent",
+        "contacted": "contacted",
+        "markContacted": "I reached out",
+        "empty": "Nobody has signed up yet."
+      }
+    },
+    "emails": {
+      "loadFailed": "Could not load the gallery (super-admin only).",
+      "rendering": "Rendering templates…",
+      "title": "E-mail templates",
+      "subtitle": "{count, plural, one {# template} other {# templates}} · rendered from sample data",
+      "groups": {
+        "waitlist": "Waitlist",
+        "subscription": "Subscription",
+        "news": "News",
+        "promo": "Promotions",
+        "transactional": "Transactional"
+      },
+      "kind": {
+        "notification": "can unsubscribe",
+        "transactional": "transactional"
+      },
+      "hideText": "Hide text"
+    }
+  }
 }

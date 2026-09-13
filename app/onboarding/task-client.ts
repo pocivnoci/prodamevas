@@ -14,16 +14,32 @@ export interface TaskProgressUpdate {
 }
 
 /**
+ * Věty, které vznikají v prohlížeči — ne na serveru — a proto je musí dodat
+ * komponenta v jazyce UI (`useTranslations("onboarding")`, klíče `errors.*`).
+ * Průběžné hlášky (`agentMessage`) i `error` posílá server už hotové; ty se
+ * zobrazují tak, jak přijdou.
+ */
+export interface TaskClientMessages {
+    /** Prohlížeč ztratil spojení („Failed to fetch"). */
+    connectionLost: string
+    /** Úloha skončila chybou, ale bez vlastní hlášky. */
+    taskFailed: string
+    /** Dotazování přesáhlo strop v prohlížeči. */
+    taskTimeout: string
+}
+
+/**
  * Přeloží selhání do věty, které zákazník rozumí.
  *
  * „Failed to fetch" je hláška prohlížeče o rozpadlém spojení — technický detail
  * v angličtině, který se k zákazníkovi nikdy neměl dostat. Právě tuhle větu lidi
- * z onboardingu hlásili. Ostatní hlášky už česky jsou, ty pusť beze změny.
+ * z onboardingu hlásili. Ostatní hlášky už přicházejí hotové (ze serveru nebo
+ * z téhle smyčky), ty pusť beze změny.
  */
-export function humanizeClientError(err: unknown): string {
+export function humanizeClientError(err: unknown, messages: Pick<TaskClientMessages, 'connectionLost'>): string {
     const msg = (err as Error)?.message || String(err)
     if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
-        return 'Ztratilo se spojení se serverem. Zkus to prosím znovu — rozdělaná práce se neztratila, běží dál na serveru.'
+        return messages.connectionLost
     }
     return msg
 }
@@ -42,11 +58,13 @@ const GIVE_UP_MS = 20 * 60 * 1000
  * dotaz si ji zase najde. Dřív tudy visel jeden blokující request na celé minuty —
  * když umřel, zahodila se hotová a zaplacená práce a uživatel viděl „Failed to fetch".
  *
- * @throws když úloha selže nebo se nedočkáme; hláška je česká, rovnou k zobrazení.
+ * @throws když úloha selže nebo se nedočkáme; hláška je v jazyce UI (z `messages`),
+ *         rovnou k zobrazení.
  */
 export async function awaitOnboardingTask<T>(
     taskId: string,
     onProgress: (update: TaskProgressUpdate) => void,
+    messages: Pick<TaskClientMessages, 'taskFailed' | 'taskTimeout'>,
 ): Promise<T> {
     // Šťouchnutí, ať se práce rozjede hned a nečeká se až minutu na cron. Odpověď
     // nikoho nezajímá — když tenhle request umře, úlohu stejně sebere cron.
@@ -80,8 +98,8 @@ export async function awaitOnboardingTask<T>(
         onProgress({ progress: data.progress ?? 0, message: data.agentMessage || '' })
 
         if (data.status === 'done') return data.result as T
-        if (data.status === 'failed') throw new Error(data.error || 'Úloha selhala.')
+        if (data.status === 'failed') throw new Error(data.error || messages.taskFailed)
     }
 
-    throw new Error('Příprava trvá neobvykle dlouho. Zkus to prosím znovu.')
+    throw new Error(messages.taskTimeout)
 }

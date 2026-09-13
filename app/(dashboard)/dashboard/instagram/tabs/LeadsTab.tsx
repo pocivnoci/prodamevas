@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useFormatter, useTranslations } from "next-intl"
 import { Building2, CalendarClock, ListPlus, Mail, Phone, Plus, RefreshCw, Trash2, X } from "lucide-react"
 import {
     listLeads, listLeadEvents, createLead, updateLead, setLeadStatus, addLeadContact, deleteLead,
@@ -50,15 +51,38 @@ const PRIORITY_TONE: Record<string, string> = {
     nizka: "bg-white/5 text-white/40 border-white/10",
 }
 
-/** `2026-09-09T12:00:00Z` → `9. 9. 12:00`. Rok se dopisuje jen u cizího roku. */
-function czDateTime(iso: string | null): string {
+type LeadsTranslator = ReturnType<typeof useTranslations<"adminGrowth.leads">>
+type LeadsFormatter = ReturnType<typeof useFormatter>
+
+/** `2026-09-09T12:00:00Z` → `9. 9. 12:00` (podle jazyka UI). Rok se dopisuje jen u cizího roku. */
+function shortDateTime(format: LeadsFormatter, iso: string | null): string {
     if (!iso) return ""
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return ""
     const now = new Date()
-    const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`
-    const time = d.getHours() || d.getMinutes() ? ` ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}` : ""
-    return `${d.getDate()}. ${d.getMonth() + 1}.${year}${time}`
+    const withYear = d.getFullYear() !== now.getFullYear()
+    const withTime = Boolean(d.getHours() || d.getMinutes())
+    return format.dateTime(d, {
+        day: "numeric",
+        month: "numeric",
+        year: withYear ? "numeric" : undefined,
+        hour: withTime ? "numeric" : undefined,
+        minute: withTime ? "2-digit" : undefined,
+    })
+}
+
+/**
+ * Popisek číselníku z messages. Hodnoty, které UI nezná (zapsal je agent),
+ * dostanou slovník z `lib/leads.ts` — ten čtou i e-maily a server, proto se nepřekládá.
+ */
+function dictLabel(t: LeadsTranslator, group: string, value: string, dict: Record<string, string>): string {
+    const key = `${group}.${value}`
+    return t.has(key) ? t(key) : (dict[value] || value)
+}
+
+/** Volby pro `<Select>` — tytéž klíče jako slovník, popisky z messages. */
+function dictOptions(t: LeadsTranslator, group: string, dict: Record<string, string>): Record<string, string> {
+    return Object.fromEntries(Object.keys(dict).map(k => [k, dictLabel(t, group, k, dict)]))
 }
 
 /** Do 48 hodin = to je ta věc, kvůli které se obrazovka ráno otevírá. */
@@ -69,6 +93,7 @@ function isSoon(iso: string | null): boolean {
 }
 
 export function LeadsTab() {
+    const t = useTranslations("adminGrowth.leads")
     const [leads, setLeads] = useState<Lead[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -84,10 +109,10 @@ export function LeadsTab() {
             setLeads(await listLeads({ q, status: statusFilter || undefined, includeClosed }))
             setError(null)
         } catch (err) {
-            setError((err as Error)?.message || "Načtení selhalo.")
+            setError((err as Error)?.message || t("loadFailed"))
         }
         setLoading(false)
-    }, [q, statusFilter, includeClosed])
+    }, [q, statusFilter, includeClosed, t])
 
     // Hledání se nepouští po každém písmenu — 300 ms po dopsání.
     useEffect(() => {
@@ -102,47 +127,47 @@ export function LeadsTab() {
             {/* Hlavička */}
             <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/60">
-                    <Building2 className="w-3.5 h-3.5 shrink-0" />Evidence klientů
+                    <Building2 className="w-3.5 h-3.5 shrink-0" />{t("header.title")}
                     <span className="text-white/25">{leads.length}</span>
                 </span>
                 <input
                     value={q}
                     onChange={e => setQ(e.target.value)}
-                    placeholder="Hledat firmu, člověka, telefon…"
+                    placeholder={t("header.searchPlaceholder")}
                     className="flex-1 min-w-[180px] px-3 py-2 bg-[#050505] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                 />
                 <button
                     onClick={() => void load()}
-                    title="Načíst znovu"
+                    title={t("header.reload")}
                     className="px-3 py-2 rounded-sm border border-white/10 text-white/40 hover:text-white hover:border-white/25 transition-all"
                 ><RefreshCw className="w-3.5 h-3.5" /></button>
                 <button
                     onClick={() => setCreating(v => !v)}
                     className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/20 bg-white/10 text-white hover:bg-white/20 transition-all inline-flex items-center gap-1.5"
-                ><Plus className="w-3.5 h-3.5" />Nový kontakt</button>
+                ><Plus className="w-3.5 h-3.5" />{t("header.newContact")}</button>
             </div>
 
             {/* Filtr stavů */}
             <div className="flex flex-wrap items-center gap-1.5">
-                <FilterChip active={!statusFilter} onClick={() => setStatusFilter("")} label="Vše" />
+                <FilterChip active={!statusFilter} onClick={() => setStatusFilter("")} label={t("filter.all")} />
                 {HUMAN_STATUSES.map(s => (
-                    <FilterChip key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)} label={STATUS_LABELS[s]} />
+                    <FilterChip key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)} label={dictLabel(t, "status", s, STATUS_LABELS)} />
                 ))}
                 <label className="ml-auto flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/30 cursor-pointer">
                     <input type="checkbox" checked={includeClosed} onChange={e => setIncludeClosed(e.target.checked)} className="accent-white/40" />
-                    I uzavřené
+                    {t("filter.includeClosed")}
                 </label>
             </div>
 
             {creating && <NewLeadForm onDone={lead => { setCreating(false); if (lead) { setLeads(p => [lead, ...p]); setExpandedId(lead.id) } }} />}
 
             {error && <p className="text-[10px] text-red-400">{error}</p>}
-            {loading && <p className="text-[10px] uppercase tracking-widest font-bold text-white/25">Načítám…</p>}
+            {loading && <p className="text-[10px] uppercase tracking-widest font-bold text-white/25">{t("loading")}</p>}
 
             {!loading && leads.length === 0 && (
                 <div className="border border-white/5 rounded-sm p-8 text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Zatím tu nikdo není</p>
-                    <p className="text-xs text-white/40 mt-2">Přidej první firmu, nebo zruš filtr.</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{t("empty.title")}</p>
+                    <p className="text-xs text-white/40 mt-2">{t("empty.body")}</p>
                 </div>
             )}
 
@@ -171,6 +196,8 @@ function LeadRow({ lead, expanded, onToggle, onChanged, onDeleted }: {
     onChanged: (lead: Lead) => void
     onDeleted: () => void
 }) {
+    const t = useTranslations("adminGrowth.leads")
+    const format = useFormatter()
     const soon = isSoon(lead.meeting_at)
     const due = lead.meeting_at || lead.next_contact_at
 
@@ -178,7 +205,7 @@ function LeadRow({ lead, expanded, onToggle, onChanged, onDeleted }: {
         <div className={`border rounded-sm bg-[#0a0a0a] transition-colors ${soon ? "border-amber-500/30" : "border-white/5"}`}>
             <button onClick={onToggle} className="w-full text-left px-3 py-2.5 flex flex-wrap items-center gap-2 hover:bg-white/[0.02] transition-colors">
                 <span className="text-[9px] font-mono text-white/25 shrink-0">{lead.ref || "—"}</span>
-                <span className="text-sm font-bold text-white/85 flex-1 min-w-[120px]">{lead.company || "Bez názvu"}</span>
+                <span className="text-sm font-bold text-white/85 flex-1 min-w-[120px]">{lead.company || t("row.noName")}</span>
                 {lead.contact_person && <span className="text-xs text-white/40">{lead.contact_person}</span>}
                 {lead.phone && (
                     <a
@@ -189,16 +216,16 @@ function LeadRow({ lead, expanded, onToggle, onChanged, onDeleted }: {
                 )}
                 {due && (
                     <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${soon ? "text-amber-300" : "text-white/35"}`}>
-                        <CalendarClock className="w-3 h-3 shrink-0" />{czDateTime(due)}
+                        <CalendarClock className="w-3 h-3 shrink-0" />{shortDateTime(format, due)}
                     </span>
                 )}
                 {lead.priority && (
                     <span className={`text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${PRIORITY_TONE[lead.priority]}`}>
-                        {PRIORITY_LABELS[lead.priority]}
+                        {dictLabel(t, "priority", lead.priority, PRIORITY_LABELS)}
                     </span>
                 )}
                 <span className={`text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border shrink-0 ${STATUS_TONE[lead.status] || STATUS_TONE.new}`}>
-                    {STATUS_LABELS[lead.status] || lead.status}
+                    {dictLabel(t, "status", lead.status, STATUS_LABELS)}
                 </span>
             </button>
 
@@ -214,6 +241,8 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
     onChanged: (lead: Lead) => void
     onDeleted: () => void
 }) {
+    const t = useTranslations("adminGrowth.leads")
+    const format = useFormatter()
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
@@ -227,13 +256,13 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
     const createFollowUp = async () => {
         setTaskState("busy")
         const res = await createTask({
-            title: `Zavolat: ${lead.contact_person || lead.company || "kontakt"}`,
+            title: t("detail.taskTitle", { name: lead.contact_person || lead.company || t("detail.taskFallbackName") }),
             note: [lead.phone, lead.next_step].filter(Boolean).join(" · ") || null,
             ownerEmail: lead.owner_email,
             dueDate: lead.next_contact_at ? lead.next_contact_at.slice(0, 10) : null,
         })
         if (res.success) setTaskState("done")
-        else { setTaskState("idle"); setError(res.error || "Úkol se nepodařilo založit.") }
+        else { setTaskState("idle"); setError(res.error || t("detail.taskFailed")) }
     }
 
     /** Ukládá se na blur, ne na každý znak: pole se chová jako buňka v tabulce. */
@@ -242,7 +271,7 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
         const res = await updateLead(lead.id, patch)
         setBusy(false)
         if (res.success && res.lead) { onChanged(res.lead); setError(null) }
-        else setError(res.error || "Uložení selhalo.")
+        else setError(res.error || t("detail.saveFailed"))
     }
 
     const changeStatus = async (status: string) => {
@@ -250,14 +279,14 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
         const res = await setLeadStatus(lead.id, status)
         setBusy(false)
         if (res.success && res.lead) { onChanged(res.lead); setError(null) }
-        else setError(res.error || "Změna stavu selhala.")
+        else setError(res.error || t("detail.statusFailed"))
     }
 
     return (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-white/5">
             {/* Stav — jedno kliknutí, ne rozbalovací menu */}
             <div className="flex flex-wrap items-center gap-1.5 pt-3">
-                <span className="text-[8px] font-bold uppercase tracking-widest text-white/30 mr-1">Stav</span>
+                <span className="text-[8px] font-bold uppercase tracking-widest text-white/30 mr-1">{t("detail.statusLabel")}</span>
                 {HUMAN_STATUSES.map(s => (
                     <button
                         key={s}
@@ -266,29 +295,29 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
                         className={`px-2 py-1 text-[8px] font-bold uppercase tracking-widest rounded-sm border transition-all disabled:opacity-40 ${
                             lead.status === s ? STATUS_TONE[s] : "bg-transparent text-white/30 border-white/10 hover:text-white/70"
                         }`}
-                    >{STATUS_LABELS[s]}</button>
+                    >{dictLabel(t, "status", s, STATUS_LABELS)}</button>
                 ))}
             </div>
 
             <div className="grid sm:grid-cols-2 gap-x-4 gap-y-3">
-                <Field label="Firma / klient" value={lead.company} onSave={v => save({ company: v })} />
-                <Field label="Kontaktní osoba" value={lead.contact_person} onSave={v => save({ contact_person: v })} />
-                <Field label="Telefon" value={lead.phone} onSave={v => save({ phone: v })} />
-                <Field label="E-mail" value={lead.email} onSave={v => save({ email: v })} />
-                <Field label="Web" value={lead.website} onSave={v => save({ website: v })} />
-                <Select label="Typ klienta" value={lead.client_type} options={CLIENT_TYPE_LABELS} onSave={v => save({ client_type: v })} />
-                <Select label="Priorita" value={lead.priority} options={PRIORITY_LABELS} onSave={v => save({ priority: v })} />
-                <Field label="Odpovědná osoba" value={lead.owner_email} onSave={v => save({ owner_email: v })} />
-                <DateField label="Termín osobní schůzky" value={lead.meeting_at} onSave={v => save({ meeting_at: v })} />
-                <DateField label="Další kontakt" value={lead.next_contact_at} onSave={v => save({ next_contact_at: v })} />
-                <Field label="Cena / rozpočet" value={lead.budget} onSave={v => save({ budget: v })} />
-                <Field label="Další kroky" value={lead.next_step} onSave={v => save({ next_step: v })} />
+                <Field label={t("detail.fields.company")} value={lead.company} onSave={v => save({ company: v })} />
+                <Field label={t("detail.fields.contactPerson")} value={lead.contact_person} onSave={v => save({ contact_person: v })} />
+                <Field label={t("detail.fields.phone")} value={lead.phone} onSave={v => save({ phone: v })} />
+                <Field label={t("detail.fields.email")} value={lead.email} onSave={v => save({ email: v })} />
+                <Field label={t("detail.fields.website")} value={lead.website} onSave={v => save({ website: v })} />
+                <Select label={t("detail.fields.clientType")} value={lead.client_type} options={dictOptions(t, "clientType", CLIENT_TYPE_LABELS)} onSave={v => save({ client_type: v })} />
+                <Select label={t("detail.fields.priority")} value={lead.priority} options={dictOptions(t, "priority", PRIORITY_LABELS)} onSave={v => save({ priority: v })} />
+                <Field label={t("detail.fields.owner")} value={lead.owner_email} onSave={v => save({ owner_email: v })} />
+                <DateField label={t("detail.fields.meetingAt")} value={lead.meeting_at} onSave={v => save({ meeting_at: v })} />
+                <DateField label={t("detail.fields.nextContactAt")} value={lead.next_contact_at} onSave={v => save({ next_contact_at: v })} />
+                <Field label={t("detail.fields.budget")} value={lead.budget} onSave={v => save({ budget: v })} />
+                <Field label={t("detail.fields.nextStep")} value={lead.next_step} onSave={v => save({ next_step: v })} />
             </div>
 
             <div className="space-y-3">
-                <Field label="Konkrétní požadavky" value={lead.requirements} onSave={v => save({ requirements: v })} multiline />
-                <Field label="Co jsme nabídli" value={lead.offered} onSave={v => save({ offered: v })} multiline />
-                <Field label="Poznámky" value={lead.notes} onSave={v => save({ notes: v })} multiline />
+                <Field label={t("detail.fields.requirements")} value={lead.requirements} onSave={v => save({ requirements: v })} multiline />
+                <Field label={t("detail.fields.offered")} value={lead.offered} onSave={v => save({ offered: v })} multiline />
+                <Field label={t("detail.fields.notes")} value={lead.notes} onSave={v => save({ notes: v })} multiline />
             </div>
 
             {error && <p className="text-[10px] text-red-400">{error}</p>}
@@ -302,26 +331,26 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
                     onClick={createFollowUp}
                     disabled={taskState !== "idle"}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all disabled:opacity-40"
-                ><ListPlus className="w-3 h-3 shrink-0" />{taskState === "done" ? "Úkol založen" : "Založit úkol"}</button>
+                ><ListPlus className="w-3 h-3 shrink-0" />{taskState === "done" ? t("detail.taskDone") : t("detail.createTask")}</button>
                 {lead.email && (
                     <button
                         onClick={() => navigate("mailing", { to: lead.email! })}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded-sm border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all"
-                    ><Mail className="w-3 h-3 shrink-0" />Napsat e-mail</button>
+                    ><Mail className="w-3 h-3 shrink-0" />{t("detail.writeEmail")}</button>
                 )}
             </div>
 
             <div className="flex items-center gap-3 pt-1">
                 <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
-                    Založeno {czDateTime(lead.discovered_at)} · {lead.source === "manual" ? "ručně" : lead.source}
+                    {t("detail.founded", { date: shortDateTime(format, lead.discovered_at), source: lead.source === "manual" ? t("detail.sourceManual") : lead.source })}
                 </span>
                 <button
                     onClick={() => {
                         if (!confirmDelete) { setConfirmDelete(true); return }
-                        void deleteLead(lead.id).then(res => { if (res.success) onDeleted(); else setError(res.error || "Smazání selhalo.") })
+                        void deleteLead(lead.id).then(res => { if (res.success) onDeleted(); else setError(res.error || t("detail.deleteFailed")) })
                     }}
                     className="ml-auto inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-red-400 transition-colors"
-                ><Trash2 className="w-3 h-3 shrink-0" />{confirmDelete ? "Opravdu smazat?" : "Smazat"}</button>
+                ><Trash2 className="w-3 h-3 shrink-0" />{confirmDelete ? t("detail.confirmDelete") : t("detail.delete")}</button>
                 {confirmDelete && (
                     <button onClick={() => setConfirmDelete(false)} className="text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white">
                         <X className="w-3 h-3" />
@@ -335,6 +364,8 @@ function LeadDetail({ lead, onChanged, onDeleted }: {
 // ─── Historie kontaktů ───────────────────────────────────────
 
 function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead) => void }) {
+    const t = useTranslations("adminGrowth.leads")
+    const format = useFormatter()
     const [events, setEvents] = useState<LeadEvent[]>([])
     const [loading, setLoading] = useState(true)
     const [kind, setKind] = useState<ContactKind>("call")
@@ -381,7 +412,7 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
 
     return (
         <div className="border-t border-white/5 pt-3 space-y-2">
-            <span className="text-[8px] font-bold uppercase tracking-widest text-white/30">Historie kontaktů</span>
+            <span className="text-[8px] font-bold uppercase tracking-widest text-white/30">{t("thread.title")}</span>
 
             {/* Zápis kontaktu */}
             <div className="space-y-2 bg-[#050505] border border-white/10 rounded-sm p-2.5">
@@ -393,13 +424,13 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
                             className={`px-2 py-1 text-[8px] font-bold uppercase tracking-widest rounded-sm border transition-all ${
                                 kind === k ? "bg-white/10 text-white border-white/20" : "bg-transparent text-white/30 border-white/10 hover:text-white/70"
                             }`}
-                        >{CONTACT_KIND_LABELS[k]}</button>
+                        >{dictLabel(t, "contactKind", k, CONTACT_KIND_LABELS)}</button>
                     ))}
                 </div>
                 <textarea
                     value={note}
                     onChange={e => setNote(e.target.value)}
-                    placeholder="Jak to dopadlo — jednou větou"
+                    placeholder={t("thread.notePlaceholder")}
                     rows={2}
                     className="w-full px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                 />
@@ -407,7 +438,7 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
                     <input
                         value={nextStep}
                         onChange={e => setNextStep(e.target.value)}
-                        placeholder="Další krok (nepovinné)"
+                        placeholder={t("thread.nextStepPlaceholder")}
                         className="flex-1 min-w-[140px] px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                     />
                     <input
@@ -420,15 +451,15 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
                         onClick={submit}
                         disabled={busy || !note.trim()}
                         className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >{busy ? "Ukládám…" : "Zapsat"}</button>
+                    >{busy ? t("thread.saving") : t("thread.submit")}</button>
                 </div>
             </div>
 
             {/* Osa. Události agenta jsou v témže vlákně — je to jeden příběh kontaktu. */}
             {loading ? (
-                <p className="text-[9px] uppercase tracking-widest font-bold text-white/20">Načítám…</p>
+                <p className="text-[9px] uppercase tracking-widest font-bold text-white/20">{t("loading")}</p>
             ) : events.length === 0 ? (
-                <p className="text-[10px] text-white/25">Zatím žádný záznam.</p>
+                <p className="text-[10px] text-white/25">{t("thread.empty")}</p>
             ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
                     {events.map(ev => {
@@ -436,16 +467,16 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
                         return (
                             <div key={ev.id} className="flex items-start gap-2 text-xs">
                                 <span className="text-[8px] font-bold uppercase tracking-widest text-white/25 w-24 shrink-0 pt-0.5">
-                                    {czDateTime(ev.created_at)}
+                                    {shortDateTime(format, ev.created_at)}
                                 </span>
                                 <span className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-white/10 text-white/40 shrink-0">
-                                    {CONTACT_KIND_LABELS[ev.kind] || ev.kind}
+                                    {dictLabel(t, "contactKind", ev.kind, CONTACT_KIND_LABELS)}
                                 </span>
                                 <span className="text-white/60 flex-1">
                                     {detail?.note || detail?.label || "—"}
                                     {detail?.next_step && <span className="text-white/30"> → {detail.next_step}</span>}
                                 </span>
-                                <span className="text-[8px] text-white/20 shrink-0">{ev.actor ? ev.actor.split("@")[0] : "agent"}</span>
+                                <span className="text-[8px] text-white/20 shrink-0">{ev.actor ? ev.actor.split("@")[0] : t("thread.agent")}</span>
                             </div>
                         )
                     })}
@@ -458,6 +489,7 @@ function ContactThread({ lead, onChanged }: { lead: Lead; onChanged: (lead: Lead
 // ─── Nový kontakt ────────────────────────────────────────────
 
 function NewLeadForm({ onDone }: { onDone: (lead: Lead | null) => void }) {
+    const t = useTranslations("adminGrowth.leads")
     const [company, setCompany] = useState("")
     const [contactPerson, setContactPerson] = useState("")
     const [phone, setPhone] = useState("")
@@ -471,32 +503,32 @@ function NewLeadForm({ onDone }: { onDone: (lead: Lead | null) => void }) {
         const res = await createLead({ company, contactPerson, phone, email, clientType: "firma" })
         setBusy(false)
         if (res.success && res.lead) onDone(res.lead)
-        else setError(res.error || "Založení selhalo.")
+        else setError(res.error || t("newLead.createFailed"))
     }
 
     return (
         <div className="border border-white/10 bg-[#050505] rounded-sm p-3 space-y-2">
             <div className="grid sm:grid-cols-4 gap-2">
-                <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Firma *" autoFocus
+                <input value={company} onChange={e => setCompany(e.target.value)} placeholder={t("newLead.companyPlaceholder")} autoFocus
                     className="px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20" />
-                <input value={contactPerson} onChange={e => setContactPerson(e.target.value)} placeholder="Kontaktní osoba"
+                <input value={contactPerson} onChange={e => setContactPerson(e.target.value)} placeholder={t("detail.fields.contactPerson")}
                     className="px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20" />
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Telefon"
+                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder={t("detail.fields.phone")}
                     className="px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20" />
-                <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail"
+                <input value={email} onChange={e => setEmail(e.target.value)} placeholder={t("detail.fields.email")}
                     className="px-3 py-2 bg-[#0a0a0a] border border-white/10 rounded-sm text-white text-xs focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20" />
             </div>
             <div className="flex items-center gap-2">
                 <button onClick={submit} disabled={busy || !company.trim()}
                     className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest rounded-sm bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all disabled:opacity-40">
-                    {busy ? "Zakládám…" : "Založit"}
+                    {busy ? t("newLead.creating") : t("newLead.create")}
                 </button>
                 <button onClick={() => onDone(null)} className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-all">
-                    Zrušit
+                    {t("newLead.cancel")}
                 </button>
                 {/* Bez tohohle by se dalo čekat, že se firmě něco odešle. Neodešle. */}
                 <span className="text-[8px] uppercase tracking-widest font-bold text-white/20 ml-auto text-right">
-                    Nic se neodesílá · robot ručně zavedený kontakt neosloví
+                    {t("newLead.noSendNote")}
                 </span>
             </div>
             {error && <p className="text-[10px] text-red-400">{error}</p>}

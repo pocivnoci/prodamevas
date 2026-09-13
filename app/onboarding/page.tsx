@@ -2,9 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { startWebsiteAnalysis, startManualAnalysis, startConfigPreview, refineConfigSection, saveReviewedConfig } from './actions'
 import type { WebsiteAnalysis, OnboardingQuestion, ReviewSection } from './types'
-import { awaitOnboardingTask, humanizeClientError } from './task-client'
+import { awaitOnboardingTask, humanizeClientError, type TaskClientMessages } from './task-client'
 import { TaskProgress } from './TaskProgress'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { trackEvent } from '@/lib/analytics'
@@ -15,6 +16,21 @@ type Step = 'choose' | 'input' | 'manual' | 'analyzing' | 'questions' | 'buildin
 type Mode = 'website' | 'manual' | null
 
 type SectionStatus = 'pending' | 'approved' | 'rejected' | 'refining'
+
+/** Kategorie ručního formuláře — hodnota jde na server (`CATEGORY_DEFAULTS`), popisek je v messages. */
+const MANUAL_CATEGORIES = ['kavarna', 'restaurace', 'salon', 'fitness', 'eshop', 'remeslnik', 'poradce', 'fotograf', 'ubytovani', 'zdravi', 'reality', 'vinarstvi', 'jine'] as const
+
+/**
+ * Tón ručního formuláře. Hodnota jde na server do promptu (ten je psaný česky)
+ * a jako `brandTone` do analýzy — proto zůstává česky; popisek volby bere UI
+ * z messages (`manual.tones.<key>`).
+ */
+const MANUAL_TONES = [
+    { key: 'friendly', value: 'přátelský' }, // i18n-ignore: hodnota tónu jde do promptu, ne do UI
+    { key: 'professional', value: 'profesionální' }, // i18n-ignore: hodnota tónu jde do promptu, ne do UI
+    { key: 'cheeky', value: 'drzý' }, // i18n-ignore: hodnota tónu jde do promptu, ne do UI
+    { key: 'expert', value: 'expertní' }, // i18n-ignore: hodnota tónu jde do promptu, ne do UI
+] as const
 
 export default function OnboardingPage() {
     return (
@@ -27,6 +43,7 @@ export default function OnboardingPage() {
 function OnboardingContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const t = useTranslations('onboarding')
     const reonboardSlug = searchParams.get('reonboard')
 
     const [step, setStep] = useState<Step>(reonboardSlug ? 'input' : 'choose')
@@ -86,7 +103,14 @@ function OnboardingContent() {
     }, [reonboardSlug])
 
     // ─── Durable úloha: šťouchni a ptej se ───────────────────
-    const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress)
+    // Věty vznikající v prohlížeči (rozpadlé spojení, strop čekání) dodává
+    // komponenta v jazyce UI; hlášky ze serveru se zobrazují tak, jak přijdou.
+    const taskMessages: TaskClientMessages = {
+        connectionLost: t('errors.connectionLost'),
+        taskFailed: t('errors.taskFailed'),
+        taskTimeout: t('errors.taskTimeout'),
+    }
+    const awaitTask = <T,>(taskId: string) => awaitOnboardingTask<T>(taskId, setTaskProgress, taskMessages)
 
     type AnalyzeResult = { analysis: WebsiteAnalysis; questions: OnboardingQuestion[] }
     type StartResult = { success: boolean; taskId?: string; error?: string }
@@ -101,14 +125,14 @@ function OnboardingContent() {
     async function runAnalysis(start: () => Promise<StartResult>, backTo: Step) {
         try {
             const started = await start()
-            if (!started.success || !started.taskId) throw new Error(started.error || 'Analýza selhala')
+            if (!started.success || !started.taskId) throw new Error(started.error || t('errors.analysisFailed'))
             setAnalyzeTaskId(started.taskId)
             const { analysis, questions } = await awaitTask<AnalyzeResult>(started.taskId)
             setAnalysis(analysis)
             setQuestions(questions)
             setStep('questions')
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep(backTo)
         }
     }
@@ -135,7 +159,7 @@ function OnboardingContent() {
             category,
             description: description.trim(),
             products: products.trim(),
-            tone: tone || 'přátelský',
+            tone: tone || 'přátelský', // i18n-ignore: výchozí tón jde do promptu (prompt je česky), ne do UI
             igHandle: igHandle.trim(),
         }), 'manual')
     }
@@ -152,7 +176,7 @@ function OnboardingContent() {
         try {
             const started = await startConfigPreview(analyzeTaskId, answers, url.trim(), igHandle.trim())
             if (!started.success || !started.taskId) {
-                throw new Error(started.error || 'Generování konfigurace selhalo')
+                throw new Error(started.error || t('errors.configFailed'))
             }
             const { config } = await awaitTask<{ config: ClientConfig }>(started.taskId)
             setConfigPreview(config)
@@ -168,7 +192,7 @@ function OnboardingContent() {
             setRefineCounts({})
             setStep('review')
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep('questions')
         }
     }
@@ -199,7 +223,7 @@ function OnboardingContent() {
             setSectionFeedback(prev => { const n = { ...prev }; delete n[section]; return n })
             setRefineCounts(prev => ({ ...prev, [section]: (prev[section] || 0) + 1 }))
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setSectionStatuses(prev => ({ ...prev, [section]: 'rejected' }))
         }
         setRefiningSection(null)
@@ -257,7 +281,7 @@ function OnboardingContent() {
             setStep('done')
             trackEvent('onboarding_completed', { method: mode || 'unknown' })
         } catch (err) {
-            setError(humanizeClientError(err))
+            setError(humanizeClientError(err, taskMessages))
             setStep('review')
         }
     }
@@ -303,8 +327,8 @@ function OnboardingContent() {
                 {step === 'choose' && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
-                            <h1 className="text-3xl font-bold tracking-tight mb-3">Nastavíme tvůj Chrlit</h1>
-                            <p className="text-gray-400 text-lg">Jak chceš začít?</p>
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">{t('choose.title')}</h1>
+                            <p className="text-gray-400 text-lg">{t('choose.subtitle')}</p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <button
@@ -312,16 +336,16 @@ function OnboardingContent() {
                                 className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-emerald-500/40 transition-all cursor-pointer group"
                             >
                                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">🌐</div>
-                                <h3 className="font-bold text-white mb-1">Mám webovou stránku</h3>
-                                <p className="text-sm text-gray-400">AI analyzuje tvůj web a nastaví vše automaticky.</p>
+                                <h3 className="font-bold text-white mb-1">{t('choose.website.title')}</h3>
+                                <p className="text-sm text-gray-400">{t('choose.website.body')}</p>
                             </button>
                             <button
                                 onClick={() => { setMode('manual'); setStep('manual'); trackEvent('onboarding_started', { method: 'manual' }) }}
                                 className="p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-blue-500/40 transition-all cursor-pointer group"
                             >
                                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">✏️</div>
-                                <h3 className="font-bold text-white mb-1">Nemám web</h3>
-                                <p className="text-sm text-gray-400">Vyplníš pár otázek a AI nastaví vše za tebe.</p>
+                                <h3 className="font-bold text-white mb-1">{t('choose.manual.title')}</h3>
+                                <p className="text-sm text-gray-400">{t('choose.manual.body')}</p>
                             </button>
                         </div>
                     </div>
@@ -333,26 +357,26 @@ function OnboardingContent() {
                 {step === 'input' && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
-                            <h1 className="text-3xl font-bold tracking-tight mb-3">Zadej svůj web</h1>
-                            <p className="text-gray-400 text-lg">AI analyzuje tvou značku a nastaví vše za tebe.</p>
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">{t('input.title')}</h1>
+                            <p className="text-gray-400 text-lg">{t('input.subtitle')}</p>
                         </div>
                         {error && <ErrorBanner message={error} />}
                         <form onSubmit={handleAnalyze} className="space-y-5">
                             <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-5">
                                 <div>
-                                    <label htmlFor="url" className="block text-sm font-medium text-gray-300 mb-2">Webová stránka</label>
-                                    <input id="url" type="text" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://tvujweb.cz" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
+                                    <label htmlFor="url" className="block text-sm font-medium text-gray-300 mb-2">{t('input.urlLabel')}</label>
+                                    <input id="url" type="text" value={url} onChange={e => setUrl(e.target.value)} required placeholder={t('input.urlPlaceholder')} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
                                 </div>
                                 <div>
-                                    <label htmlFor="ig" className="block text-sm font-medium text-gray-300 mb-2">Instagram handle</label>
-                                    <input id="ig" type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder="@tvujinstagram" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
-                                    <p className="mt-1.5 text-xs text-gray-500">Volitelné</p>
+                                    <label htmlFor="ig" className="block text-sm font-medium text-gray-300 mb-2">{t('fields.igHandle')}</label>
+                                    <input id="ig" type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder={t('fields.igPlaceholder')} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all text-sm" />
+                                    <p className="mt-1.5 text-xs text-gray-500">{t('input.optional')}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3">
-                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">{t('back')}</button>
                                 <button type="submit" className="flex-1 relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
-                                    <span className="relative z-10 flex items-center justify-center gap-2">🔍 Analyzovat web<span className="transition-transform group-hover:translate-x-1">→</span></span>
+                                    <span className="relative z-10 flex items-center justify-center gap-2">{t('input.submit')}<span className="transition-transform group-hover:translate-x-1">→</span></span>
                                 </button>
                             </div>
                         </form>
@@ -365,75 +389,56 @@ function OnboardingContent() {
                 {step === 'manual' && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-10">
-                            <h1 className="text-3xl font-bold tracking-tight mb-3">Řekni nám o svém podnikání</h1>
-                            <p className="text-gray-400 text-lg">Pár otázek a AI nastaví vše za tebe.</p>
+                            <h1 className="text-3xl font-bold tracking-tight mb-3">{t('manual.title')}</h1>
+                            <p className="text-gray-400 text-lg">{t('manual.subtitle')}</p>
                         </div>
                         {error && <ErrorBanner message={error} />}
                         <form onSubmit={handleManualSubmit} className="space-y-5">
                             <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-5">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Název firmy / značky</label>
-                                    <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder="např. Café Pohoda" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('manual.nameLabel')}</label>
+                                    <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder={t('manual.namePlaceholder')} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Kategorie</label>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('manual.categoryLabel')}</label>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { id: 'kavarna', label: 'Kavárna' },
-                                            { id: 'restaurace', label: 'Restaurace' },
-                                            { id: 'salon', label: 'Salon' },
-                                            { id: 'fitness', label: 'Fitness' },
-                                            { id: 'eshop', label: 'E-shop' },
-                                            { id: 'remeslnik', label: 'Řemeslník' },
-                                            { id: 'poradce', label: 'Poradce' },
-                                            { id: 'fotograf', label: 'Fotograf' },
-                                            { id: 'ubytovani', label: 'Ubytování' },
-                                            { id: 'zdravi', label: 'Zdraví / estetika' },
-                                            { id: 'reality', label: 'Reality' },
-                                            { id: 'vinarstvi', label: 'Vinařství' },
-                                            { id: 'jine', label: 'Jiné' },
-                                        ].map(cat => (
-                                            <button key={cat.id} type="button" onClick={() => setCategory(cat.id)}
+                                        {MANUAL_CATEGORIES.map(cat => (
+                                            <button key={cat} type="button" onClick={() => setCategory(cat)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
-                                                    category === cat.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
-                                                }`}>{cat.label}</button>
+                                                    category === cat ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
+                                                }`}>{t(`manual.categories.${cat}`)}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Co děláte? Popište své podnikání</label>
-                                    <textarea value={description} onChange={e => setDescription(e.target.value)} required placeholder="např. Útulná kavárna v centru Brna, pražíme vlastní kávu, děláme domácí dezerty..." rows={3} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('manual.descriptionLabel')}</label>
+                                    <textarea value={description} onChange={e => setDescription(e.target.value)} required placeholder={t('manual.descriptionPlaceholder')} rows={3} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm resize-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Produkty / služby <span className="text-gray-500">(oddělte čárkou)</span></label>
-                                    <input type="text" value={products} onChange={e => setProducts(e.target.value)} placeholder="např. Espresso, Cappuccino, Cheesecake, Brunch menu" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('manual.productsLabel')} <span className="text-gray-500">{t('manual.productsHint')}</span></label>
+                                    <input type="text" value={products} onChange={e => setProducts(e.target.value)} placeholder={t('manual.productsPlaceholder')} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Jak chcete komunikovat?</label>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('manual.toneLabel')}</label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            { id: 'přátelský', label: 'Přátelský' },
-                                            { id: 'profesionální', label: 'Profesionální' },
-                                            { id: 'drzý', label: 'Drzý / Vtipný' },
-                                            { id: 'expertní', label: 'Expertní' },
-                                        ].map(t => (
-                                            <button key={t.id} type="button" onClick={() => setTone(t.id)}
+                                        {MANUAL_TONES.map(opt => (
+                                            <button key={opt.value} type="button" onClick={() => setTone(opt.value)}
                                                 className={`px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer text-left ${
-                                                    tone === t.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
-                                                }`}>{t.label}</button>
+                                                    tone === opt.value ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 border' : 'bg-black/30 border border-white/10 text-gray-300 hover:border-white/20'
+                                                }`}>{t(`manual.tones.${opt.key}`)}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Instagram handle <span className="text-gray-500">(volitelné)</span></label>
-                                    <input type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder="@tvujinstagram" className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('fields.igHandle')} <span className="text-gray-500">{t('manual.igOptional')}</span></label>
+                                    <input type="text" value={igHandle} onChange={e => setIgHandle(e.target.value)} placeholder={t('fields.igPlaceholder')} className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all text-sm" />
                                 </div>
                             </div>
                             <div className="flex gap-3">
-                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">← Zpět</button>
+                                <button type="button" onClick={() => setStep('choose')} className="px-4 py-3.5 rounded-xl border border-white/10 text-sm text-gray-400 hover:text-white transition-all cursor-pointer">{t('back')}</button>
                                 <button type="submit" disabled={!businessName || !category || !description}
                                     className="flex-1 relative group overflow-hidden rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(59,130,246,0.2)] transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                                    <span className="relative z-10 flex items-center justify-center gap-2">🚀 Analyzovat a nastavit<span className="transition-transform group-hover:translate-x-1">→</span></span>
+                                    <span className="relative z-10 flex items-center justify-center gap-2">{t('manual.submit')}<span className="transition-transform group-hover:translate-x-1">→</span></span>
                                 </button>
                             </div>
                         </form>
@@ -448,8 +453,8 @@ function OnboardingContent() {
                         <div className="inline-flex rounded-2xl bg-blue-500/10 p-5 mb-8 ring-1 ring-inset ring-blue-500/20">
                             <div className="w-10 h-10 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
                         </div>
-                        <h2 className="text-2xl font-bold mb-4">AI analyzuje tvůj web</h2>
-                        <p className="text-gray-400 mb-8">Čtu obsah, učím se značku, chystám otázky na míru.</p>
+                        <h2 className="text-2xl font-bold mb-4">{t('analyzing.title')}</h2>
+                        <p className="text-gray-400 mb-8">{t('analyzing.body')}</p>
 
                         <TaskProgress {...taskProgress} accent="bg-blue-400" />
                     </div>
@@ -475,8 +480,8 @@ function OnboardingContent() {
                                     </span>
                                 ))}
                             </div>
-                            <h3 className="text-xl font-bold">Doplňující otázky</h3>
-                            <p className="text-gray-400 text-sm mt-1">Na základě analýzy tvého webu máme pár doplňujících otázek.</p>
+                            <h3 className="text-xl font-bold">{t('questions.title')}</h3>
+                            <p className="text-gray-400 text-sm mt-1">{t('questions.body')}</p>
                         </div>
 
                         {error && <ErrorBanner message={error} />}
@@ -532,7 +537,7 @@ function OnboardingContent() {
                                         <textarea
                                             value={(answers[q.id] as string) || ''}
                                             onChange={e => setAnswer(q.id, e.target.value)}
-                                            placeholder={q.placeholder || 'Napiš svou odpověď...'}
+                                            placeholder={q.placeholder || t('questions.answerPlaceholder')}
                                             rows={2}
                                             className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all text-sm resize-none"
                                         />
@@ -563,7 +568,7 @@ function OnboardingContent() {
                                 className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-medium text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer"
                             >
                                 <span className="relative z-10 flex items-center justify-center gap-2">
-                                    <span className="inline-flex items-center gap-1.5"><Rocket className="w-3.5 h-3.5 shrink-0" />Vygenerovat konfiguraci</span>
+                                    <span className="inline-flex items-center gap-1.5"><Rocket className="w-3.5 h-3.5 shrink-0" />{t('questions.submit')}</span>
                                     <span className="transition-transform group-hover:translate-x-1">→</span>
                                 </span>
                             </button>
@@ -579,8 +584,8 @@ function OnboardingContent() {
                         <div className="inline-flex rounded-2xl bg-purple-500/10 p-5 mb-8 ring-1 ring-inset ring-purple-500/20">
                             <div className="w-10 h-10 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
                         </div>
-                        <h2 className="text-2xl font-bold mb-4">Generuji konfiguraci</h2>
-                        <p className="text-gray-400 mb-8">Stavím hlas značky, pilíře obsahu a vizuální styl.</p>
+                        <h2 className="text-2xl font-bold mb-4">{t('building.title')}</h2>
+                        <p className="text-gray-400 mb-8">{t('building.body')}</p>
 
                         <TaskProgress {...taskProgress} accent="bg-purple-400" />
                     </div>
@@ -592,8 +597,8 @@ function OnboardingContent() {
                 {step === 'review' && configPreview && analysis && (
                     <div className="animate-fadeIn">
                         <div className="text-center mb-8">
-                            <h2 className="text-2xl font-bold mb-2">Zkontroluj konfiguraci</h2>
-                            <p className="text-gray-400">Projdi si jednotlivé sekce. Pokud je něco špatně, klikni 👎 a napiš co změnit.</p>
+                            <h2 className="text-2xl font-bold mb-2">{t('review.title')}</h2>
+                            <p className="text-gray-400">{t('review.body')}</p>
                         </div>
 
                         {error && <ErrorBanner message={error} />}
@@ -602,14 +607,14 @@ function OnboardingContent() {
                             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 mb-4">
                                 <div className="flex items-center gap-2 mb-3">
                                     <MessageCircle className="w-5 h-5" />
-                                    <h3 className="font-bold text-white">Doporučený styl komunikace</h3>
-                                    <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-0.5 rounded">AI na míru</span>
+                                    <h3 className="font-bold text-white">{t('review.style.title')}</h3>
+                                    <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-0.5 rounded">{t('review.style.badge')}</span>
                                 </div>
                                 <p className="text-sm font-semibold text-white mb-1">{configPreview.communicationStyle.headline}</p>
                                 <p className="text-xs text-gray-400 mb-4">{configPreview.communicationStyle.rationale}</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5"><Check className="w-3 h-3 shrink-0" />Dělat</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 mb-1.5"><Check className="w-3 h-3 shrink-0" />{t('review.style.dos')}</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.dos || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-emerald-400">·</span>{d}</li>
@@ -617,7 +622,7 @@ function OnboardingContent() {
                                         </ul>
                                     </div>
                                     <div>
-                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5"><X className="w-3 h-3 shrink-0" />Vyhnout se</span>
+                                        <span className="inline-flex items-center gap-1.5 block text-[10px] uppercase font-bold tracking-wider text-rose-400/70 mb-1.5"><X className="w-3 h-3 shrink-0" />{t('review.style.donts')}</span>
                                         <ul className="space-y-1">
                                             {(configPreview.communicationStyle.donts || []).map((d: string, i: number) => (
                                                 <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-rose-400">·</span>{d}</li>
@@ -629,17 +634,17 @@ function OnboardingContent() {
                         )}
 
                         <div className="space-y-4">
-                            <ReviewCard section="brand_voice" Icon={Mic} title="Brand Voice & Persona"
+                            <ReviewCard section="brand_voice" Icon={Mic} title={t('review.sections.brand_voice')}
                                 status={sectionStatuses.brand_voice} feedback={sectionFeedback.brand_voice || ''}
                                 refineCount={refineCounts.brand_voice || 0} isRefining={refiningSection === 'brand_voice'}
                                 onApprove={() => approveSection('brand_voice')} onReject={() => rejectSection('brand_voice')}
                                 onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, brand_voice: v }))}
                                 onRefine={() => handleRefineSection('brand_voice')}>
                                 <div className="space-y-3">
-                                    <ReviewField label="Persona" value={configPreview.brandVoice?.persona} />
-                                    <ReviewField label="Tón" value={(configPreview.brandVoice?.voiceTraits || []).join(', ')} />
-                                    <ReviewField label="Hodnoty" value={(configPreview.brandVoice?.values || []).join(', ')} />
-                                    <ReviewField label="Nepoužíváme" value={(configPreview.brandVoice?.antiPatterns || []).join(', ')} />
+                                    <ReviewField label={t('review.fields.persona')} value={configPreview.brandVoice?.persona} />
+                                    <ReviewField label={t('review.fields.tone')} value={(configPreview.brandVoice?.voiceTraits || []).join(', ')} />
+                                    <ReviewField label={t('review.fields.values')} value={(configPreview.brandVoice?.values || []).join(', ')} />
+                                    <ReviewField label={t('review.fields.antiPatterns')} value={(configPreview.brandVoice?.antiPatterns || []).join(', ')} />
                                 </div>
                             </ReviewCard>
 
@@ -649,12 +654,10 @@ function OnboardingContent() {
                             <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                 <div className="flex items-center gap-2 mb-1">
                                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                                    <h3 className="text-sm font-bold text-white">Kontrola tvrzení</h3>
+                                    <h3 className="text-sm font-bold text-white">{t('review.factCheck.title')}</h3>
                                 </div>
                                 <p className="text-xs text-gray-400 mb-3">
-                                    AI si čísla a roky domýšlí stejně plynule, jako je opisuje. Fakta z vašeho webu
-                                    už načtená máme; tohle říká, co se stane s tvrzením, které v nich oporu nemá.
-                                    Ani jeden konec posuvníku nepustí lež — mění se jen to, kdo ji vyřeší.
+                                    {t('review.factCheck.body')}
                                 </p>
                                 <input
                                     type="range"
@@ -663,22 +666,22 @@ function OnboardingContent() {
                                     step={1}
                                     value={factCheckModeIndex(configPreview.factCheckMode)}
                                     onChange={(e) => setConfigPreview(prev => prev ? { ...prev, factCheckMode: FACT_CHECK_MODES[Number(e.target.value)].value } : prev)}
-                                    aria-label="Kontrola tvrzení"
+                                    aria-label={t('review.factCheck.title')}
                                     className="w-full accent-emerald-400"
                                 />
                                 <div className="flex justify-between mt-1">
                                     {FACT_CHECK_MODES.map((m, i) => (
                                         <span key={m.value}
                                             className={`text-[10px] font-bold uppercase tracking-wider ${i === factCheckModeIndex(configPreview.factCheckMode) ? "text-emerald-400" : "text-gray-600"}`}
-                                        >{m.label}</span>
+                                        >{t(`review.factCheck.modes.${m.value}.label`)}</span>
                                     ))}
                                 </div>
                                 <p className="text-xs text-gray-300 mt-3 bg-black/20 rounded-lg px-3 py-2">
-                                    {FACT_CHECK_MODES[factCheckModeIndex(configPreview.factCheckMode)].detail}
+                                    {t(`review.factCheck.modes.${FACT_CHECK_MODES[factCheckModeIndex(configPreview.factCheckMode)].value}.detail`)}
                                 </p>
                             </div>
 
-                            <ReviewCard section="pillars" Icon={Landmark} title="Content Pilíře & Kategorie"
+                            <ReviewCard section="pillars" Icon={Landmark} title={t('review.sections.pillars')}
                                 status={sectionStatuses.pillars} feedback={sectionFeedback.pillars || ''}
                                 refineCount={refineCounts.pillars || 0} isRefining={refiningSection === 'pillars'}
                                 onApprove={() => approveSection('pillars')} onReject={() => rejectSection('pillars')}
@@ -709,7 +712,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="products" Icon={Package} title="Produkty & Služby"
+                            <ReviewCard section="products" Icon={Package} title={t('review.sections.products')}
                                 status={sectionStatuses.products} feedback={sectionFeedback.products || ''}
                                 refineCount={refineCounts.products || 0} isRefining={refiningSection === 'products'}
                                 onApprove={() => approveSection('products')} onReject={() => rejectSection('products')}
@@ -724,22 +727,22 @@ function OnboardingContent() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-gray-500 italic">Žádné produkty detekovány</p>
+                                    <p className="text-xs text-gray-500 italic">{t('review.noProducts')}</p>
                                 )}
                             </ReviewCard>
 
-                            <ReviewCard section="visual" Icon={Palette} title="Vizuální Identita"
+                            <ReviewCard section="visual" Icon={Palette} title={t('review.sections.visual')}
                                 status={sectionStatuses.visual} feedback={sectionFeedback.visual || ''}
                                 refineCount={refineCounts.visual || 0} isRefining={refiningSection === 'visual'}
                                 onApprove={() => approveSection('visual')} onReject={() => rejectSection('visual')}
                                 onFeedbackChange={(v) => setSectionFeedback(prev => ({ ...prev, visual: v }))}
                                 onRefine={() => handleRefineSection('visual')}>
                                 <div className="space-y-3">
-                                    <ReviewField label="Feel" value={configPreview.feedAesthetic?.feel} />
-                                    <ReviewField label="Font" value={configPreview.feedAesthetic?.fontOverride || configPreview.feedAesthetic?.font} />
+                                    <ReviewField label={t('review.fields.feel')} value={configPreview.feedAesthetic?.feel} />
+                                    <ReviewField label={t('review.fields.font')} value={configPreview.feedAesthetic?.fontOverride || configPreview.feedAesthetic?.font} />
                                     {configPreview.overlayGradient && (
                                         <div>
-                                            <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Gradient preview</span>
+                                            <span className="block text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">{t('review.fields.gradient')}</span>
                                             <div className="h-10 rounded-lg border border-white/10 overflow-hidden"
                                                 style={{ background: `linear-gradient(to right, ${configPreview.overlayGradient.topColor}, ${configPreview.overlayGradient.midColor}, ${configPreview.overlayGradient.bottomColor})` }} />
                                         </div>
@@ -747,7 +750,7 @@ function OnboardingContent() {
                                 </div>
                             </ReviewCard>
 
-                            <ReviewCard section="hooks_cta" Icon={Anchor} title="Hook Templates & CTA"
+                            <ReviewCard section="hooks_cta" Icon={Anchor} title={t('review.sections.hooks_cta')}
                                 status={sectionStatuses.hooks_cta} feedback={sectionFeedback.hooks_cta || ''}
                                 refineCount={refineCounts.hooks_cta || 0} isRefining={refiningSection === 'hooks_cta'}
                                 onApprove={() => approveSection('hooks_cta')} onReject={() => rejectSection('hooks_cta')}
@@ -761,7 +764,7 @@ function OnboardingContent() {
                                             {h.example && <span className="block text-[10px] text-gray-500 ml-5 mt-0.5">→ {h.example}</span>}
                                         </div>
                                     ))}
-                                    <ReviewField label="CTA (soft)" value={(configPreview.ctaStrategies?.soft || []).slice(0, 3).join(' · ')} />
+                                    <ReviewField label={t('review.fields.ctaSoft')} value={(configPreview.ctaStrategies?.soft || []).slice(0, 3).join(' · ')} />
                                 </div>
                             </ReviewCard>
                         </div>
@@ -771,17 +774,17 @@ function OnboardingContent() {
                                 <button onClick={handleSaveConfig}
                                     className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer">
                                     <span className="relative z-10 flex items-center justify-center gap-2">
-                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />Vše schváleno — Uložit a pokračovat</span>
+                                        <span className="inline-flex items-center gap-1.5"><CircleCheck className="w-3.5 h-3.5 shrink-0" />{t('review.saveAll')}</span>
                                         <span className="transition-transform group-hover:translate-x-1">→</span>
                                     </span>
                                 </button>
                             ) : (
                                 <div className="text-center">
                                     <p className="text-xs text-gray-500 mb-3">
-                                        {Object.values(sectionStatuses).filter(s => s === 'approved').length} / {Object.values(sectionStatuses).length} sekcí schváleno
+                                        {t('review.approvedCount', { approved: Object.values(sectionStatuses).filter(s => s === 'approved').length, total: Object.values(sectionStatuses).length })}
                                     </p>
                                     <button disabled className="w-full rounded-xl bg-white/5 px-6 py-4 text-sm text-gray-500 border border-white/10 cursor-not-allowed">
-                                        Schval všechny sekce pro pokračování
+                                        {t('review.approveAll')}
                                     </button>
                                 </div>
                             )}
@@ -797,8 +800,8 @@ function OnboardingContent() {
                         <div className="inline-flex rounded-2xl bg-emerald-500/10 p-5 mb-8 ring-1 ring-inset ring-emerald-500/20">
                             <div className="w-10 h-10 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
                         </div>
-                        <h2 className="text-2xl font-bold mb-4">Ukládám konfiguraci</h2>
-                        <p className="text-gray-400">Vytvářím bucket, propojuji účet...</p>
+                        <h2 className="text-2xl font-bold mb-4">{t('saving.title')}</h2>
+                        <p className="text-gray-400">{t('saving.body')}</p>
                     </div>
                 )}
 
@@ -812,13 +815,13 @@ function OnboardingContent() {
                         </div>
                         <h2 className="text-2xl font-bold mb-4">
                             {generatingProgress.phase === 'firstplan'
-                                ? 'Připravuji tvůj první plán obsahu...'
-                                : 'Spouštím přípravu ukázkového obsahu...'}
+                                ? t('generating.firstplan.title')
+                                : t('generating.bootstrap.title')}
                         </h2>
                         <p className="text-gray-400 mb-8">
                             {generatingProgress.phase === 'firstplan'
-                                ? 'Skládám témata a hooky na míru tvé značce — podle toho, co ti na Instagramu už funguje.'
-                                : 'Plním zásobník témat a zadávám 3 ukázkové příspěvky. Ty se dogenerují na serveru — nemusíš na ně čekat.'}
+                                ? t('generating.firstplan.body')
+                                : t('generating.bootstrap.body')}
                         </p>
                         {/* Progress bar */}
                         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
@@ -829,8 +832,8 @@ function OnboardingContent() {
                         </div>
                         <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
                             {generatingProgress.phase === 'firstplan'
-                                ? 'Tvůj týdenní plán bude čekat v dashboardu'
-                                : 'Ukázkové příspěvky se generují na pozadí — najdeš je v Příspěvcích'}
+                                ? t('generating.firstplan.note')
+                                : t('generating.bootstrap.note')}
                         </p>
                     </div>
                 )}
@@ -847,12 +850,12 @@ function OnboardingContent() {
                                 </svg>
                             </div>
                             <h2 className="text-3xl font-bold mb-3">
-                                {reonboardSlug ? 'Konfigurace aktualizována! 🔄' : 'Vše je připravené! 🎉'}
+                                {reonboardSlug ? t('done.reonboard.title') : t('done.new.title')}
                             </h2>
                             <p className="text-gray-400 text-lg">
                                 {reonboardSlug
-                                    ? 'Tvá nová konfigurace je uložená. Všechny budoucí posty budou využívat nové nastavení.'
-                                    : 'Tvá schválená konfigurace je uložená. Můžeš začít generovat.'}
+                                    ? t('done.reonboard.body')
+                                    : t('done.new.body')}
                             </p>
                         </div>
 
@@ -861,7 +864,7 @@ function OnboardingContent() {
                             className="w-full relative group overflow-hidden rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all hover:bg-emerald-500 cursor-pointer text-center"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2">
-                                {reonboardSlug ? 'Zpět do Dashboardu' : 'Zkontrolovat můj první plán'}
+                                {reonboardSlug ? t('done.reonboard.cta') : t('done.new.cta')}
                                 <span className="transition-transform group-hover:translate-x-1">→</span>
                             </span>
                         </button>
@@ -940,6 +943,7 @@ function ReviewCard({
     onRefine: () => void
     children: React.ReactNode
 }) {
+    const t = useTranslations('onboarding')
     const maxRefines = 3
     const borderColor = status === 'approved' ? 'border-emerald-500/30'
         : status === 'rejected' ? 'border-amber-500/30'
@@ -953,7 +957,7 @@ function ReviewCard({
                     <Icon className="w-4 h-4 shrink-0 text-white/60" />
                     <h3 className="font-bold text-sm text-white">{title}</h3>
                     {status === 'approved' && <CircleCheck className="w-4 h-4 text-emerald-400" />}
-                    {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">Přegenerovávám...</span>}
+                    {status === 'refining' && <span className="text-purple-400 text-xs animate-pulse">{t('review.card.refining')}</span>}
                     {refineCount > 0 && <span className="text-[9px] text-gray-500 font-mono">v{refineCount + 1}</span>}
                 </div>
                 <div className="flex gap-1.5">
@@ -981,20 +985,20 @@ function ReviewCard({
                     <textarea
                         value={feedback}
                         onChange={(e) => onFeedbackChange(e.target.value)}
-                        placeholder="Co je špatně? Co chceš změnit?"
+                        placeholder={t('review.card.feedbackPlaceholder')}
                         rows={2}
                         className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all text-xs resize-none"
                     />
                     <div className="flex items-center justify-between">
                         <span className="text-[9px] text-gray-500">
-                            {refineCount >= maxRefines ? 'Max. počet úprav — doladíš v Settings' : `Pokus ${refineCount + 1}/${maxRefines}`}
+                            {refineCount >= maxRefines ? t('review.card.maxRefines') : t('review.card.attempt', { n: refineCount + 1, max: maxRefines })}
                         </span>
                         <button
                             onClick={onRefine}
                             disabled={!feedback.trim() || isRefining || refineCount >= maxRefines}
                             className="px-4 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isRefining ? '⏳ Přepracovávám...' : 'Přegenerovat'}
+                            {isRefining ? t('review.card.refiningButton') : t('review.card.refine')}
                         </button>
                     </div>
                 </div>

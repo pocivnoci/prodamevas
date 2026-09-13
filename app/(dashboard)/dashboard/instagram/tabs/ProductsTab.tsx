@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     triggerProductIdeas,
     triggerProductDesign,
@@ -25,7 +26,7 @@ import {
     removeProductCategory,
 } from "@/app/actions/product-category-actions"
 import { LoadingSpinner } from "./shared"
-import { Hint, HINTS } from "./Hint"
+import { Hint, useHints } from "./Hint"
 import { analyzeProductForBrief } from "@/app/actions/product-brief-actions"
 import { generateProductBriefPDF } from "@/lib/product-brief-docx"
 import { Banknote, Check, CircleCheck, CircleX, ClipboardList, Download, Eye, Factory, Flame, Lightbulb, Package, Palette, Paperclip, Pencil, Puzzle, RefreshCw, Rocket, Ruler, Save, Search, ShoppingBag, Tag, ThumbsDown, ThumbsUp, Trash2, Wrench, type LucideIcon } from "lucide-react"
@@ -55,10 +56,11 @@ function ProductTypeGrid({
     onChange: (v: string) => void
     categories: CategoryItem[]
 }) {
+    const t = useTranslations("products.tab")
     if (categories.length === 0) {
         return (
             <div className="text-center py-6 text-white/30 text-[10px] uppercase tracking-widest font-bold">
-                Žádné produktové kategorie. Přidej je v záložce "Kategorie".
+                {t("typeGrid.empty")}
             </div>
         )
     }
@@ -87,6 +89,8 @@ function ProductTypeGrid({
 
 
 export function ProductsTab({ projectId }: { projectId: string }) {
+    const t = useTranslations("products.tab")
+    const hints = useHints()
     const [section, setSection] = useState<ProductSection>("catalog")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -147,11 +151,11 @@ export function ProductsTab({ projectId }: { projectId: string }) {
     }, [loadCategories])
 
     const sections: { id: ProductSection; label: string; Icon: LucideIcon }[] = [
-        { id: "catalog", label: "Katalog", Icon: ShoppingBag },
-        { id: "lines", label: "Řady", Icon: Puzzle },
-        { id: "ideas", label: "Nápady", Icon: Lightbulb },
-        { id: "design", label: "Design pro tisk", Icon: Palette },
-        { id: "categories", label: "Kategorie", Icon: Package },
+        { id: "catalog", label: t("sections.catalog"), Icon: ShoppingBag },
+        { id: "lines", label: t("sections.lines"), Icon: Puzzle },
+        { id: "ideas", label: t("sections.ideas"), Icon: Lightbulb },
+        { id: "design", label: t("sections.design"), Icon: Palette },
+        { id: "categories", label: t("sections.categories"), Icon: Package },
     ]
 
     // ── Ideas Handler ─────────────────────────────────────
@@ -184,13 +188,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (result.success) {
                 setIdeas(prev => prev.filter((_, i) => i !== index))
                 fetchSavedIdeas()
-                setSuccessMsg(`"${idea.name}" uložen`)
+                setSuccessMsg(t("ideas.saved", { name: idea.name }))
                 setTimeout(() => setSuccessMsg(null), 3000)
             } else {
-                setError(`Uložení selhalo: ${result.error || 'Neznámá chyba'} (client: ${projectId})`)
+                setError(t("ideas.saveFailed", { error: result.error || t("unknownError"), client: projectId }))
             }
         } catch (err: any) {
-            setError(`Save error: ${err.message} (client: ${projectId})`)
+            setError(t("ideas.saveError", { error: err.message, client: projectId }))
         } finally {
             setSavingId(null)
         }
@@ -204,10 +208,10 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (result.success) {
                 setIdeas(prev => prev.filter((_, i) => i !== index))
             } else {
-                setError(`Zamítnutí selhalo: ${result.error || 'Neznámá chyba'}`)
+                setError(t("ideas.rejectFailed", { error: result.error || t("unknownError") }))
             }
         } catch (err: any) {
-            setError(`Reject error: ${err.message}`)
+            setError(t("ideas.rejectError", { error: err.message }))
         } finally {
             setRejectingId(null)
         }
@@ -225,11 +229,11 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             formData.append("file", file)
 
             const result = await uploadProductReference(projectId, ideaId, formData)
-            if (!result.success) throw new Error(result.error || "Upload failed")
+            if (!result.success) throw new Error(result.error || t("ideas.uploadFailed"))
 
             setReferenceUrls(prev => ({ ...prev, [ideaId]: result.publicUrl! }))
         } catch (err: any) {
-            setError(`Chyba uploadu: ${err.message}`)
+            setError(t("ideas.uploadError", { error: err.message }))
         } finally {
             setUploadingId(null)
         }
@@ -247,7 +251,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (result.success && result.ideas) {
                 setIdeas(result.ideas)
             } else {
-                setError(result.error || "Generování selhalo")
+                setError(result.error || t("ideas.generateFailed"))
             }
         } catch (err: any) {
             setError(err.message)
@@ -268,26 +272,26 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     title: title,
-                    text: 'Koukni na tenhle AI design z Chrlit Studia!',
+                    text: t("share.text"),
                     files: [file],
                 });
             } else if (navigator.share) {
                 // Fallback k URL
                 await navigator.share({
                     title: title,
-                    text: 'Koukni na tenhle AI design z Chrlit Studia!',
+                    text: t("share.text"),
                     url: imageUrl
                 });
             } else {
                 // Fallback schránka
                 await navigator.clipboard.writeText(imageUrl);
-                alert("Odkaz na obrázek byl zkopírován do schránky.");
+                alert(t("share.copied"));
             }
         } catch (err) {
             console.error("Chyba při sdílení:", err);
             // Ignore abort errors (user cancelled share)
             if ((err as Error).name !== 'AbortError') {
-                alert("Při sdílení přes nativní menu došlo k chybě. Odkaz zkopíruj ručně.");
+                alert(t("share.failed"));
             }
         }
     };
@@ -306,7 +310,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             window.URL.revokeObjectURL(blobUrl);
         } catch (err) {
             console.error("Chyba při stahování:", err);
-            alert("Nepodařilo se stáhnout obrázek napřímo. Zkus ho otevřít v plné velikosti a uložit.");
+            alert(t("share.downloadFailed"));
         }
     };
 
@@ -325,9 +329,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                 designUrl: url,
             });
             if (result.success) {
-                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`);
+                alert(t("promo.created", { caption: result.caption?.substring(0, 200) ?? "" }));
             } else {
-                setError(result.error || "Vytvoření selhalo.");
+                setError(result.error || t("promo.createFailed"));
             }
         } catch (err: any) {
             setError(err.message);
@@ -372,7 +376,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {loading && (
                 <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-12 text-center flex flex-col items-center justify-center min-h-[300px]">
                     <div className="inline-block w-12 h-12 border-[3px] border-white/10 border-t-aisummit-cinnabar rounded-full animate-spin shadow-sm mb-6" />
-                    <p className="text-[10px] uppercase font-bold tracking-widest text-white/50">Generuji... může to chvíli trvat</p>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-white/50">{t("loading")}</p>
                 </div>
             )}
 
@@ -380,21 +384,21 @@ export function ProductsTab({ projectId }: { projectId: string }) {
             {section === "ideas" && !loading && (
                 <div className="space-y-6">
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
-                        <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Lightbulb className="w-5 h-5 shrink-0" />Product Ideas Brainstorm</h3>
-                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">AI vygeneruje kreativní nápady na nové produkty — nejen oblečení, ale i gadgety, doplňky a originální merch.</p>
+                        <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Lightbulb className="w-5 h-5 shrink-0" />{t("ideas.title")}</h3>
+                        <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-6">{t("ideas.intro")}</p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Téma (volitelné)</label>
+                                <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">{t("ideas.theme")}</label>
                                 <input
                                     value={ideasTheme}
                                     onChange={(e) => setIdeasTheme(e.target.value)}
-                                    placeholder="letní kolekce, valentýn..."
+                                    placeholder={t("ideas.themePlaceholder")}
                                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 transition-all"
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">Počet nápadů</label>
+                                <label className="text-[9px] uppercase tracking-widest font-bold text-white/40 mb-1.5 block">{t("ideas.count")}</label>
                                 <select
                                     value={ideasCount}
                                     onChange={(e) => setIdeasCount(parseInt(e.target.value))}
@@ -408,19 +412,19 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     onClick={handleGenerateIdeas}
                                     disabled={loading}
                                     className="inline-flex items-center gap-1.5 justify-center w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-white/20 shadow-sm"
-                                ><Rocket className="w-3 h-3 shrink-0" />Generovat nápady</button>
+                                ><Rocket className="w-3 h-3 shrink-0" />{t("ideas.generate")}</button>
                             </div>
                         </div>
                     </div>
 
                     {/* ═══════════════ VLASTNÍ PRODUKT ═══════════════ */}
                     <div className="bg-[#0a0a0a] border border-emerald-500/20 rounded-sm p-6 mb-6">
-                        <h3 className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4"><Pencil className="w-3 h-3 shrink-0" />Vlastní produkt — napiš co chceš vizualizovat</h3>
+                        <h3 className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em] font-black text-emerald-400 mb-4"><Pencil className="w-3 h-3 shrink-0" />{t("ideas.custom.title")}</h3>
                         <div className="flex gap-3">
                             <input
                                 value={customProductInput}
                                 onChange={(e) => setCustomProductInput(e.target.value)}
-                                placeholder="např. černý keramický hrnek, zippo zapalovač, snapback čepice..."
+                                placeholder={t("ideas.custom.placeholder")}
                                 className="flex-1 px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && customProductInput.trim() && !customProductLoading) {
@@ -436,7 +440,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 if (result.success && result.designUrl) {
                                                     setCustomProductUrl(result.designUrl)
                                                 } else {
-                                                    setError(result.error || 'Vizualizace selhala')
+                                                    setError(result.error || t("ideas.visualizeFailed"))
                                                 }
                                             } catch (err: any) { setError(err.message) }
                                             finally { setCustomProductLoading(false) }
@@ -458,7 +462,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         if (result.success && result.designUrl) {
                                             setCustomProductUrl(result.designUrl)
                                         } else {
-                                            setError(result.error || 'Vizualizace selhala')
+                                            setError(result.error || t("ideas.visualizeFailed"))
                                         }
                                     } catch (err: any) { setError(err.message) }
                                     finally { setCustomProductLoading(false) }
@@ -466,13 +470,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                 disabled={customProductLoading || !customProductInput.trim()}
                                 className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 whitespace-nowrap"
                             >
-                                {customProductLoading ? '⏳ Generuji...' : 'Vytvořit vizualizaci'}
+                                {customProductLoading ? t("ideas.generating") : t("ideas.custom.create")}
                             </button>
                         </div>
                         {customProductUrl && (
                             <div className="mt-4">
-                                <img src={customProductUrl} alt="Custom product" className="max-w-md rounded-sm border border-white/10" />
-                                <a href={customProductUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[9px] text-emerald-400/60 hover:text-emerald-400 uppercase tracking-widest">📸 Plná velikost</a>
+                                <img src={customProductUrl} alt={t("ideas.custom.alt")} className="max-w-md rounded-sm border border-white/10" />
+                                <a href={customProductUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[9px] text-emerald-400/60 hover:text-emerald-400 uppercase tracking-widest">{t("ideas.custom.fullSize")}</a>
                             </div>
                         )}
                     </div>
@@ -494,13 +498,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 onClick={() => handleSaveIdea(idea, i)}
                                                 disabled={savingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 disabled:opacity-50"
-                                                title="Uložit nápad"
+                                                title={t("ideas.card.save")}
                                             >{savingId === i ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />}</button>
                                             <button
                                                 onClick={() => handleRejectIdea(idea, i)}
                                                 disabled={rejectingId === i}
                                                 className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center transition-all bg-white/5 text-white/30 border-white/10 hover:bg-aisummit-cinnabar/20 hover:text-aisummit-cinnabar hover:border-aisummit-cinnabar/30 disabled:opacity-50"
-                                                title="Zahodit"
+                                                title={t("ideas.card.reject")}
                                             >{rejectingId === i ? <span className="animate-pulse">…</span> : <Trash2 className="w-3.5 h-3.5" />}</button>
                                         </div>
                                     </div>
@@ -508,7 +512,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                     {/* Branding name variants */}
                                     {idea.brandingNames && idea.brandingNames.length > 0 && (
                                         <div className="mb-4 pt-2">
-                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block"><Tag className="w-3 h-3 shrink-0" />Varianty názvů</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest font-bold text-amber-500/50 mb-2 block"><Tag className="w-3 h-3 shrink-0" />{t("ideas.card.names")}</span>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {idea.brandingNames.map((bn: string, j: number) => (
                                                     <span key={j} className="px-2 py-1 bg-amber-500/5 border border-amber-500/10 text-amber-500 rounded-sm text-[9px] font-bold uppercase tracking-widest cursor-default">
@@ -523,34 +527,34 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                     <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                         <div className="flex gap-2">
-                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.price")}</span>
                                             <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.material")}</span>
                                             <span>{idea.material}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Ruler className="w-3.5 h-3.5 shrink-0" />Rozm.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Ruler className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.dimensions")}</span>
                                             <span>{idea.dimensions}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
+                                            <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.manufacturing")}</span>
                                             <span>{idea.manufacturingMethod}</span>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 pt-4 border-t border-white/10 space-y-4 shadow-sm pb-2">
                                         <div>
-                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-amber-500/50 font-bold"><Flame className="w-3 h-3 shrink-0" />Virální angle</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-amber-500/50 font-bold"><Flame className="w-3 h-3 shrink-0" />{t("ideas.card.viralAngle")}</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.viralAngle}</p>
                                         </div>
                                         <div>
-                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold"><CircleCheck className="w-3 h-3 shrink-0" />Proč to bude fungovat</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-emerald-500/50 font-bold"><CircleCheck className="w-3 h-3 shrink-0" />{t("ideas.card.whyItWorks")}</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.whyItWorks}</p>
                                         </div>
                                         <div>
-                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-blue-500/50 font-bold"><ClipboardList className="w-3 h-3 shrink-0" />Produkce</span>
+                                            <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-blue-500/50 font-bold"><ClipboardList className="w-3 h-3 shrink-0" />{t("ideas.card.production")}</span>
                                             <p className="text-white/70 text-[10px] font-medium mt-1 leading-relaxed">{idea.productionNotes}</p>
                                         </div>
                                     </div>
@@ -564,7 +568,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"
-                                            ><Download className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />Plná velikost</a>
+                                            ><Download className="w-3.5 h-3.5 inline-block align-[-2px] mr-1" />{t("ideas.card.fullSize")}</a>
                                         </div>
                                     )}
 
@@ -579,7 +583,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     if (result.success && result.designUrl) {
                                                         setIdeaVisuals(v => ({ ...v, [idea.name]: result.designUrl! }))
                                                     } else {
-                                                        setError(result.error || "Vizualizace selhala")
+                                                        setError(result.error || t("ideas.visualizeFailed"))
                                                     }
                                                 } catch (err: any) { setError(err.message) }
                                                 finally { setVisualizingId(null) }
@@ -587,7 +591,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={visualizingId === idea.name}
                                             className="flex-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-amber-500 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {visualizingId === idea.name ? "⏳ Generuji..." : "Vizualizovat produkt"}
+                                            {visualizingId === idea.name ? t("ideas.generating") : t("ideas.card.visualize")}
                                         </button>
                                         <button
                                             onClick={() => {
@@ -596,7 +600,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             }}
                                             className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[9px] font-bold uppercase tracking-widest text-white/50 hover:text-white transition-all shadow-sm"
                                         >
-                                            <span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 shrink-0" />Design pro tisk</span>
+                                            <span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 shrink-0" />{t("sections.design")}</span>
                                         </button>
                                         <button
                                             onClick={async () => {
@@ -612,7 +616,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                             ideaVisuals[idea.name],
                                                         )
                                                     } else {
-                                                        setError(result.error || "Analýza selhala")
+                                                        setError(result.error || t("ideas.analysisFailed"))
                                                     }
                                                 } catch (err: any) { setError(err.message) }
                                                 finally { setBriefGenerating(null) }
@@ -620,7 +624,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             disabled={briefGenerating === idea.name}
                                             className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm"
                                         >
-                                            {briefGenerating === idea.name ? "⏳ Brief..." : "Brief"}
+                                            {briefGenerating === idea.name ? t("ideas.card.briefGenerating") : t("ideas.card.brief")}
                                         </button>
                                     </div>
                                 </div>
@@ -631,13 +635,13 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     {/* DB Saved Ideas grid */}
                     {savedIdeas.length > 0 && (
                         <div className="mt-12">
-                            <h3 className="inline-flex items-center gap-1.5 text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2"><Save className="w-4 h-4 shrink-0" />Uložené Nápady</h3>
+                            <h3 className="inline-flex items-center gap-1.5 text-xl font-black uppercase tracking-tighter text-emerald-400 mb-2 border-b border-emerald-900/50 pb-2"><Save className="w-4 h-4 shrink-0" />{t("ideas.savedTitle")}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
                                 {savedIdeas.map((idea) => (
                                     <div key={idea.id} className="bg-[#050505] border border-emerald-500/20 rounded-sm p-6 shadow-sm transition-all relative overflow-hidden">
                                         {/* Status badge */}
                                         <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest uppercase rounded-bl-sm border-b border-l border-emerald-500/20">
-                                            Saved
+                                            {t("ideas.savedCard.badge")}
                                         </div>
 
                                         <div className="flex items-start justify-between mb-4 pr-12">
@@ -650,7 +654,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         {/* Rating — feeds getWeightedProductIdeas, so the next batch
                                             (and the next product line) leans toward what landed. */}
                                         <div className="flex items-center gap-1.5 mb-4">
-                                            <span className="text-[8px] uppercase tracking-widest font-bold text-white/25 mr-1">Hodnocení</span>
+                                            <span className="text-[8px] uppercase tracking-widest font-bold text-white/25 mr-1">{t("ideas.savedCard.rating")}</span>
                                             {([1, -1] as const).map(value => (
                                                 <button
                                                     key={value}
@@ -680,15 +684,15 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                         <div className="space-y-2 text-[10px] font-mono tracking-wide text-white/50">
                                             <div className="flex gap-2">
-                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />Cena:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Banknote className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.price")}</span>
                                                 <span className="text-emerald-400 font-bold">{idea.priceRange}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />Mat.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Wrench className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.material")}</span>
                                                 <span>{idea.material}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />Výr.:</span>
+                                                <span className="inline-flex items-center gap-1.5 text-white/30 w-16 uppercase font-bold tracking-widest"><Factory className="w-3.5 h-3.5 shrink-0" />{t("ideas.card.manufacturing")}</span>
                                                 <span>{idea.manufacturingMethod}</span>
                                             </div>
                                         </div>
@@ -697,7 +701,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                         {ideaVisuals[idea.id as string] && (
                                             <div className="mt-4 relative group/vis cursor-pointer" onClick={() => setSelectedIdea(idea)}>
                                                 <img src={ideaVisuals[idea.id as string]} alt={idea.name} className="w-full rounded-sm border border-emerald-500/20 shadow-sm transition-transform group-hover/vis:scale-[1.02]" />
-                                                <div className="inline-flex items-center gap-1.5 absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"><Search className="w-3 h-3 shrink-0" />Zvětšit</div>
+                                                <div className="inline-flex items-center gap-1.5 absolute bottom-2 right-2 px-2 py-1 bg-[#050505] border border-white/10 text-white text-[9px] uppercase tracking-widest font-bold rounded-sm opacity-0 group-hover/vis:opacity-100 transition-opacity shadow-sm"><Search className="w-3 h-3 shrink-0" />{t("ideas.savedCard.zoom")}</div>
                                             </div>
                                         )}
 
@@ -706,7 +710,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                             onClick={() => setSelectedIdea(idea)}
                                             className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] uppercase tracking-widest font-bold rounded-sm border border-white/10 transition-colors"
                                         >
-                                            <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 shrink-0" />Všechny parametry & Dodavatel</span>
+                                            <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 shrink-0" />{t("ideas.savedCard.details")}</span>
                                         </button>
 
                                         {/* Action buttons */}
@@ -728,7 +732,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                         ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
                                                         : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"
                                                         } ${uploadingId === idea.id ? "opacity-50 cursor-wait" : ""}`}
-                                                    title="Nahrát referenční fotku"
+                                                    title={t("ideas.savedCard.upload")}
                                                 >
                                                     {uploadingId === idea.id ? (
                                                         <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -756,7 +760,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                         if (result.success && result.designUrl) {
                                                             setIdeaVisuals(v => ({ ...v, [id]: result.designUrl! }))
                                                         } else {
-                                                            setError(result.error || "Vizualizace selhala")
+                                                            setError(result.error || t("ideas.visualizeFailed"))
                                                         }
                                                     } catch (err: any) { setError(err.message) }
                                                     finally { setVisualizingId(null) }
@@ -764,10 +768,10 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={visualizingId === idea.id}
                                                 className="flex-1 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                             >
-                                                {visualizingId === idea.id ? "⏳ Generuji..." : (
+                                                {visualizingId === idea.id ? t("ideas.generating") : (
                                                     referenceUrls[idea.id as string]
-                                                        ? "Fuse vizualizace (i2i)"
-                                                        : "Vizualizovat z textu"
+                                                        ? t("ideas.savedCard.visualizeFuse")
+                                                        : t("ideas.savedCard.visualizeText")
                                                 )}
                                             </button>
 
@@ -789,9 +793,9 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 designUrl: ideaVisuals[id],
                                                             })
                                                             if (result.success) {
-                                                                alert(`Promo post vytvořen!\n\nCaption:\n${result.caption?.substring(0, 200)}...\n\nNajdeš ho v záložce Posts jako Draft.`)
+                                                                alert(t("promo.created", { caption: result.caption?.substring(0, 200) ?? "" }))
                                                             } else {
-                                                                setError(result.error || "Vytvoření postu selhalo")
+                                                                setError(result.error || t("promo.postFailed"))
                                                             }
                                                         } catch (err: any) { setError(err.message) }
                                                         finally { setVisualizingId(null) }
@@ -799,7 +803,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     disabled={visualizingId === `promo_${idea.id}`}
                                                     className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-blue-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                                 >
-                                                    {visualizingId === `promo_${idea.id}` ? "⏳ Vytvářím..." : "Vytvoř promo post"}
+                                                    {visualizingId === `promo_${idea.id}` ? t("ideas.savedCard.promoCreating") : t("ideas.savedCard.promo")}
                                                 </button>
                                             )}
 
@@ -819,7 +823,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 ideaVisuals[id],
                                                             )
                                                         } else {
-                                                            setError(result.error || "Analýza selhala")
+                                                            setError(result.error || t("ideas.analysisFailed"))
                                                         }
                                                     } catch (err: any) { setError(err.message) }
                                                     finally { setBriefGenerating(null) }
@@ -827,20 +831,20 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 disabled={briefGenerating === idea.id}
                                                 className="flex-1 px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-sm text-[9px] font-bold uppercase tracking-widest text-violet-400 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                                             >
-                                                {briefGenerating === idea.id ? "⏳ Generuji brief..." : "Business Brief"}
+                                                {briefGenerating === idea.id ? t("ideas.savedCard.briefGenerating") : t("ideas.savedCard.businessBrief")}
                                             </button>
                                         </div>
 
                                         {/* Feedback / Revision */}
                                         <div className="mt-4 pt-4 border-t border-white/5">
                                             {productRevisionDone[idea.id as string] ? (
-                                                <p className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400"><CircleCheck className="w-3 h-3 shrink-0" />Produkt přepracován</p>
+                                                <p className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400"><CircleCheck className="w-3 h-3 shrink-0" />{t("ideas.savedCard.revised")}</p>
                                             ) : (
                                                 <div className="flex gap-2 items-start">
                                                     <textarea
                                                         value={productFeedback[idea.id as string] || ""}
                                                         onChange={e => setProductFeedback(f => ({ ...f, [idea.id as string]: e.target.value }))}
-                                                        placeholder="💬 Feedback: uprav název, zdraž, změň varianty..."
+                                                        placeholder={t("ideas.savedCard.feedbackPlaceholder")}
                                                         rows={2}
                                                         className="flex-1 px-3 py-2 bg-[#030303] border border-white/10 rounded-sm text-white text-[10px] resize-none focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-white/20"
                                                     />
@@ -858,7 +862,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                                 const updated = await getSavedProductIdeas(projectId)
                                                                 setSavedIdeas(updated)
                                                             } else {
-                                                                setError(result.error || "Revize selhala")
+                                                                setError(result.error || t("ideas.reviseFailed"))
                                                             }
                                                         }}
                                                         disabled={productRevising[idea.id as string] || !(productFeedback[idea.id as string] || "").trim()}
@@ -867,7 +871,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                         {productRevising[idea.id as string] ? (
                                                             <span className="flex items-center gap-1">
                                                                 <svg className="animate-spin" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
-                                                                Přeprac...
+                                                                {t("ideas.savedCard.revising")}
                                                             </span>
                                                         ) : <RefreshCw className="w-3.5 h-3.5" />}
                                                     </button>
@@ -898,19 +902,19 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                     <div className="bg-[#0f0f0f] border border-white/10 rounded-sm p-8 shadow-lg">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Package className="w-5 h-5 shrink-0" />Produktové kategorie</h3>
+                                <h3 className="inline-flex items-center gap-1.5 text-2xl font-black uppercase tracking-tighter text-white mb-2"><Package className="w-5 h-5 shrink-0" />{t("categories.title")}</h3>
                                 <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">
                                     {categoriesCustom
-                                        ? "Vlastní kategorie tohoto klienta"
-                                        : "Globální výchozí kategorie — přidej vlastní pro tento brand"}
+                                        ? t("categories.customSubtitle")
+                                        : t("categories.globalSubtitle")}
                                 </p>
-                                <div className="mt-2"><Hint label="proč na katalogu záleží">{HINTS.products}</Hint></div>
+                                <div className="mt-2"><Hint label={t("categories.hintLabel")}>{hints.products}</Hint></div>
                             </div>
                             <button
                                 onClick={() => { setShowAddCategory(!showAddCategory); setEditingCat(null) }}
                                 className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all"
                             >
-                                {showAddCategory ? "Zavřít" : "＋ Nová kategorie"}
+                                {showAddCategory ? t("categories.close") : t("categories.new")}
                             </button>
                         </div>
 
@@ -918,46 +922,46 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         {(showAddCategory || editingCat) && (
                             <div className="bg-[#0a0a0a] border border-amber-500/20 rounded-sm p-6 mb-6 space-y-4">
                                 <h4 className="text-[10px] uppercase tracking-[0.3em] font-black text-amber-400">
-                                    {editingCat ? `✏️ Upravit: ${editingCat.label}` : "Nová produktová kategorie"}
+                                    {editingCat ? t("categories.form.editTitle", { label: editingCat.label }) : t("categories.form.newTitle")}
                                 </h4>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Slug (bez diakritiky) *</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.slug")}</label>
                                         <input
                                             value={editingCat ? editingCat.slug : newCat.slug}
                                             onChange={e => editingCat ? null : setNewCat(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") }))}
                                             disabled={!!editingCat}
-                                            placeholder="sklenicka"
+                                            placeholder={t("categories.form.slugPlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-50 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Název *</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.name")}</label>
                                         <input
                                             value={editingCat ? editingCat.label : newCat.label}
                                             onChange={e => editingCat ? setEditingCat({ ...editingCat, label: e.target.value }) : setNewCat(p => ({ ...p, label: e.target.value }))}
-                                            placeholder="Sklenička"
+                                            placeholder={t("categories.form.namePlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Emoji ikona</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.icon")}</label>
                                         <input
                                             value={editingCat ? editingCat.icon : newCat.icon}
                                             onChange={e => editingCat ? setEditingCat({ ...editingCat, icon: e.target.value }) : setNewCat(p => ({ ...p, icon: e.target.value }))}
-                                            placeholder="🥃"
+                                            placeholder={t("categories.form.iconPlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-center text-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">AI instrukce pro vizualizaci (design_guide) *</label>
+                                    <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.designGuide")}</label>
                                     <textarea
                                         value={editingCat ? editingCat.design_guide : newCat.design_guide}
                                         onChange={e => editingCat ? setEditingCat({ ...editingCat, design_guide: e.target.value }) : setNewCat(p => ({ ...p, design_guide: e.target.value }))}
-                                        placeholder="Zobraz křišťálovou skleničku s gravírovaným vzorem, studio osvětlení, průhledné sklo, detailní lom světla na tmavém pozadí..."
+                                        placeholder={t("categories.form.designGuidePlaceholder")}
                                         rows={3}
                                         className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-xs font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all resize-none"
                                     />
@@ -965,29 +969,29 @@ export function ProductsTab({ projectId }: { projectId: string }) {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Mockup prompt (EN)</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.mockupPrompt")}</label>
                                         <input
                                             value={editingCat ? (editingCat.mockup_prompt || "") : newCat.mockup_prompt}
                                             onChange={e => editingCat ? setEditingCat({ ...editingCat, mockup_prompt: e.target.value }) : setNewCat(p => ({ ...p, mockup_prompt: e.target.value }))}
-                                            placeholder="blank crystal glass tumbler on dark background..."
+                                            placeholder={t("categories.form.mockupPromptPlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Materiál</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.material")}</label>
                                         <input
                                             value={editingCat ? (editingCat.material_hint || "") : newCat.material_hint}
                                             onChange={e => editingCat ? setEditingCat({ ...editingCat, material_hint: e.target.value }) : setNewCat(p => ({ ...p, material_hint: e.target.value }))}
-                                            placeholder="křišťál, borosilikát, sklo"
+                                            placeholder={t("categories.form.materialPlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">Výroba</label>
+                                        <label className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1.5 block">{t("categories.form.manufacturing")}</label>
                                         <input
                                             value={editingCat ? (editingCat.manufacturing_hint || "") : newCat.manufacturing_hint}
                                             onChange={e => editingCat ? setEditingCat({ ...editingCat, manufacturing_hint: e.target.value }) : setNewCat(p => ({ ...p, manufacturing_hint: e.target.value }))}
-                                            placeholder="gravírování, pískování, malování"
+                                            placeholder={t("categories.form.manufacturingPlaceholder")}
                                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-[10px] font-medium placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
                                         />
                                     </div>
@@ -1010,30 +1014,30 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     if (result.success) {
                                                         setEditingCat(null)
                                                         loadCategories()
-                                                        setSuccessMsg("Kategorie upravena")
+                                                        setSuccessMsg(t("categories.edited"))
                                                         setTimeout(() => setSuccessMsg(null), 3000)
                                                     } else {
-                                                        setError(result.error || "Upravení selhalo")
+                                                        setError(result.error || t("categories.editFailed"))
                                                     }
                                                     setCatLoading(false)
                                                 }}
                                                 disabled={catLoading || !editingCat.label || !editingCat.design_guide}
                                                 className="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-amber-400 transition-all disabled:opacity-50"
                                             >
-                                                {catLoading ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />} Uložit změny
+                                                {catLoading ? <span className="animate-pulse">…</span> : <Save className="w-3.5 h-3.5" />} {t("categories.form.saveChanges")}
                                             </button>
                                             <button
                                                 onClick={() => setEditingCat(null)}
                                                 className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all"
                                             >
-                                                Zrušit
+                                                {t("categories.form.cancel")}
                                             </button>
                                         </>
                                     ) : (
                                         <button
                                             onClick={async () => {
                                                 if (!newCat.slug || !newCat.label || !newCat.design_guide) {
-                                                    setError("Vyplň slug, název a AI instrukce")
+                                                    setError(t("categories.fillRequired"))
                                                     return
                                                 }
                                                 setCatLoading(true)
@@ -1043,17 +1047,17 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                     setNewCat({ slug: "", label: "", icon: "📦", design_guide: "", mockup_prompt: "", material_hint: "", manufacturing_hint: "" })
                                                     setShowAddCategory(false)
                                                     loadCategories()
-                                                    setSuccessMsg(`Kategorie "${newCat.label}" přidána ✅`)
+                                                    setSuccessMsg(t("categories.added", { label: newCat.label }))
                                                     setTimeout(() => setSuccessMsg(null), 3000)
                                                 } else {
-                                                    setError(result.error || "Přidání selhalo")
+                                                    setError(result.error || t("categories.addFailed"))
                                                 }
                                                 setCatLoading(false)
                                             }}
                                             disabled={catLoading || !newCat.slug || !newCat.label || !newCat.design_guide}
                                             className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-sm text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all disabled:opacity-50"
                                         >
-                                            {catLoading ? "⏳ Ukládám..." : "＋ Přidat kategorii"}
+                                            {catLoading ? t("categories.form.saving") : t("categories.form.add")}
                                         </button>
                                     )}
                                 </div>
@@ -1077,23 +1081,23 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                                                 <button
                                                     onClick={() => { setEditingCat(cat); setShowAddCategory(false) }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/30 transition-all"
-                                                    title="Upravit"
+                                                    title={t("categories.edit")}
                                                 ><Pencil className="w-3.5 h-3.5" /></button>
                                                 <button
                                                     onClick={async () => {
-                                                        if (!confirm(`Smazat kategorii "${cat.label}"?`)) return
+                                                        if (!confirm(t("categories.deleteConfirm", { label: cat.label }))) return
                                                         const result = await removeProductCategory(cat.id)
                                                         if (result.success) loadCategories()
-                                                        else setError(result.error || "Smazání selhalo")
+                                                        else setError(result.error || t("categories.deleteFailed"))
                                                     }}
                                                     className="w-7 h-7 rounded-sm text-sm border flex items-center justify-center bg-white/5 text-white/30 border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all"
-                                                    title="Smazat"
+                                                    title={t("categories.delete")}
                                                 ><Trash2 className="w-3.5 h-3.5" /></button>
                                             </div>
                                         )}
                                         {!cat.client_id && (
                                             <span className="text-[8px] font-bold uppercase tracking-widest px-2 py-1 bg-white/5 text-white/30 border border-white/5 rounded-sm">
-                                                Global
+                                                {t("categories.global")}
                                             </span>
                                         )}
                                     </div>
@@ -1119,7 +1123,7 @@ export function ProductsTab({ projectId }: { projectId: string }) {
                         {!categoriesCustom && productCategories.length > 0 && (
                             <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-sm">
                                 <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-widest">
-                                    ℹ️ Zobrazují se globální výchozí kategorie. Jakmile přidáš první vlastní kategorii, budou se zobrazovat jen tvé vlastní.
+                                    {t("categories.globalNote")}
                                 </p>
                             </div>
                         )}

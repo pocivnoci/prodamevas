@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     checkManualRecipients,
     getMailingSegments, getMailingRecipients, getMailingTemplates, previewMail, sendBroadcast, sendTestEmail,
@@ -15,11 +16,11 @@ import {
 
 const DAILY_CAP = 100
 
-/** Soubor → base64 bez `data:` prefixu, tedy přesně to, co čeká Resend. */
-function fileToBase64(file: File): Promise<string> {
+/** Soubor → base64 bez `data:` prefixu, tedy přesně to, co čeká Resend. Hlášku o selhání dodá volající (jazyk UI). */
+function fileToBase64(file: File, readError: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader()
-        reader.onerror = () => reject(new Error(`Soubor „${file.name}" se nepodařilo přečíst.`))
+        reader.onerror = () => reject(new Error(readError))
         reader.onload = () => {
             const result = String(reader.result || "")
             const comma = result.indexOf(",")
@@ -34,16 +35,18 @@ const formatSize = (bytes: number) =>
 /** Hodnota v pickeru pro starou cestu „napíšu si to sám". */
 const CUSTOM = "__custom__"
 
-const SEGMENTS: { id: MailingSegment; label: string; hint: string }[] = [
-    { id: "waitlist", label: "Zájemci z webu", hint: "Kdo na landingu nechal kontakt" },
-    { id: "activeClients", label: "Aktivní klienti", hint: "Platící + trial" },
-    { id: "expired", label: "Vypršelí", hint: "Předplatné doběhlo" },
+/** Popisky a nápovědy segmentů jsou v messages (`mailing.segments.<id>`). */
+const SEGMENTS: MailingSegment[] = [
+    "waitlist",
+    "activeClients",
+    "expired",
     // Obchod potřebuje poslat nabídku člověku, se kterým zrovna mluvil — ten
     // v žádném segmentu není a čekat, až se někam zapíše, znamená neposlat nic.
-    { id: "manual", label: "Ruční adresy", hint: "Napíšeš je sám (nový klient, lead)" },
+    "manual",
 ]
 
 export function MailingTab() {
+    const t = useTranslations("adminGrowth.mailing")
     const [counts, setCounts] = useState<{ waitlist: number; activeClients: number; expired: number } | null>(null)
     const [segment, setSegment] = useState<MailingSegment>("waitlist")
     const [recipients, setRecipients] = useState<string[]>([])
@@ -71,7 +74,7 @@ export function MailingTab() {
     const [notice, setNotice] = useState<string | null>(null)
 
     const template = useMemo(
-        () => templates.find(t => t.id === templateId) || null,
+        () => templates.find(x => x.id === templateId) || null,
         [templates, templateId],
     )
 
@@ -84,8 +87,8 @@ export function MailingTab() {
     const pickTemplate = (id: string) => {
         setTemplateId(id)
         setPreview(null)
-        const t = templates.find(x => x.id === id)
-        setVars(t ? { ...t.sample } : {})
+        const picked = templates.find(x => x.id === id)
+        setVars(picked ? { ...picked.sample } : {})
     }
 
     /** Náhled renderuje server týmž kódem jako ostré odeslání. */
@@ -96,9 +99,9 @@ export function MailingTab() {
             ))
             setError(null)
         } catch (e: any) {
-            setError(e?.message || "Náhled se nepodařilo vykreslit.")
+            setError(e?.message || t("preview.failed"))
         }
-    }, [template, vars, subject, body])
+    }, [template, vars, subject, body, t])
 
     // Debounce — každý stisk klávesy je jinak jeden request na server.
     useEffect(() => {
@@ -117,29 +120,29 @@ export function MailingTab() {
         setError(null)
         const picked = [...files]
         if (attachments.length + picked.length > ATTACH_MAX_FILES) {
-            setError(`Nejvýš ${ATTACH_MAX_FILES} přílohy na jeden e-mail.`)
+            setError(t("attachments.tooMany", { max: ATTACH_MAX_FILES }))
             return
         }
         const tooBig = picked.find(f => f.size > ATTACH_MAX_FILE_BYTES)
         if (tooBig) {
-            setError(`„${tooBig.name}" má ${formatSize(tooBig.size)}, strop je ${formatSize(ATTACH_MAX_FILE_BYTES)} na soubor.`)
+            setError(t("attachments.tooBig", { name: tooBig.name, size: formatSize(tooBig.size), max: formatSize(ATTACH_MAX_FILE_BYTES) }))
             return
         }
         const total = attachments.reduce((n, a) => n + a.bytes, 0) + picked.reduce((n, f) => n + f.size, 0)
         if (total > ATTACH_MAX_TOTAL_BYTES) {
-            setError(`Přílohy dohromady mají ${formatSize(total)}, strop je ${formatSize(ATTACH_MAX_TOTAL_BYTES)}.`)
+            setError(t("attachments.totalTooBig", { size: formatSize(total), max: formatSize(ATTACH_MAX_TOTAL_BYTES) }))
             return
         }
         try {
             const read = await Promise.all(picked.map(async f => ({
                 filename: f.name,
-                content: await fileToBase64(f),
+                content: await fileToBase64(f, t("readFailed", { name: f.name })),
                 contentType: f.type || undefined,
                 bytes: f.size,
             })))
             setAttachments(prev => [...prev, ...read])
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Přílohu se nepodařilo načíst.")
+            setError(e instanceof Error ? e.message : t("attachments.loadFailed"))
         }
     }
 
@@ -159,17 +162,17 @@ export function MailingTab() {
                 ...(template ? { templateId: template.id, vars } : { subject, body }),
                 attachments: attachmentPayload(),
             })
-            setNotice(`Testovací zpráva odeslána na ${to}.`)
+            setNotice(t("test.sent", { to }))
         } catch (e: any) {
-            setError(e?.message || "Testovací odeslání selhalo.")
+            setError(e?.message || t("test.failed"))
         } finally {
             setTesting(false)
         }
     }
 
     useEffect(() => {
-        getMailingSegments().then(setCounts).catch(() => setError("Nepodařilo se načíst segmenty (jen pro super-admina)."))
-    }, [])
+        getMailingSegments().then(setCounts).catch(() => setError(t("segments.loadFailed")))
+    }, [t])
 
     /**
      * Příchod z jiné sekce: `#mailing?to=adresa` (tlačítko „Napsat e-mail"
@@ -277,7 +280,7 @@ export function MailingTab() {
             setResult(r)
             getMailingSegments().then(setCounts).catch(() => {})
         } catch (e: any) {
-            setError(e?.message || "Odeslání selhalo.")
+            setError(e?.message || t("send.failed"))
         } finally {
             setSending(false)
         }
@@ -293,34 +296,34 @@ export function MailingTab() {
 
             {/* Segment picker */}
             <div>
-                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Komu</label>
+                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">{t("segments.label")}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {SEGMENTS.map(s => {
+                    {SEGMENTS.map(id => {
                         // Ruční adresy nemají co počítat, dokud je někdo nenapíše.
-                        const n = s.id === "manual"
+                        const n = id === "manual"
                             ? (segment === "manual" ? recipients.length : null)
-                            : counts ? counts[s.id as keyof typeof counts] : null
-                        const active = segment === s.id
+                            : counts ? counts[id as keyof typeof counts] : null
+                        const active = segment === id
                         return (
                             <button
-                                key={s.id}
-                                onClick={() => setSegment(s.id)}
+                                key={id}
+                                onClick={() => setSegment(id)}
                                 className={`text-left p-4 rounded-sm border transition-all ${active
                                     ? "bg-aisummit-cinnabar/10 border-aisummit-cinnabar/30"
                                     : "bg-[#0a0a0a] border-white/10 hover:border-white/25"}`}
                             >
                                 <div className="flex items-baseline justify-between">
-                                    <span className={`text-xs font-black uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/70"}`}>{s.label}</span>
+                                    <span className={`text-xs font-black uppercase tracking-widest ${active ? "text-aisummit-cinnabar" : "text-white/70"}`}>{t(`segments.${id}.label`)}</span>
                                     <span className="text-lg font-black text-white/80">{n === null ? "…" : n}</span>
                                 </div>
-                                <p className="text-[9px] text-white/30 font-medium mt-1">{s.hint}</p>
+                                <p className="text-[9px] text-white/30 font-medium mt-1">{t(`segments.${id}.hint`)}</p>
                             </button>
                         )
                     })}
                 </div>
                 {selectedCount > DAILY_CAP && (
                     <p className="text-[10px] text-amber-400/80 font-bold mt-2">
-                        ⚠️ Resend free tier posílá max {DAILY_CAP}/den — odešle se prvních {DAILY_CAP}, zbytek ({selectedCount - DAILY_CAP}) další den. Pro víc: placený Resend (~$20/měs → 50k).
+                        {t("segments.dailyCap", { cap: DAILY_CAP, rest: selectedCount - DAILY_CAP })}
                     </p>
                 )}
             </div>
@@ -329,7 +332,7 @@ export function MailingTab() {
             {segment === "manual" && (
                 <div>
                     <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
-                        Adresy — oddělené čárkou, středníkem nebo řádkem
+                        {t("manual.label")}
                     </label>
                     <textarea
                         value={manualRaw}
@@ -337,25 +340,25 @@ export function MailingTab() {
                         onFocus={() => setManualFocused(true)}
                         onBlur={() => { setManualFocused(false); applyManual(manualRaw) }}
                         rows={3}
-                        placeholder="novy.klient@firma.cz, dalsi@firma.cz"
+                        placeholder={t("manual.placeholder")}
                         className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-y"
                     />
                     <div className="flex items-center justify-between gap-4 mt-2">
                         <p className="text-[9px] text-white/25 font-medium">
                             {recipients.length > 0
-                                ? `Načteno ${recipients.length} · každý dostane vlastní e-mail, ne kopii.`
-                                : "Odhlášené adresy vyhodíme i tady — odhlášení platí pro každou cestu ven."}
+                                ? t("manual.loaded", { count: recipients.length })
+                                : t("manual.optOutNote")}
                         </p>
                         <button
                             onClick={() => applyManual(manualRaw)}
                             className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors shrink-0"
                         >
-                            Načíst adresy
+                            {t("manual.load")}
                         </button>
                     </div>
                     {manualRejected.length > 0 && !manualFocused && (
                         <p className="text-[10px] text-amber-400/80 font-bold mt-2">
-                            ⚠️ Vynecháno ({manualRejected.length}): {manualRejected.join(", ")} — překlep, nebo se adresa odhlásila.
+                            {t("manual.rejected", { count: manualRejected.length, list: manualRejected.join(", ") })}
                         </p>
                     )}
                 </div>
@@ -365,7 +368,7 @@ export function MailingTab() {
             <div>
                 <div className="flex items-baseline justify-between mb-2">
                     <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
-                        Příjemci · {selectedCount}/{recipients.length}
+                        {t("recipients.title", { selected: selectedCount, total: recipients.length })}
                     </label>
                     <div className="flex gap-4">
                         <button
@@ -373,23 +376,23 @@ export function MailingTab() {
                             disabled={recipients.length === 0 || selectedCount === recipients.length}
                             className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors disabled:opacity-30 disabled:hover:text-white/40"
                         >
-                            Vybrat vše
+                            {t("recipients.selectAll")}
                         </button>
                         <button
                             onClick={() => setSelected(new Set())}
                             disabled={selectedCount === 0}
                             className="text-[10px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors disabled:opacity-30 disabled:hover:text-white/40"
                         >
-                            Zrušit výběr
+                            {t("recipients.clear")}
                         </button>
                     </div>
                 </div>
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-sm max-h-56 overflow-y-auto divide-y divide-white/5">
                     {loadingRecipients ? (
-                        <p className="text-xs text-white/30 font-medium p-4">Načítám…</p>
+                        <p className="text-xs text-white/30 font-medium p-4">{t("recipients.loading")}</p>
                     ) : recipients.length === 0 ? (
                         <p className="text-xs text-white/30 font-medium p-4">
-                            {segment === "manual" ? "Zatím žádné adresy — napiš je do pole výš." : "V tomto segmentu nikdo není."}
+                            {segment === "manual" ? t("recipients.emptyManual") : t("recipients.emptySegment")}
                         </p>
                     ) : recipients.map(email => {
                         const checked = selected.has(email)
@@ -410,15 +413,15 @@ export function MailingTab() {
 
             {/* Template picker */}
             <div>
-                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Šablona</label>
+                <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">{t("template.label")}</label>
                 <select
                     value={templateId}
                     onChange={e => pickTemplate(e.target.value)}
                     className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
                 >
-                    <option value={CUSTOM}>Vlastní text</option>
-                    {templates.map(t => (
-                        <option key={t.id} value={t.id}>{t.label}</option>
+                    <option value={CUSTOM}>{t("template.custom")}</option>
+                    {templates.map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>{t.has(`templates.${tpl.id}`) ? t(`templates.${tpl.id}`) : tpl.label}</option>
                     ))}
                 </select>
             </div>
@@ -454,21 +457,21 @@ export function MailingTab() {
             ) : (
                 <>
                     <div>
-                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Předmět</label>
+                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">{t("custom.subjectLabel")}</label>
                         <input
                             value={subject}
                             onChange={e => setSubject(e.target.value)}
-                            placeholder="Např. Chrlit spouštíme — máte přednostní přístup"
+                            placeholder={t("custom.subjectPlaceholder")}
                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30"
                         />
                     </div>
                     <div>
-                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">Text (prázdný řádek = nový odstavec)</label>
+                        <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">{t("custom.bodyLabel")}</label>
                         <textarea
                             value={body}
                             onChange={e => setBody(e.target.value)}
                             rows={8}
-                            placeholder={"Dobrý den,\n\nspouštíme Chrlit — AI, která vám vytvoří obsah na Instagram na celý měsíc...\n\nTým Chrlit"}
+                            placeholder={t("custom.bodyPlaceholder")}
                             className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-sm text-white placeholder:text-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-aisummit-cinnabar/30 resize-none leading-relaxed"
                         />
                     </div>
@@ -480,7 +483,7 @@ export function MailingTab() {
                 veřejná URL, ze které by šel stáhnout i bez adresáta. */}
             <div>
                 <label className="text-[10px] text-white/40 mb-2 block uppercase tracking-widest font-bold">
-                    Přílohy {attachments.length > 0 && `· ${attachments.length}/${ATTACH_MAX_FILES}`}
+                    {t("attachments.label")} {attachments.length > 0 && t("attachments.counter", { count: attachments.length, max: ATTACH_MAX_FILES })}
                 </label>
 
                 {attachments.length > 0 && (
@@ -494,7 +497,7 @@ export function MailingTab() {
                                         onClick={() => removeAttachment(a.filename)}
                                         className="text-[10px] text-white/30 hover:text-red-400 uppercase tracking-widest font-bold transition-colors"
                                     >
-                                        Odebrat
+                                        {t("attachments.remove")}
                                     </button>
                                 </div>
                             </div>
@@ -504,7 +507,7 @@ export function MailingTab() {
 
                 {attachments.length < ATTACH_MAX_FILES && (
                     <label className="block w-full py-3 border border-dashed border-white/15 rounded-sm text-center text-[10px] text-white/40 font-bold uppercase tracking-widest hover:text-white/70 hover:border-white/30 transition-all cursor-pointer">
-                        + Přidat přílohu
+                        {t("attachments.add")}
                         <input
                             type="file"
                             multiple
@@ -515,8 +518,7 @@ export function MailingTab() {
                 )}
 
                 <p className="text-[9px] text-white/25 font-medium mt-1.5">
-                    Nejvýš {ATTACH_MAX_FILES} soubory, {formatSize(ATTACH_MAX_FILE_BYTES)} na soubor, {formatSize(ATTACH_MAX_TOTAL_BYTES)} dohromady.
-                    {" "}Stejná příloha jde každému příjemci zvlášť — u velkého segmentu to zdrží rozesílku.
+                    {t("attachments.limits", { max: ATTACH_MAX_FILES, perFile: formatSize(ATTACH_MAX_FILE_BYTES), total: formatSize(ATTACH_MAX_TOTAL_BYTES) })}
                 </p>
             </div>
 
@@ -525,14 +527,14 @@ export function MailingTab() {
                 <div>
                     <div className="flex items-baseline justify-between mb-2">
                         <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
-                            Náhled · {preview.subject}
+                            {t("preview.label", { subject: preview.subject })}
                         </label>
                         <span className={`text-[9px] font-bold uppercase tracking-widest ${preview.kb > 90 ? "text-aisummit-cinnabar" : "text-white/30"}`}>
                             {Math.round(preview.kb)} KB
                         </span>
                     </div>
                     <iframe
-                        title="Náhled e-mailu"
+                        title={t("preview.iframeTitle")}
                         srcDoc={preview.html}
                         sandbox=""
                         loading="lazy"
@@ -540,7 +542,7 @@ export function MailingTab() {
                     />
                     <details className="mt-2">
                         <summary className="text-[10px] text-white/40 uppercase tracking-widest font-bold cursor-pointer hover:text-white/70">
-                            Textová verze
+                            {t("preview.textVersion")}
                         </summary>
                         <pre className="mt-2 p-4 bg-[#050505] border border-white/10 rounded-sm text-[11px] text-white/50 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">{preview.text}</pre>
                     </details>
@@ -557,8 +559,7 @@ export function MailingTab() {
             {result && (
                 <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-sm p-4">
                     <p className="text-sm text-emerald-400 font-bold">
-                        ✅ Odesláno: {result.sent} · Selhalo: {result.failed}
-                        {result.remaining > 0 && ` · Zbývá na příště: ${result.remaining}`}
+                        {t("send.result", { sent: result.sent, failed: result.failed, remaining: result.remaining })}
                     </p>
                 </div>
             )}
@@ -570,14 +571,14 @@ export function MailingTab() {
                     onClick={doTest}
                     className="px-5 py-3 bg-white/5 border border-white/10 text-white/70 rounded-sm text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
                 >
-                    {testing ? "Odesílám…" : "Poslat test sobě"}
+                    {testing ? t("sending") : t("test.button")}
                 </button>
                 <button
                     disabled={!canSend}
                     onClick={() => setConfirming(true)}
                     className="px-8 py-3 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(229,83,63,0.2)]"
                 >
-                    {sending ? "Odesílám…" : `Odeslat → ${selectedCount} příjemců`}
+                    {sending ? t("sending") : t("send.button", { count: selectedCount })}
                 </button>
             </div>
 
@@ -590,14 +591,19 @@ export function MailingTab() {
                         onClick={e => e.stopPropagation()}
                         className="bg-[#0a0a0a] border border-white/15 rounded-sm p-6 max-w-sm w-full"
                     >
-                        <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">Opravdu odeslat?</h3>
+                        <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">{t("confirm.title")}</h3>
                         <p className="text-xs text-white/50 leading-relaxed mb-5">
-                            E-mail „{preview?.subject || subject}" půjde na <strong className="text-white/80">{Math.min(selectedCount, DAILY_CAP)}</strong> {selectedCount === 1 ? "vybraného příjemce" : "vybraných příjemců"}
-                            {attachments.length > 0 && <> s {attachments.length === 1 ? "přílohou" : "přílohami"} <strong className="text-white/80">{attachments.map(a => a.filename).join(", ")}</strong></>}. Akce je nevratná.
+                            {t.rich("confirm.body", {
+                                subject: preview?.subject || subject,
+                                count: Math.min(selectedCount, DAILY_CAP),
+                                attachmentCount: attachments.length,
+                                names: attachments.map(a => a.filename).join(", "),
+                                strong: chunks => <strong className="text-white/80">{chunks}</strong>,
+                            })}
                         </p>
                         <div className="flex gap-2 justify-end">
-                            <button onClick={() => setConfirming(false)} className="px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/5 border border-white/10 hover:text-white transition-all">Zrušit</button>
-                            <button onClick={doSend} className="px-5 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90 transition-all">Odeslat</button>
+                            <button onClick={() => setConfirming(false)} className="px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/5 border border-white/10 hover:text-white transition-all">{t("confirm.cancel")}</button>
+                            <button onClick={doSend} className="px-5 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest bg-aisummit-cinnabar text-white hover:bg-aisummit-cinnabar/90 transition-all">{t("confirm.send")}</button>
                         </div>
                     </motion.div>
                 </div>

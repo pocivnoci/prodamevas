@@ -136,7 +136,16 @@ const MIGRATED = [
         "DashboardTab", "PlanTab", "CalendarTab", "FeedTab", "InspirationTab", "IdeasTab", "ReviewsTab",
         "BrandTab", "PerformanceTab", "BrainTab", "FaqTab", "TutorialOverlay", "Hint", "shared",
         "SubscriptionSection", "BillingSection", "ConsultationSection",
+        // vlna 2
+        "OnboardTab", "TasksTab", "ApprovalsTab", "CompanyTab", "LogsTab",
+        "LeadsTab", "MailingTab", "WaitlistTab", "EmailsTab",
+        "ProductsTab", "products/CatalogSection", "products/PrintSection", "products/LinesSection",
     ].map(f => `app/(dashboard)/dashboard/instagram/tabs/${f}.tsx`),
+    // průvodce novým zákazníkem
+    "app/onboarding/page.tsx",
+    "app/onboarding/TaskProgress.tsx",
+    "app/onboarding/task-client.ts",
+    "app/onboarding/layout.tsx",
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
 // `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel

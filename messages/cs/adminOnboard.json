@@ -1,3 +1,187 @@
 {
-  "adminOnboard": {}
+  "adminOnboard": {
+    "access": {
+      "checking": "Ověřuji oprávnění...",
+      "adminsOnly": "Pouze pro administrátory"
+    },
+    "errors": {
+      "analysisFailed": "Analýza selhala",
+      "configFailed": "Generování konfigurace selhalo",
+      "saveFailed": "Uložení selhalo",
+      "connectionLost": "Ztratilo se spojení se serverem. Zkus to prosím znovu — rozdělaná práce se neztratila, běží dál na serveru.",
+      "taskFailed": "Úloha selhala.",
+      "taskTimeout": "Příprava trvá neobvykle dlouho. Zkus to prosím znovu."
+    },
+    "sections": {
+      "brand_voice": "Brand Voice",
+      "pillars": "Content Pillars",
+      "products": "Produkty",
+      "visual": "Vizuální identita",
+      "hooks_cta": "Hooks & CTA"
+    },
+    "common": {
+      "back": "← Zpět"
+    },
+    "choose": {
+      "title": "Onboardovat nového klienta",
+      "subtitle": "Jak chceš začít?",
+      "howItWorks": {
+        "summary": "Jak to celé funguje (a jestli se klient musí registrovat)",
+        "step1": "Onboarduješ značku tady — klient u toho být nemusí.",
+        "step2": "Značka vznikne pod tvým účtem. Klient ji zatím nevidí.",
+        "step3": "Předáš ji na jeho e-mail — dole na téhle obrazovce, nebo kdykoli později v <strong>Nastavení → Správa</strong>.",
+        "step4": "Účet si zakládá <strong>klient sám</strong> — my mu ho založit nemůžeme (potvrzení adresy a souhlas s podmínkami). Pozvánka mu ale předvyplní kód i e-mail, takže mu zbyde heslo nebo Google.",
+        "step5": "Při jeho prvním přihlášení se značka připíše sama. Musí to být <strong>tentýž e-mail</strong>, na který jsi předával.",
+        "docs": "Podrobně: docs/ONBOARDING_A_PREDANI.md"
+      },
+      "withWebsite": {
+        "title": "Mám web",
+        "body": "AI analyzuje web a nastaví vše automaticky."
+      },
+      "withoutWebsite": {
+        "title": "Nemám web",
+        "body": "Vyplníš pár otázek a AI nastaví vše za tebe."
+      },
+      "historyTitle": "Dnes onboardovaní"
+    },
+    "input": {
+      "title": "Webová stránka klienta",
+      "subtitle": "AI analyzuje web a vytvoří konfiguraci.",
+      "urlLabel": "Webová stránka",
+      "urlPlaceholder": "https://klientweb.cz",
+      "igLabel": "Instagram handle",
+      "igPlaceholder": "@klient",
+      "optional": "Volitelné",
+      "analyze": "Analyzovat web"
+    },
+    "manual": {
+      "title": "Manuální onboarding",
+      "subtitle": "Vyplň základní info — AI vytvoří konfiguraci bez webu.",
+      "nameLabel": "Název firmy / značky",
+      "namePlaceholder": "např. Café Pohoda",
+      "categoryLabel": "Kategorie",
+      "category": {
+        "kavarna": "Kavárna",
+        "restaurace": "Restaurace",
+        "salon": "Salon",
+        "fitness": "Fitness",
+        "eshop": "E-shop",
+        "remeslnik": "Řemeslník",
+        "poradce": "Poradce",
+        "fotograf": "Fotograf",
+        "jine": "Jiné"
+      },
+      "descriptionLabel": "Co děláte? Popište podnikání",
+      "descriptionPlaceholder": "např. Útulná kavárna v centru Brna, pražíme vlastní kávu...",
+      "productsLabel": "Produkty / služby",
+      "productsHint": "(oddělte čárkou)",
+      "productsPlaceholder": "např. Espresso, Cappuccino, Cheesecake",
+      "toneLabel": "Tón komunikace",
+      "tone": {
+        "friendly": "Přátelský",
+        "professional": "Profesionální",
+        "cheeky": "Drzý / Vtipný",
+        "expert": "Expertní"
+      },
+      "igLabel": "Instagram handle",
+      "igOptional": "(volitelné)",
+      "igPlaceholder": "@klient",
+      "enhancedTitle": "Volitelné — pro lepší výsledky",
+      "audienceLabel": "Cílová skupina",
+      "audiencePlaceholder": "např. Ženy 25-40, zajímají se o zdravý životní styl, žijí v Brně...",
+      "competitorsLabel": "Inspirace / IG účty",
+      "competitorsPlaceholder": "např. @kavarnarovnost, @doubleshot.cz",
+      "visualStyleLabel": "Vizuální styl",
+      "visualStyle": {
+        "dark": "Tmavý",
+        "light": "Světlý",
+        "colorful": "Barevný",
+        "minimalist": "Minimalistický",
+        "luxury": "Luxusní"
+      },
+      "insightsTitle": "Instagram insights (volitelné)",
+      "followersLabel": "Followerů",
+      "followersPlaceholder": "např. 1500",
+      "locationsLabel": "Top lokace",
+      "locationsPlaceholder": "Praha, Brno",
+      "genderLabel": "Publikum",
+      "gender": {
+        "mostly_female": "Převážně ženy",
+        "mostly_male": "Převážně muži",
+        "mixed": "Mix",
+        "unknown": "Nevím"
+      },
+      "submit": "Analyzovat a nastavit"
+    },
+    "analyzing": {
+      "title": "AI analyzuje klienta",
+      "body": "Čtu obsah, učím se značku, chystám otázky na míru."
+    },
+    "questions": {
+      "title": "Doplňující otázky",
+      "subtitle": "Na základě analýzy máme pár doplňujících otázek.",
+      "answerPlaceholder": "Napiš odpověď...",
+      "submit": "Vygenerovat konfiguraci"
+    },
+    "building": {
+      "title": "Generuji konfiguraci",
+      "body": "Stavím hlas značky, pilíře obsahu a vizuální styl."
+    },
+    "review": {
+      "title": "Review konfigurace",
+      "subtitle": "Projdi každou sekci — schval 👍 nebo nech přegenerovat 👎",
+      "fields": {
+        "persona": "Persona",
+        "voiceTraits": "Voice Traits",
+        "antiPatterns": "Anti-Patterns",
+        "visualStyle": "Vizuální styl",
+        "gradient": "Gradient",
+        "hookTemplates": "Hook šablony",
+        "ctaSoft": "CTA (soft)"
+      },
+      "noProducts": "Žádné produkty",
+      "save": "Uložit konfiguraci",
+      "approveAll": "Schval všech {total} sekcí ({approved}/{total})",
+      "card": {
+        "refining": "Přegenerovávám...",
+        "version": "v{n}",
+        "feedbackPlaceholder": "Co je špatně? Co chceš změnit?",
+        "maxRefines": "Max. počet úprav — doladíš v Settings",
+        "attempt": "Pokus {n}/{max}",
+        "refineBusy": "⏳ Přepracovávám...",
+        "refine": "Přegenerovat"
+      }
+    },
+    "saving": {
+      "title": "Ukládám konfiguraci",
+      "body": "Zapisuji do databáze, vytvářím bucket..."
+    },
+    "done": {
+      "title": "Klient onboardován! 🎉",
+      "slug": "slug: {slug}",
+      "handoff": {
+        "title": "Předat zákazníkovi",
+        "body": "Značka je zatím vedená pod tvým účtem. Zadej e-mail zákazníka — tím ji uvidí ve svém dashboardu a projde branou bety. Když ještě nemá účet, odejde mu pozvánka a značku dostane při první registraci. Předat jde i později v Nastavení → Správa.",
+        "emailPlaceholder": "zakaznik@firma.cz",
+        "submitting": "Předávám…",
+        "submit": "Předat",
+        "release": "Odpojit můj účet od projektu (jako správce se do něj dostaneš dál)",
+        "success": "Předáno.",
+        "failed": "Předání selhalo.",
+        "copied": "Zkopírováno",
+        "copyInvite": "Zkopírovat odkaz s pozvánkou"
+      },
+      "brief": {
+        "loading": "Generuji shot list...",
+        "title": "Shot list pro klienta",
+        "copy": "Kopírovat",
+        "must": "DŮLEŽITÉ",
+        "footer": "Pošli tento seznam klientovi — fotky pak nahraj v sekci \"Brand & Fotky\" v dashboardu.",
+        "clipboardTitle": "📸 Shot list pro {name}",
+        "clipboardFallbackName": "klienta"
+      },
+      "onboardAnother": "Onboardovat dalšího",
+      "reload": "↻ Obnovit dashboard"
+    }
+  }
 }

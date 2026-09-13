@@ -1,3 +1,179 @@
 {
-  "onboarding": {}
+  "onboarding": {
+    "back": "← Back",
+    "fields": {
+      "igHandle": "Instagram handle",
+      "igPlaceholder": "@yourinstagram"
+    },
+    "errors": {
+      "connectionLost": "Lost the connection to the server. Please try again — your work in progress is not lost, it keeps running on the server.",
+      "taskFailed": "The task failed.",
+      "taskTimeout": "The setup is taking unusually long. Please try again.",
+      "analysisFailed": "Analysis failed",
+      "configFailed": "Generating the configuration failed"
+    },
+    "taskProgress": {
+      "starting": "Starting…",
+      "runsOnServer": "Running on the server — you can leave this window alone"
+    },
+    "choose": {
+      "title": "Let’s set up your Chrlit",
+      "subtitle": "How do you want to start?",
+      "website": {
+        "title": "I have a website",
+        "body": "The AI analyzes your website and sets everything up automatically."
+      },
+      "manual": {
+        "title": "I have no website",
+        "body": "You answer a few questions and the AI sets everything up for you."
+      }
+    },
+    "input": {
+      "title": "Enter your website",
+      "subtitle": "The AI analyzes your brand and sets everything up for you.",
+      "urlLabel": "Website",
+      "urlPlaceholder": "https://yourwebsite.com",
+      "optional": "Optional",
+      "submit": "🔍 Analyze website"
+    },
+    "manual": {
+      "title": "Tell us about your business",
+      "subtitle": "A few questions and the AI sets everything up for you.",
+      "nameLabel": "Company / brand name",
+      "namePlaceholder": "e.g. Café Pohoda",
+      "categoryLabel": "Category",
+      "categories": {
+        "kavarna": "Café",
+        "restaurace": "Restaurant",
+        "salon": "Salon",
+        "fitness": "Fitness",
+        "eshop": "E-shop",
+        "remeslnik": "Craftsman",
+        "poradce": "Consultant",
+        "fotograf": "Photographer",
+        "ubytovani": "Accommodation",
+        "zdravi": "Health / aesthetics",
+        "reality": "Real estate",
+        "vinarstvi": "Winery",
+        "jine": "Other"
+      },
+      "descriptionLabel": "What do you do? Describe your business",
+      "descriptionPlaceholder": "e.g. A cosy café in the centre of Brno, we roast our own coffee and make homemade desserts...",
+      "productsLabel": "Products / services",
+      "productsHint": "(separate with commas)",
+      "productsPlaceholder": "e.g. Espresso, Cappuccino, Cheesecake, Brunch menu",
+      "toneLabel": "How do you want to communicate?",
+      "tones": {
+        "friendly": "Friendly",
+        "professional": "Professional",
+        "cheeky": "Cheeky / Funny",
+        "expert": "Expert"
+      },
+      "igOptional": "(optional)",
+      "submit": "🚀 Analyze and set up"
+    },
+    "analyzing": {
+      "title": "The AI is analyzing your website",
+      "body": "Reading the content, learning the brand, preparing tailored questions."
+    },
+    "questions": {
+      "title": "Follow-up questions",
+      "body": "Based on the analysis of your website we have a few follow-up questions.",
+      "answerPlaceholder": "Write your answer...",
+      "submit": "Generate configuration"
+    },
+    "building": {
+      "title": "Generating the configuration",
+      "body": "Building the brand voice, content pillars and visual style."
+    },
+    "review": {
+      "title": "Review the configuration",
+      "body": "Go through the sections. If something is wrong, click 👎 and write what to change.",
+      "style": {
+        "title": "Recommended communication style",
+        "badge": "Tailored by AI",
+        "dos": "Do",
+        "donts": "Avoid"
+      },
+      "sections": {
+        "brand_voice": "Brand Voice & Persona",
+        "pillars": "Content Pillars & Categories",
+        "products": "Products & Services",
+        "visual": "Visual Identity",
+        "hooks_cta": "Hook Templates & CTA"
+      },
+      "fields": {
+        "persona": "Persona",
+        "tone": "Tone",
+        "values": "Values",
+        "antiPatterns": "We avoid",
+        "feel": "Feel",
+        "font": "Font",
+        "gradient": "Gradient preview",
+        "ctaSoft": "CTA (soft)"
+      },
+      "factCheck": {
+        "title": "Claim check",
+        "body": "The AI makes up numbers and years as fluently as it copies them. We already have the facts from your website; this decides what happens to a claim they do not support. Neither end of the slider lets a lie through — it only changes who resolves it.",
+        "modes": {
+          "off": {
+            "label": "Off",
+            "detail": "No check runs. The AI is still forbidden to invent details, but nobody checks it."
+          },
+          "safe": {
+            "label": "Careful",
+            "detail": "Fixes everything it dares to, including headlines in the image. Safest — and sometimes dullest."
+          },
+          "balanced": {
+            "label": "Balanced",
+            "detail": "Fixes the post text; in the headline it only swaps a wrong number for the right one. An unsupported headline is left alone and flagged for you."
+          },
+          "bold": {
+            "label": "Bold",
+            "detail": "Rewrites nothing. The text keeps its punch and every risky claim comes to you flagged for a decision."
+          }
+        }
+      },
+      "noProducts": "No products detected",
+      "saveAll": "All approved — Save and continue",
+      "approvedCount": "{approved} / {total} sections approved",
+      "approveAll": "Approve all sections to continue",
+      "card": {
+        "refining": "Regenerating...",
+        "feedbackPlaceholder": "What is wrong? What do you want to change?",
+        "maxRefines": "Max. number of edits — fine-tune it in Settings",
+        "attempt": "Attempt {n}/{max}",
+        "refiningButton": "⏳ Reworking...",
+        "refine": "Regenerate"
+      }
+    },
+    "saving": {
+      "title": "Saving the configuration",
+      "body": "Creating the bucket, linking the account..."
+    },
+    "generating": {
+      "firstplan": {
+        "title": "Preparing your first content plan...",
+        "body": "Putting together topics and hooks tailored to your brand — based on what already works for you on Instagram.",
+        "note": "Your weekly plan will be waiting in the dashboard"
+      },
+      "bootstrap": {
+        "title": "Starting the sample content preparation...",
+        "body": "Filling the topic bank and queuing 3 sample posts. They finish generating on the server — you do not have to wait for them.",
+        "note": "Sample posts are generating in the background — you will find them in Posts"
+      }
+    },
+    "done": {
+      "reonboard": {
+        "title": "Configuration updated! 🔄",
+        "body": "Your new configuration is saved. All future posts will use the new settings.",
+        "cta": "Back to the Dashboard"
+      },
+      "new": {
+        "title": "Everything is ready! 🎉",
+        "body": "Your approved configuration is saved. You can start generating.",
+        "cta": "Review my first plan"
+      }
+    }
+  }
 }

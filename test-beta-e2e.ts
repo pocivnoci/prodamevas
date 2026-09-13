@@ -2159,7 +2159,11 @@ test("15.3 úprava obrázku je zpoplatněná, úprava textu ne", () => {
     // Nápověda a hinty skládají čísla z tabulek, ne z ruky (jednou už lhaly).
     const faq = codeOnly("app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx")
     assert(/ACTION_CREDITS\.post_edit/.test(faq) && !/= 1 kredit\. Generování nápadů = 1 kredit/.test(faq), "FAQ bere ceny akcí z ACTION_CREDITS")
-    assert(/mediaCreditsSentence\(\)/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")), "hint o formátech bere váhy z MEDIA_CREDITS")
+    // Hint je lokalizovaný (názvy médií z messages), ale váhy bere z tabulky
+    // MEDIA_CREDITS pro každé médium z ALL_MEDIA — ne z ruky ani z messages.
+    const hint = codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")
+    assert(/ALL_MEDIA\.map\([\s\S]{0,80}MEDIA_CREDITS\[m\]/.test(hint), "hint o formátech bere váhy z MEDIA_CREDITS")
+    assert(!/\b(obrázek|story|carousel|reel)\s+\d/.test(hint), "hint o formátech nesmí mít váhy natvrdo")
 })
 
 test("15.4 post_edit je povolený na všech plánech, které umí generovat", () => {

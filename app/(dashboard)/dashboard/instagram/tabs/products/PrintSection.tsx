@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     generatePrintDesign,
     generatePrintVariants,
@@ -39,10 +40,6 @@ interface CategoryItem {
 const LABEL = "text-[9px] uppercase tracking-widest font-bold text-white/40"
 const INPUT = "w-full bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none"
 
-const KIND_LABEL: Record<string, string> = {
-    flat: "Potisk", label: "Etiketa", wrap: "Ovin", poster: "Plakát",
-}
-
 export function PrintSection({
     projectId,
     categories,
@@ -53,6 +50,7 @@ export function PrintSection({
     /** Seeded when the user jumps here from an idea card */
     initialTheme?: string
 }) {
+    const t = useTranslations("products.print")
     const [designs, setDesigns] = useState<PrintDesignRow[]>([])
     const [products, setProducts] = useState<any[]>([])
     const [lines, setLines] = useState<LineRow[]>([])
@@ -103,11 +101,11 @@ export function PrintSection({
     const activeCategory = categories.find(c => c.slug === categorySlug)
 
     const handleGenerate = async () => {
-        if (!categorySlug) { setError("Vyber typ produktu"); return }
-        if (!theme.trim()) { setError("Zadej téma designu"); return }
+        if (!categorySlug) { setError(t("errors.noCategory")); return }
+        if (!theme.trim()) { setError(t("errors.noTheme")); return }
         setBusy(true)
         setError(null)
-        setProgress("Startuji…")
+        setProgress(t("starting"))
 
         const runId = crypto.randomUUID()
         const poll = setInterval(async () => {
@@ -130,7 +128,7 @@ export function PrintSection({
                 ? await generatePrintVariants(projectId, opts)
                 : await generatePrintDesign(projectId, opts)
 
-            if (!result.success) { setError(result.error || "Generování selhalo"); return }
+            if (!result.success) { setError(result.error || t("errors.generateFailed")); return }
             await load()
             const first = "designs" in result ? result.designs?.[0] : (result as { design?: PrintDesignRow }).design
             if (first) setOpen(first)
@@ -149,7 +147,7 @@ export function PrintSection({
         setError(null)
         try {
             const result = await editPrintDesign(projectId, open.id, editInstruction.trim())
-            if (!result.success || !result.design) { setError(result.error || "Úprava selhala"); return }
+            if (!result.success || !result.design) { setError(result.error || t("errors.editFailed")); return }
             setOpen(result.design)
             setEditInstruction("")
             await load()
@@ -166,7 +164,7 @@ export function PrintSection({
         setError(null)
         try {
             const result = await generateMockup(projectId, open.id)
-            if (!result.success) { setError(result.error || "Mockup selhal"); return }
+            if (!result.success) { setError(result.error || t("errors.mockupFailed")); return }
             setOpen({ ...open, mockup_url: result.mockupUrl || null })
             await load()
         } catch (err: any) {
@@ -212,16 +210,14 @@ export function PrintSection({
             {/* ── Brief ── */}
             <div className="bg-[#050505] border border-white/5 rounded-sm p-5 space-y-4">
                 <div>
-                    <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">Podklad pro tisk</h3>
+                    <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">{t("brief.title")}</h3>
                     <p className="text-[10px] text-white/30 mt-1 leading-relaxed">
-                        AI vytvoří plochou tiskovou grafiku ve správném poměru stran, zkontroluje český text a doškáluje ji
-                        na fyzický rozměr při 300 DPI. Výstup je <span className="text-white/50">návrh pro tiskaře</span> —
-                        pro velké formáty ho nechte převést do vektorů.
+                        {t.rich("brief.intro", { em: chunks => <span className="text-white/50">{chunks}</span> })}
                     </p>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className={LABEL}>Typ produktu</label>
+                    <label className={LABEL}>{t("brief.category")}</label>
                     <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                         {categories.map(c => (
                             <button key={c.slug} type="button" onClick={() => setCategorySlug(c.slug)}
@@ -237,12 +233,12 @@ export function PrintSection({
                         <div className="flex gap-1.5 pt-1">
                             {activeCategory.artwork_kind && (
                                 <span className="px-2 py-0.5 rounded-sm bg-white/5 border border-white/8 text-[9px] text-white/40">
-                                    {KIND_LABEL[activeCategory.artwork_kind] || activeCategory.artwork_kind}
+                                    {t.has(`kind.${activeCategory.artwork_kind}`) ? t(`kind.${activeCategory.artwork_kind}`) : activeCategory.artwork_kind}
                                 </span>
                             )}
                             {activeCategory.print_size_mm && (
                                 <span className="px-2 py-0.5 rounded-sm bg-white/5 border border-white/8 text-[9px] text-white/40">
-                                    {activeCategory.print_size_mm.replace("x", " × ")} mm
+                                    {t("brief.sizeMm", { size: activeCategory.print_size_mm.replace("x", " × ") })}
                                 </span>
                             )}
                         </div>
@@ -250,28 +246,28 @@ export function PrintSection({
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className={LABEL}>Téma / inspirace</label>
+                    <label className={LABEL}>{t("brief.theme")}</label>
                     <input className={INPUT} value={theme} onChange={e => setTheme(e.target.value)}
-                        placeholder="např. dílenská estetika, výrazná typografie" />
+                        placeholder={t("brief.themePlaceholder")} />
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className={LABEL}>Popis grafiky (volitelné)</label>
+                    <label className={LABEL}>{t("brief.description")}</label>
                     <textarea className={`${INPUT} min-h-[64px] resize-y`} value={designDescription}
                         onChange={e => setDesignDescription(e.target.value)}
-                        placeholder="Konkrétní přání — kompozice, motivy, čemu se vyhnout" />
+                        placeholder={t("brief.descriptionPlaceholder")} />
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Text na artworku (volitelné)</label>
+                        <label className={LABEL}>{t("brief.overlayText")}</label>
                         <input className={INPUT} value={overlayText} onChange={e => setOverlayText(e.target.value)}
-                            placeholder="přesné znění včetně diakritiky" />
+                            placeholder={t("brief.overlayTextPlaceholder")} />
                     </div>
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Produkt z katalogu (volitelné)</label>
+                        <label className={LABEL}>{t("brief.product")}</label>
                         <select className={INPUT} value={productId} onChange={e => setProductId(e.target.value)}>
-                            <option value="">— žádný —</option>
+                            <option value="">{t("brief.productNone")}</option>
                             {products.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
@@ -281,9 +277,9 @@ export function PrintSection({
 
                 {lines.length > 0 && (
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Řada (sjednotí vzhled se sourozenci)</label>
+                        <label className={LABEL}>{t("brief.line")}</label>
                         <select className={INPUT} value={lineId} onChange={e => setLineId(e.target.value)}>
-                            <option value="">— žádná —</option>
+                            <option value="">{t("brief.lineNone")}</option>
                             {lines.map(l => (
                                 <option key={l.id} value={l.id}>{l.name}</option>
                             ))}
@@ -295,18 +291,18 @@ export function PrintSection({
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={includeLogo} onChange={e => setIncludeLogo(e.target.checked)}
                             className="accent-amber-500" />
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">Zapojit logo</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{t("brief.includeLogo")}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={abMode} onChange={e => setAbMode(e.target.checked)}
                             className="accent-amber-500" />
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">Dva návrhy na výběr (2× kredity)</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{t("brief.abMode")}</span>
                     </label>
                 </div>
 
                 <button onClick={handleGenerate} disabled={busy}
                     className="w-full bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 disabled:opacity-40 rounded-sm py-3 text-[10px] uppercase tracking-widest font-bold text-amber-300 transition-all">
-                    {busy ? (progress || "Generuji…") : abMode ? "Vytvořit 2 varianty" : "Vytvořit podklad"}
+                    {busy ? (progress || t("brief.generating")) : abMode ? t("brief.createVariants") : t("brief.create")}
                 </button>
             </div>
 
@@ -316,7 +312,7 @@ export function PrintSection({
                     className="bg-[#050505] border border-white/5 rounded-sm p-5 space-y-4">
                     <div className="flex items-start justify-between gap-3">
                         <div>
-                            <h3 className="text-lg text-white/90 font-medium">{open.brief?.name || "Design"}</h3>
+                            <h3 className="text-lg text-white/90 font-medium">{open.brief?.name || t("detail.untitled")}</h3>
                             <div className="text-[10px] text-white/30 mt-0.5">{open.theme}</div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -330,7 +326,7 @@ export function PrintSection({
                     {/* A/B comparison */}
                     {variantSiblings.length > 1 && (
                         <div className="space-y-2">
-                            <div className={LABEL}>Varianty — vyber vítěze</div>
+                            <div className={LABEL}>{t("detail.variantsTitle")}</div>
                             <div className="grid grid-cols-2 gap-3">
                                 {variantSiblings.map(v => (
                                     <div key={v.id}
@@ -344,38 +340,38 @@ export function PrintSection({
                                             className={`w-full py-2 text-[9px] uppercase tracking-widest font-bold transition-all ${v.is_winner
                                                 ? "bg-emerald-500/15 text-emerald-300"
                                                 : "bg-white/5 text-white/40 hover:bg-white/10"}`}>
-                                            {v.is_winner ? "Vítěz" : "Vybrat"}
+                                            {v.is_winner ? t("detail.winner") : t("detail.pick")}
                                         </button>
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-[9px] text-white/25">Výběr vítěze se uloží do vizuální paměti značky a ovlivní i Instagram art directora.</p>
+                            <p className="text-[9px] text-white/25">{t("detail.winnerNote")}</p>
                         </div>
                     )}
 
                     {/* Artwork + dieline */}
                     <div className="grid sm:grid-cols-2 gap-3">
                         {open.artwork_url && (
-                            <Preview label="Artwork" url={open.artwork_url} checkered />
+                            <Preview label={t("detail.artwork")} url={open.artwork_url} checkered />
                         )}
                         {open.dieline_url && (
-                            <Preview label="Die-line (spadávka + bezpečný okraj)" url={open.dieline_url} />
+                            <Preview label={t("detail.dieline")} url={open.dieline_url} />
                         )}
                     </div>
 
                     {open.mockup_url && (
-                        <Preview label="Mockup" url={open.mockup_url} />
+                        <Preview label={t("detail.mockup")} url={open.mockup_url} />
                     )}
 
                     {/* Print spec */}
                     {open.print_spec && (
                         <div className="bg-[#0a0a0a] border border-white/8 rounded-sm p-4 space-y-1.5">
-                            <div className={LABEL}>Tiskové zadání</div>
+                            <div className={LABEL}>{t("detail.spec.title")}</div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-                                <SpecCell k="Formát" v={`${open.print_spec.widthMm} × ${open.print_spec.heightMm} mm`} />
-                                <SpecCell k="Rozlišení" v={`${open.print_spec.pixelWidth} × ${open.print_spec.pixelHeight} px`} />
-                                <SpecCell k="Spadávka" v={`${open.print_spec.bleedMm} mm`} />
-                                <SpecCell k="Bezpečný okraj" v={`${open.print_spec.safeMarginMm} mm`} />
+                                <SpecCell k={t("detail.spec.format")} v={t("detail.spec.formatValue", { width: open.print_spec.widthMm, height: open.print_spec.heightMm })} />
+                                <SpecCell k={t("detail.spec.resolution")} v={t("detail.spec.resolutionValue", { width: open.print_spec.pixelWidth, height: open.print_spec.pixelHeight })} />
+                                <SpecCell k={t("detail.spec.bleed")} v={t("detail.spec.mmValue", { value: open.print_spec.bleedMm })} />
+                                <SpecCell k={t("detail.spec.safeMargin")} v={t("detail.spec.mmValue", { value: open.print_spec.safeMarginMm })} />
                             </div>
                             {open.print_spec.colors?.length > 0 && (
                                 <div className="flex items-center gap-1.5 pt-1">
@@ -393,14 +389,14 @@ export function PrintSection({
 
                     {/* Edit — no re-roll */}
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Upravit tenhle design (nezačíná od nuly)</label>
+                        <label className={LABEL}>{t("detail.edit")}</label>
                         <div className="flex gap-2">
                             <input value={editInstruction} onChange={e => setEditInstruction(e.target.value)}
-                                placeholder="např. zvětši nadpis, přidej text „Krok 2“"
+                                placeholder={t("detail.editPlaceholder")}
                                 className="flex-1 bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none" />
                             <button onClick={handleEdit} disabled={editing || !editInstruction.trim()}
                                 className="px-4 rounded-sm border border-white/10 hover:border-white/25 disabled:opacity-30 text-[9px] uppercase tracking-widest font-bold text-white/50 transition-all">
-                                {editing ? "…" : "Upravit"}
+                                {editing ? "…" : t("detail.editButton")}
                             </button>
                         </div>
                     </div>
@@ -410,18 +406,18 @@ export function PrintSection({
                         {open.artwork_print_url && (
                             <button onClick={() => download(open.artwork_print_url!, `${open.brief?.name || "design"}_300dpi.png`)}
                                 className="px-3 py-2 rounded-sm border border-white/10 hover:border-white/25 text-[9px] uppercase tracking-widest font-bold text-white/50 transition-all">
-                                Stáhnout tiskový PNG
+                                {t("detail.downloadPrint")}
                             </button>
                         )}
                         {open.dieline_url && (
                             <button onClick={() => download(open.dieline_url!, `${open.brief?.name || "design"}_dieline.png`)}
                                 className="px-3 py-2 rounded-sm border border-white/10 hover:border-white/25 text-[9px] uppercase tracking-widest font-bold text-white/50 transition-all">
-                                Stáhnout die-line
+                                {t("detail.downloadDieline")}
                             </button>
                         )}
                         <button onClick={handleMockup} disabled={mockingUp}
                             className="px-3 py-2 rounded-sm border border-white/10 hover:border-white/25 disabled:opacity-30 text-[9px] uppercase tracking-widest font-bold text-white/50 transition-all">
-                            {mockingUp ? "Renderuji…" : "Vytvořit mockup"}
+                            {mockingUp ? t("detail.rendering") : t("detail.createMockup")}
                         </button>
                         <div className="flex gap-1 ml-auto">
                             <button onClick={() => handleRate(open, 1)}
@@ -436,7 +432,7 @@ export function PrintSection({
             {/* ── History ── */}
             {designs.length > 0 && (
                 <div className="space-y-2">
-                    <div className={LABEL}>Historie designů ({designs.length})</div>
+                    <div className={LABEL}>{t("history", { count: designs.length })}</div>
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                         {designs.map(d => (
                             <button key={d.id} onClick={() => setOpen(d)}
@@ -491,28 +487,31 @@ function SpecCell({ k, v }: { k: string; v: string }) {
  * příspěvku nedá vzít zpátky, takže varování musí být vidět PŘED objednáním.
  */
 function FactChip({ brief }: { brief: any }) {
+    const t = useTranslations("products.print")
     const fc = brief?.factCheck
     if (!fc || fc.status !== "flagged") return null
     const flags: string[] = Array.isArray(fc.flags) ? fc.flags : []
     return (
         <span
-            title={`V textu zůstalo tvrzení bez opory v ověřených faktech:\n${flags.join("\n") || "—"}\n\nDoplň fakt v Nastavení → Ověřená fakta, nebo text uprav před tiskem.`}
+            title={t("factChip.title", { flags: flags.join("\n") || "—" })}
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm border text-[9px] font-bold uppercase tracking-widest bg-amber-500/10 border-amber-500/30 text-amber-400"
-        >Ověř fakta</span>
+        >{t("factChip.label")}</span>
     )
 }
 
 function QaChip({ status }: { status: string | null }) {
+    const t = useTranslations("products.print")
     if (!status) return null
-    const map: Record<string, { c: string; l: string }> = {
-        pass: { c: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400", l: "QA OK" },
-        retry_pass: { c: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400", l: "QA OK (oprava)" },
-        native_forced: { c: "bg-amber-500/10 border-amber-500/30 text-amber-400", l: "Nejlepší pokus" },
-        edited: { c: "bg-white/5 border-white/10 text-white/40", l: "Upraveno" },
-        failed: { c: "bg-red-500/10 border-red-500/30 text-red-400", l: "Chyba" },
+    // Popisky žijí v messages (`products.print.qa.<stav>`), tady jen barvy.
+    const map: Record<string, string> = {
+        pass: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+        retry_pass: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+        native_forced: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+        edited: "bg-white/5 border-white/10 text-white/40",
+        failed: "bg-red-500/10 border-red-500/30 text-red-400",
     }
-    const s = map[status] || map.edited
+    const key = status in map ? status : "edited"
     return (
-        <span className={`px-2 py-0.5 rounded-sm border text-[8px] uppercase tracking-widest font-bold ${s.c}`}>{s.l}</span>
+        <span className={`px-2 py-0.5 rounded-sm border text-[8px] uppercase tracking-widest font-bold ${map[key]}`}>{t(`qa.${key}`)}</span>
     )
 }

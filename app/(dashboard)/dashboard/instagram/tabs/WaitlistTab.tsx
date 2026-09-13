@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useFormatter, useTranslations } from 'next-intl'
 import { getWaitlist, getInviteCodes, createInviteCode, toggleInviteCodeActive, markContacted } from '@/app/actions/waitlist-admin'
 
 export function WaitlistTab() {
+    const t = useTranslations('adminGrowth.waitlist')
+    const format = useFormatter()
     const [waitlist, setWaitlist] = useState<any[]>([])
     const [inviteCodes, setInviteCodes] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -37,7 +40,7 @@ export function WaitlistTab() {
             setMaxUses(1)
             await loadData()
         } else {
-            alert('Chyba při vytváření kódu: ' + res.error)
+            alert(t('errors.create', { error: res.error ?? '' }))
         }
         setCreating(false)
     }
@@ -47,7 +50,7 @@ export function WaitlistTab() {
         if (res.success) {
             await loadData()
         } else {
-            alert('Chyba při označení: ' + res.error)
+            alert(t('errors.contacted', { error: res.error ?? '' }))
         }
     }
 
@@ -56,33 +59,33 @@ export function WaitlistTab() {
         if (res.success) {
             await loadData()
         } else {
-            alert('Chyba při změně stavu: ' + res.error)
+            alert(t('errors.toggle', { error: res.error ?? '' }))
         }
     }
 
     if (loading) {
-        return <div className="text-white/50 text-sm">Načítání...</div>
+        return <div className="text-white/50 text-sm">{t('loading')}</div>
     }
 
     return (
         <div className="space-y-8">
             {/* Create new code */}
             <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-6">
-                <h2 className="text-sm font-black uppercase tracking-widest text-white mb-4">Vytvořit invite kód</h2>
+                <h2 className="text-sm font-black uppercase tracking-widest text-white mb-4">{t('create.title')}</h2>
                 <form onSubmit={handleCreateCode} className="flex items-end gap-4">
                     <div className="flex-1">
-                        <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Kód</label>
+                        <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">{t('create.codeLabel')}</label>
                         <input
                             type="text"
                             value={newCode}
                             onChange={e => setNewCode(e.target.value.toUpperCase())}
-                            placeholder="Např. VIP2026"
+                            placeholder={t('create.codePlaceholder')}
                             required
                             className="w-full bg-[#050505] border border-white/10 rounded-sm px-3 py-2 text-white text-sm focus:outline-none focus:border-aisummit-cinnabar"
                         />
                     </div>
                     <div className="w-32">
-                        <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Max použití</label>
+                        <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">{t('create.maxUsesLabel')}</label>
                         <input
                             type="number"
                             min="1"
@@ -97,7 +100,7 @@ export function WaitlistTab() {
                         disabled={creating || !newCode.trim()}
                         className="px-6 py-2 bg-emerald-600 text-white font-bold text-sm rounded-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors h-[38px]"
                     >
-                        {creating ? 'Vytvářím...' : 'Vytvořit'}
+                        {creating ? t('create.creating') : t('create.submit')}
                     </button>
                 </form>
             </div>
@@ -105,30 +108,30 @@ export function WaitlistTab() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Invite Codes list */}
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-6">
-                    <h2 className="text-sm font-black uppercase tracking-widest text-white mb-4">Existující kódy</h2>
+                    <h2 className="text-sm font-black uppercase tracking-widest text-white mb-4">{t('codes.title')}</h2>
                     <div className="space-y-2">
                         {inviteCodes.map(c => (
                             <div key={c.id} className="flex items-center justify-between p-3 bg-white/5 rounded-sm border border-white/5">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <span className="font-mono text-white text-sm font-bold">{c.code}</span>
-                                        {!c.is_active && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold uppercase">Neaktivní</span>}
-                                        {c.used_count >= c.max_uses && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase">Vyčerpáno</span>}
+                                        {!c.is_active && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold uppercase">{t('codes.inactive')}</span>}
+                                        {c.used_count >= c.max_uses && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase">{t('codes.exhausted')}</span>}
                                     </div>
                                     <div className="text-[10px] text-white/40 mt-1">
-                                        Použito: {c.used_count} / {c.max_uses}
+                                        {t('codes.used', { used: c.used_count, max: c.max_uses })}
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => handleToggleActive(c.id, c.is_active)}
                                     className="text-[10px] text-white/30 hover:text-white uppercase tracking-widest font-bold"
                                 >
-                                    {c.is_active ? 'Deaktivovat' : 'Aktivovat'}
+                                    {c.is_active ? t('codes.deactivate') : t('codes.activate')}
                                 </button>
                             </div>
                         ))}
                         {inviteCodes.length === 0 && (
-                            <div className="text-white/30 text-xs text-center py-4">Žádné kódy zatím nebyly vytvořeny.</div>
+                            <div className="text-white/30 text-xs text-center py-4">{t('codes.empty')}</div>
                         )}
                     </div>
                 </div>
@@ -136,13 +139,13 @@ export function WaitlistTab() {
                 {/* Waitlist list */}
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-sm p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-white">Zájemci z webu</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-white">{t('list.title')}</h2>
                         {/* Počítá se, kolik jich ČEKÁ, ne kolik jich kdy přišlo:
                             landing slibuje hovor do jednoho pracovního dne, takže
                             čísla, na která se má volat, jsou to jediné číslo,
                             které tu má smysl vidět jako první. */}
                         <span className="text-xs text-white/40 bg-white/5 px-2 py-1 rounded-sm">
-                            {waitlist.filter(w => !w.contacted_at).length} čeká · {waitlist.length} celkem
+                            {t('list.counter', { waiting: waitlist.filter(w => !w.contacted_at).length, total: waitlist.length })}
                         </span>
                     </div>
                     <div className="space-y-2 max-h-[500px] overflow-y-auto override-scrollbar pr-2">
@@ -158,28 +161,28 @@ export function WaitlistTab() {
                                             </div>
                                         )}
                                         <div className="text-[10px] text-white/40 mt-1">
-                                            {new Date(w.created_at).toLocaleString('cs-CZ')}
-                                            {w.plan_interest && ` · zájem: ${w.plan_interest}${w.term_interest ? ` / ${w.term_interest} m.` : ''}`}
-                                            {w.invited_at && ' · pozvánka odeslána'}
+                                            {format.dateTime(new Date(w.created_at), { dateStyle: 'medium', timeStyle: 'short' })}
+                                            {w.plan_interest && ` · ${t('list.interest', { plan: w.plan_interest })}${w.term_interest ? ` / ${t('list.interestTerm', { term: w.term_interest })}` : ''}`}
+                                            {w.invited_at && ` · ${t('list.invited')}`}
                                         </div>
                                     </div>
                                     {w.contacted_at ? (
                                         <span className="text-[9px] uppercase tracking-widest font-bold text-emerald-400/70 shrink-0 mt-0.5">
-                                            ozváno
+                                            {t('list.contacted')}
                                         </span>
                                     ) : (
                                         <button
                                             onClick={() => handleContacted(w.id)}
                                             className="text-[9px] uppercase tracking-widest font-bold text-white/30 hover:text-white shrink-0 mt-0.5 whitespace-nowrap"
                                         >
-                                            Ozval jsem se
+                                            {t('list.markContacted')}
                                         </button>
                                     )}
                                 </div>
                             </div>
                         ))}
                         {waitlist.length === 0 && (
-                            <div className="text-white/30 text-xs text-center py-4">Zatím se nikdo neozval.</div>
+                            <div className="text-white/30 text-xs text-center py-4">{t('list.empty')}</div>
                         )}
                     </div>
                 </div>

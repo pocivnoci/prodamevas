@@ -14,9 +14,8 @@
  */
 
 import { useState } from "react"
-import { createTranslator, useTranslations } from "next-intl"
-import { ALL_MEDIA, MEDIA_CREDITS, mediaCreditsSentence } from "@/lib/credits"
-import csHelp from "@/messages/cs/help.json"
+import { useTranslations } from "next-intl"
+import { ALL_MEDIA, MEDIA_CREDITS } from "@/lib/credits"
 
 export function Hint({ children, label }: { children: React.ReactNode; label?: string }) {
     const t = useTranslations("help.hint")
@@ -79,30 +78,3 @@ export function useHints() {
         term: t("hint.term"),
     }
 }
-
-/**
- * Most pro statické `HINTS.x` (SettingsTab, GenerateTab, ProductsTab,
- * SubscriptionSection): stejné klíče a stejné české znění jako dřív, ale zdroj
- * je `messages/cs/help.json`, ne druhá kopie textu. Modulová konstanta nemá odkud
- * znát jazyk uživatele, proto je vždy česky — nový kód bere `useHints()`.
- * Až poslední čtenář přejde na hook, tenhle blok se smaže.
- */
-const tCs = createTranslator({
-    locale: "cs",
-    messages: csHelp as Parameters<typeof createTranslator>[0]["messages"],
-    namespace: "help.hint",
-})
-
-export const HINTS = {
-    tone: tCs("tone"),
-    pillars: tCs("pillars"),
-    facts: tCs("facts"),
-    voiceExamples: tCs("voiceExamples"),
-    formats: tCs("formats", { media: mediaCreditsSentence() }),
-    cadence: tCs("cadence"),
-    autoPublish: tCs("autoPublish"),
-    credits: tCs("credits"),
-    products: tCs("products"),
-    instagram: tCs("instagram"),
-    term: tCs("term"),
-} as const

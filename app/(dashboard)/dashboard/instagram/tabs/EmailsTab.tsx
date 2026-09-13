@@ -9,17 +9,13 @@
  */
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { getEmailGallery, type GalleryEntry } from "@/app/actions/mailing-actions"
 
-const GROUPS: Record<string, string> = {
-    waitlist: "Waitlist",
-    subscription: "Předplatné",
-    news: "Novinky",
-    promo: "Akce",
-    transactional: "Transakční",
-}
-
 export function EmailsTab() {
+    const t = useTranslations("adminGrowth.emails")
+    // Názvy šablon sdílí s pickerem v Mailingu — jeden text, jeden klíč.
+    const tm = useTranslations("adminGrowth.mailing")
     const [entries, setEntries] = useState<GalleryEntry[] | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [openText, setOpenText] = useState<string | null>(null)
@@ -27,8 +23,13 @@ export function EmailsTab() {
     useEffect(() => {
         getEmailGallery()
             .then(setEntries)
-            .catch(e => setError(e?.message || "Galerii se nepodařilo načíst (jen pro super-admina)."))
-    }, [])
+            .catch(e => setError(e?.message || t("loadFailed")))
+    }, [t])
+
+    /** Název šablony z messages; šablona, kterou UI nezná, si nechá label z registru. */
+    const templateLabel = (e: GalleryEntry) => tm.has(`templates.${e.id}`) ? tm(`templates.${e.id}`) : e.label
+    /** Skupiny bere z registru (`GROUP_LABELS`), tady jen překlad podle hodnoty. */
+    const groupLabel = (group: string) => t.has(`groups.${group}`) ? t(`groups.${group}`) : group
 
     if (error) {
         return (
@@ -39,15 +40,15 @@ export function EmailsTab() {
     }
 
     if (!entries) {
-        return <p className="text-xs text-white/30 font-medium">Renderuji šablony…</p>
+        return <p className="text-xs text-white/30 font-medium">{t("rendering")}</p>
     }
 
     return (
         <div className="max-w-5xl mx-auto space-y-8">
             <div>
-                <h2 className="text-base font-black uppercase tracking-widest text-white">Šablony e-mailů</h2>
+                <h2 className="text-base font-black uppercase tracking-widest text-white">{t("title")}</h2>
                 <p className="text-[10px] text-white/30 font-medium mt-1 uppercase tracking-widest">
-                    {entries.length} šablon · vyrenderováno z ukázkových dat
+                    {t("subtitle", { count: entries.length })}
                 </p>
             </div>
 
@@ -55,14 +56,14 @@ export function EmailsTab() {
                 <div key={e.id} className="space-y-2">
                     <div className="flex items-baseline justify-between flex-wrap gap-2">
                         <div className="flex items-baseline gap-2">
-                            <span className="text-xs font-black uppercase tracking-widest text-white">{e.label}</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-white">{templateLabel(e)}</span>
                             <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border bg-white/5 text-white/40 border-white/10">
-                                {GROUPS[e.group] || e.group}
+                                {groupLabel(e.group)}
                             </span>
                             <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border ${e.kind === "notification"
                                 ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
                                 : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
-                                {e.kind === "notification" ? "lze odhlásit" : "transakční"}
+                                {t(`kind.${e.kind}`)}
                             </span>
                         </div>
                         <div className="flex items-baseline gap-3">
@@ -73,7 +74,7 @@ export function EmailsTab() {
                                 onClick={() => setOpenText(openText === e.id ? null : e.id)}
                                 className="text-[9px] text-white/40 hover:text-white/80 uppercase tracking-widest font-bold transition-colors"
                             >
-                                {openText === e.id ? "Skrýt text" : "Textová verze"}
+                                {openText === e.id ? t("hideText") : tm("preview.textVersion")}
                             </button>
                         </div>
                     </div>
@@ -82,7 +83,7 @@ export function EmailsTab() {
                         <pre className="p-4 bg-[#050505] border border-white/10 rounded-sm text-[11px] text-white/50 whitespace-pre-wrap leading-relaxed max-h-[460px] overflow-y-auto">{e.text}</pre>
                     ) : (
                         <iframe
-                            title={e.label}
+                            title={templateLabel(e)}
                             srcDoc={e.html}
                             sandbox=""
                             loading="lazy"

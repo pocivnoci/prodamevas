@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { motion } from "framer-motion"
+import { useTranslations } from "next-intl"
 import {
     generateLine,
     getLineProgress,
@@ -24,16 +25,14 @@ import {
 import type { LineSku, PriceTier } from "@/instagram/line-generator"
 import { LoadingSpinner } from "../shared"
 
-const TIERS: { id: PriceTier; label: string; hint: string }[] = [
-    { id: "budget", label: "Dostupná", hint: "Cena je argument" },
-    { id: "mid", label: "Střední", hint: "Poměr cena/výkon" },
-    { id: "premium", label: "Prémiová", hint: "Rozhoduje výsledek" },
-]
+// Popisky hladin žijí v messages (`products.lines.tier.<id>`), tady jen pořadí.
+const TIERS: PriceTier[] = ["budget", "mid", "premium"]
 
 const LABEL = "text-[9px] uppercase tracking-widest font-bold text-white/40"
 const INPUT = "w-full bg-[#0a0a0a] border border-white/8 rounded-sm px-3 py-2 text-sm text-white/90 focus:border-amber-500/40 focus:outline-none"
 
 export function LinesSection({ projectId }: { projectId: string }) {
+    const t = useTranslations("products.lines")
     const [lines, setLines] = useState<LineRow[]>([])
     const [active, setActive] = useState<LineRow | null>(null)
     const [loading, setLoading] = useState(true)
@@ -75,11 +74,11 @@ export function LinesSection({ projectId }: { projectId: string }) {
     }, [active])
 
     const handleGenerate = async () => {
-        if (!category.trim()) { setError("Zadej kategorii řady (např. autokosmetika)"); return }
+        if (!category.trim()) { setError(t("errors.noCategory")); return }
         setGenerating(true)
         setError(null)
         setIssues([])
-        setProgress("Startuji…")
+        setProgress(t("starting"))
 
         const runId = crypto.randomUUID()
         const poll = setInterval(async () => {
@@ -97,7 +96,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
                 mustInclude: mustInclude.split(",").map(s => s.trim()).filter(Boolean),
                 runId,
             })
-            if (!result.success) { setError(result.error || "Generování selhalo"); return }
+            if (!result.success) { setError(result.error || t("errors.generateFailed")); return }
             setIssues(result.issues || [])
             await load()
             const fresh = await getLines(projectId)
@@ -118,7 +117,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
         setError(null)
         try {
             const result = await reviseLineSku(projectId, active.id, index, text)
-            if (!result.success || !result.sku) { setError(result.error || "Úprava selhala"); return }
+            if (!result.success || !result.sku) { setError(result.error || t("errors.reviseFailed")); return }
             const skus = [...active.skus]
             skus[index] = result.sku
             setActive({ ...active, skus })
@@ -144,8 +143,8 @@ export function LinesSection({ projectId }: { projectId: string }) {
         setError(null)
         try {
             const result = await approveLine(projectId, active.id, Array.from(selected))
-            if (!result.success) { setError(result.error || "Schválení selhalo"); return }
-            setNotice(`Do katalogu přidáno ${result.created} produktů · ${result.ideas} launch témat do zásobníku nápadů`)
+            if (!result.success) { setError(result.error || t("errors.approveFailed")); return }
+            setNotice(t("approved", { created: result.created ?? 0, ideas: result.ideas ?? 0 }))
             await load()
             setActive(null)
         } catch (err: any) {
@@ -157,7 +156,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
 
     const handleDiscard = async (line: LineRow) => {
         const result = await discardLine(projectId, line.id)
-        if (!result.success) { setError(result.error || "Zahození selhalo"); return }
+        if (!result.success) { setError(result.error || t("errors.discardFailed")); return }
         if (active?.id === line.id) setActive(null)
         await load()
     }
@@ -185,20 +184,20 @@ export function LinesSection({ projectId }: { projectId: string }) {
             {/* ── Brief ── */}
             <div className="bg-[#050505] border border-white/5 rounded-sm p-5 space-y-4">
                 <div>
-                    <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">Nová produktová řada</h3>
+                    <h3 className="text-[11px] uppercase tracking-widest font-bold text-white/70">{t("brief.title")}</h3>
                     <p className="text-[10px] text-white/30 mt-1 leading-relaxed">
-                        AI navrhne řadu jako systém — každý produkt dostane svůj krok v procesu, roli, specifikaci a místo v cenovém žebříčku.
+                        {t("brief.intro")}
                     </p>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Kategorie řady</label>
+                        <label className={LABEL}>{t("brief.category")}</label>
                         <input className={INPUT} value={category} onChange={e => setCategory(e.target.value)}
-                            placeholder="autokosmetika, péče o vousy, doplňky…" />
+                            placeholder={t("brief.categoryPlaceholder")} />
                     </div>
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Počet produktů: {skuCount}</label>
+                        <label className={LABEL}>{t("brief.skuCount", { count: skuCount })}</label>
                         <input type="range" min={2} max={12} value={skuCount}
                             onChange={e => setSkuCount(Number(e.target.value))}
                             className="w-full accent-amber-500 mt-2.5" />
@@ -206,15 +205,15 @@ export function LinesSection({ projectId }: { projectId: string }) {
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className={LABEL}>Cenová hladina</label>
+                    <label className={LABEL}>{t("brief.priceTier")}</label>
                     <div className="grid grid-cols-3 gap-2">
-                        {TIERS.map(t => (
-                            <button key={t.id} type="button" onClick={() => setPriceTier(t.id)}
-                                className={`py-2.5 px-2 rounded-sm border text-left transition-all ${priceTier === t.id
+                        {TIERS.map(tier => (
+                            <button key={tier} type="button" onClick={() => setPriceTier(tier)}
+                                className={`py-2.5 px-2 rounded-sm border text-left transition-all ${priceTier === tier
                                     ? "bg-amber-500/10 border-amber-500/50"
                                     : "bg-[#0a0a0a] border-white/8 hover:border-white/20"}`}>
-                                <div className={`text-[9px] uppercase tracking-widest font-bold ${priceTier === t.id ? "text-amber-400" : "text-white/50"}`}>{t.label}</div>
-                                <div className="text-[9px] text-white/25 mt-0.5">{t.hint}</div>
+                                <div className={`text-[9px] uppercase tracking-widest font-bold ${priceTier === tier ? "text-amber-400" : "text-white/50"}`}>{t(`tier.${tier}.label`)}</div>
+                                <div className="text-[9px] text-white/25 mt-0.5">{t(`tier.${tier}.hint`)}</div>
                             </button>
                         ))}
                     </div>
@@ -222,47 +221,47 @@ export function LinesSection({ projectId }: { projectId: string }) {
 
                 <div className="grid sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Pozicování (volitelné)</label>
+                        <label className={LABEL}>{t("brief.positioning")}</label>
                         <input className={INPUT} value={positioning} onChange={e => setPositioning(e.target.value)}
-                            placeholder="proti čemu se vymezujeme" />
+                            placeholder={t("brief.positioningPlaceholder")} />
                     </div>
                     <div className="space-y-1.5">
-                        <label className={LABEL}>Cílová skupina (volitelné)</label>
+                        <label className={LABEL}>{t("brief.audience")}</label>
                         <input className={INPUT} value={audience} onChange={e => setAudience(e.target.value)}
-                            placeholder="kdo to kupuje" />
+                            placeholder={t("brief.audiencePlaceholder")} />
                     </div>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className={LABEL}>Musí obsahovat (oddělené čárkou)</label>
+                    <label className={LABEL}>{t("brief.mustInclude")}</label>
                     <input className={INPUT} value={mustInclude} onChange={e => setMustInclude(e.target.value)}
-                        placeholder="šampon, keramická ochrana…" />
+                        placeholder={t("brief.mustIncludePlaceholder")} />
                 </div>
 
                 <button onClick={handleGenerate} disabled={generating}
                     className="w-full bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 disabled:opacity-40 rounded-sm py-3 text-[10px] uppercase tracking-widest font-bold text-amber-300 transition-all">
-                    {generating ? (progress || "Generuji…") : "Navrhnout řadu"}
+                    {generating ? (progress || t("brief.generating")) : t("brief.generate")}
                 </button>
                 {generating && (
-                    <p className="text-[9px] text-white/25 text-center">Běží hluboká analýza (~1–2 min). Můžeš zavřít záložku, výsledek se uloží.</p>
+                    <p className="text-[9px] text-white/25 text-center">{t("brief.generatingNote")}</p>
                 )}
             </div>
 
             {/* ── Validation warnings ── */}
             {issues.length > 0 && (
                 <div className="bg-amber-500/5 border border-amber-500/25 rounded-sm p-4 space-y-1.5">
-                    <div className="text-[9px] uppercase tracking-widest font-bold text-amber-400">Výhrady k návrhu</div>
+                    <div className="text-[9px] uppercase tracking-widest font-bold text-amber-400">{t("issues.title")}</div>
                     {issues.map((i, n) => (
                         <div key={n} className="text-[11px] text-white/50">· [{i.field}] {i.message}</div>
                     ))}
-                    <p className="text-[9px] text-white/25 pt-1">Můžeš je opravit ručně nebo přes zpětnou vazbu u konkrétního produktu.</p>
+                    <p className="text-[9px] text-white/25 pt-1">{t("issues.note")}</p>
                 </div>
             )}
 
             {/* ── Line list ── */}
             {lines.length > 0 && (
                 <div className="space-y-2">
-                    <div className={LABEL}>Řady ({lines.length})</div>
+                    <div className={LABEL}>{t("list.title", { count: lines.length })}</div>
                     {lines.map(line => (
                         <button key={line.id} onClick={() => setActive(active?.id === line.id ? null : line)}
                             className={`w-full text-left bg-[#050505] border rounded-sm px-4 py-3 transition-all ${active?.id === line.id ? "border-amber-500/40" : "border-white/5 hover:border-white/15"}`}>
@@ -272,7 +271,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
                                     <div className="text-[10px] text-white/30 truncate">{line.positioning || line.system_logic || "—"}</div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-[9px] uppercase tracking-widest font-bold text-white/30">{line.skus?.length || 0} SKU</span>
+                                    <span className="text-[9px] uppercase tracking-widest font-bold text-white/30">{t("list.skuCount", { count: line.skus?.length || 0 })}</span>
                                     <StatusChip status={line.status} />
                                 </div>
                             </div>
@@ -294,13 +293,13 @@ export function LinesSection({ projectId }: { projectId: string }) {
                             <StatusChip status={active.status} />
                         </div>
                         {active.system_logic && (
-                            <Field label="Systém řady" value={active.system_logic} />
+                            <Field label={t("detail.systemLogic")} value={active.system_logic} />
                         )}
                         {active.naming_convention && (
-                            <Field label="Pravidlo pojmenování" value={active.naming_convention} />
+                            <Field label={t("detail.namingConvention")} value={active.naming_convention} />
                         )}
                         {active.target_audience && (
-                            <Field label="Cílová skupina" value={active.target_audience} />
+                            <Field label={t("detail.targetAudience")} value={active.target_audience} />
                         )}
                     </div>
 
@@ -329,7 +328,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
                                         <p className="text-xs text-white/50 leading-relaxed">{sku.description}</p>
                                     </div>
                                     <div className="text-right shrink-0">
-                                        <div className="text-sm text-white/80 font-medium">{sku.priceCzk?.toLocaleString("cs-CZ")} Kč</div>
+                                        <div className="text-sm text-white/80 font-medium">{t("detail.price", { price: sku.priceCzk })}</div>
                                     </div>
                                 </div>
 
@@ -350,12 +349,12 @@ export function LinesSection({ projectId }: { projectId: string }) {
                                         <input
                                             value={feedback[index] || ""}
                                             onChange={e => setFeedback(prev => ({ ...prev, [index]: e.target.value }))}
-                                            placeholder="Co na tomhle produktu změnit?"
+                                            placeholder={t("detail.feedbackPlaceholder")}
                                             className="flex-1 bg-[#050505] border border-white/8 rounded-sm px-2.5 py-1.5 text-xs text-white/80 focus:border-amber-500/40 focus:outline-none" />
                                         <button onClick={() => handleRevise(index)}
                                             disabled={revising === index || !feedback[index]?.trim()}
                                             className="px-3 py-1.5 rounded-sm border border-white/10 hover:border-white/25 disabled:opacity-30 text-[9px] uppercase tracking-widest font-bold text-white/50 transition-all">
-                                            {revising === index ? "…" : "Upravit"}
+                                            {revising === index ? "…" : t("detail.revise")}
                                         </button>
                                     </div>
                                 )}
@@ -367,11 +366,11 @@ export function LinesSection({ projectId }: { projectId: string }) {
                         <div className="flex gap-2 pt-1">
                             <button onClick={handleApprove} disabled={approving || selected.size === 0}
                                 className="flex-1 bg-emerald-500/15 border border-emerald-500/40 hover:bg-emerald-500/25 disabled:opacity-30 rounded-sm py-3 text-[10px] uppercase tracking-widest font-bold text-emerald-300 transition-all">
-                                {approving ? "Schvaluji…" : `Schválit do katalogu (${selected.size})`}
+                                {approving ? t("detail.approving") : t("detail.approve", { count: selected.size })}
                             </button>
                             <button onClick={() => handleDiscard(active)}
                                 className="px-4 rounded-sm border border-white/10 hover:border-red-500/40 text-[10px] uppercase tracking-widest font-bold text-white/40 hover:text-red-400 transition-all">
-                                Zahodit
+                                {t("detail.discard")}
                             </button>
                         </div>
                     )}
@@ -379,7 +378,7 @@ export function LinesSection({ projectId }: { projectId: string }) {
                     {active.status === "active" && (
                         <button onClick={async () => { await archiveLine(projectId, active.id); await load(); setActive(null) }}
                             className="w-full rounded-sm border border-white/10 hover:border-white/25 py-2.5 text-[9px] uppercase tracking-widest font-bold text-white/40 transition-all">
-                            Archivovat řadu
+                            {t("detail.archive")}
                         </button>
                     )}
                 </motion.div>
@@ -389,18 +388,16 @@ export function LinesSection({ projectId }: { projectId: string }) {
 }
 
 function StatusChip({ status }: { status: string }) {
+    const t = useTranslations("products.lines")
     const map: Record<string, string> = {
         draft: "bg-amber-500/10 border-amber-500/30 text-amber-400",
         active: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
         archived: "bg-white/5 border-white/10 text-white/30",
         failed: "bg-red-500/10 border-red-500/30 text-red-400",
     }
-    const label: Record<string, string> = {
-        draft: "Návrh", active: "Aktivní", archived: "Archiv", failed: "Chyba",
-    }
     return (
         <span className={`px-2 py-0.5 rounded-sm border text-[8px] uppercase tracking-widest font-bold ${map[status] || map.archived}`}>
-            {label[status] || status}
+            {t.has(`status.${status}`) ? t(`status.${status}`) : status}
         </span>
     )
 }
