@@ -58,7 +58,13 @@
           "ceka": "Čeká na data"
         },
         "original": "Původní",
-        "variant": "Varianta"
+        "variant": "Varianta",
+        "summary": {
+          "waiting": "Čeká na data — až budou obě verze venku a stáhnou se metriky, uvidíš, která zabrala.",
+          "fewInteractions": "Obě verze zatím mají málo interakcí — na závěr je brzy.",
+          "tie": "Obě verze dopadly skoro stejně. Rozdíl je v rámci náhody, takže vítěze neurčujeme.",
+          "decided": "{winner, select, variant {Varianta} other {Původní verze}} vyhrála o {margin} %. Chrlit s tím počítá při psaní dalších příspěvků."
+        }
       },
       "growth": {
         "title": "Růst profilu",

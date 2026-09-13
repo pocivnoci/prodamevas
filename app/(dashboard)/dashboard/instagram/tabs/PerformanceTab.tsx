@@ -383,6 +383,17 @@ function LockedInsights() {
  * `allowed: false`) nebo když zákazník žádnou variantu nevytvořil — prázdný
  * nadpis „Souboje verzí" u někoho, kdo je nikdy nepoužil, je jen šum.
  */
+/**
+ * Věta o výsledku souboje v jazyce UI. `lib/ab-duel.ts` vrací i české `summary`
+ * (zdrojový jazyk pro kód bez překladače); tady se skládá z `verdict`, `winner`
+ * a `marginPct`, ne z toho textu.
+ */
+function duelSummary(d: Duel, t: ReturnType<typeof useTranslations<"performance.tab">>): string {
+    if (d.verdict === "ceka") return t("duels.summary.waiting")
+    if (d.verdict === "tesne") return d.marginPct === null ? t("duels.summary.fewInteractions") : t("duels.summary.tie")
+    return t("duels.summary.decided", { winner: d.winner ?? "original", margin: d.marginPct ?? 0 })
+}
+
 function AbDuelsSection({ projectId }: { projectId: string }) {
     const t = useTranslations("performance.tab")
     const [duels, setDuels] = useState<Duel[]>([])
@@ -429,7 +440,7 @@ function AbDuelsSection({ projectId }: { projectId: string }) {
                             }`}>
                                 {t(`duels.verdict.${d.verdict}`)}
                             </span>
-                            <span className="text-[11px] text-white/50">{d.summary}</span>
+                            <span className="text-[11px] text-white/50">{duelSummary(d, t)}</span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">

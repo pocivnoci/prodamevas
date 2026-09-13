@@ -58,7 +58,13 @@
           "ceka": "Waiting for data"
         },
         "original": "Original",
-        "variant": "Variant"
+        "variant": "Variant",
+        "summary": {
+          "waiting": "Waiting for data — once both versions are live and metrics come in, you will see which one worked.",
+          "fewInteractions": "Both versions have few interactions so far — too early to call.",
+          "tie": "Both versions performed almost the same. The difference is within noise, so no winner is declared.",
+          "decided": "{winner, select, variant {The variant} other {The original}} won by {margin} %. Chrlit takes this into account when writing the next posts."
+        }
       },
       "growth": {
         "title": "Profile growth",
