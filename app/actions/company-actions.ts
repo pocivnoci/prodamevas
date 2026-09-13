@@ -1,5 +1,6 @@
 "use server"
 
+import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
 
 /**
@@ -10,9 +11,13 @@ import { requireSuperAdmin } from "@/lib/auth-guard"
  * agregáty. Tenhle tab je zároveň jediný rozumný způsob, jak ladit ranní brief —
  * e-mail se odkrokovat nedá, tabulka ano.
  *
- * **Read-only záměrně.** Akce patří do briefu, kde mají schvalovací tlačítka
- * a auditní stopu. Kdyby šly dělat i odsud, vzniknou dvě cesty k témuž
- * rozhodnutí a jen jedna z nich bude zalogovaná.
+ * **Vůči zákazníkovi read-only, s jedinou výjimkou: ruční karanténa.** Zásah,
+ * který zákazníkovi něco pošle nebo mu něco strhne, sem dál nepatří — patří do
+ * briefu, kde má schvalovací tlačítko. Karanténa je jiný druh rozhodnutí:
+ * netýká se zákazníka, ale nás („tenhle profil je testovací, přestaň ho
+ * obsluhovat"), je vratná jedním klikem a `setClientQuarantine` po sobě nechává
+ * týž auditní řádek v `agent_actions` jako každá agentí akce. Druhá cesta
+ * k témuž rozhodnutí tím nevzniká — vzniká první, která nevede přes terminál.
  */
 
 export interface ClientHealthDTO {
@@ -87,4 +92,114 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
         stalledOnboardings: stalled.count,
         generatedAt: new Date().toISOString(),
     }
+}
+
+/** Stavy předplatného, které znamenají „tenhle účet žije" — stejná množina jako v `scripts/neaktivni-klienti.ts`. */
+const ZIVE_PREDPLATNE = new Set(["active", "trialing"])
+
+export interface QuarantineResult {
+    ok: boolean
+    /** Jméno značky, se kterou se pohnulo — do hlášky v UI. */
+    name?: string
+    error?: string
+}
+
+/**
+ * Ruční karanténa značky — „tenhle profil je testovací, přestaň ho obsluhovat".
+ *
+ * `scripts/neaktivni-klienti.ts --deaktivuj` umí totéž, ale jen podle kritéria
+ * (90 dní bez obsahu ∧ bez živého předplatného ∧ nikdy nezaplatil). Testovací
+ * profil s čerstvým obsahem tím kritériem nikdy neprojde — a právě ten má zmizet
+ * z přehledů. Heuristika podle e-mailové domény nebo názvu by přitom byla horší
+ * než ruční klik: „testovací" není vlastnost dat, ale náš úmysl.
+ *
+ * Zápis je **podmíněný claim**, ne slepý update: kdyby značku mezitím oživil
+ * nebo uspal někdo jiný, `eq("is_active", …)` nevrátí řádek a **je to konec**.
+ *
+ * PROČ SE PLATÍCÍ ZNAČKA DO KARANTÉNY NEDOSTANE. `deactivated_at` je start
+ * třicetidenní lhůty, po které `scripts/smazat-opustene-klienty.ts` obsah smaže
+ * nebo anonymizuje. Omyl u zákazníka, který platí, by tedy nebyl „vratný klik",
+ * ale tikající budík — proto se sem zavírá stejná pojistka jako do automatického
+ * kritéria: živé předplatné nebo jakákoli zaplacená platba = odmítnuto, a odchod
+ * zákazníka řeší obchod, ne tenhle přehled.
+ */
+export async function setClientQuarantine(clientId: string, quarantine: boolean): Promise<QuarantineResult> {
+    const { email } = await requireSuperAdmin()
+
+    // Chybějící identifikátor se nikdy nedefaultuje na skutečného tenanta.
+    if (!clientId || typeof clientId !== "string") return { ok: false, error: "Chybí identifikátor značky." }
+
+    const { data: client, error: fetchErr } = await supabaseAdmin
+        .from("clients")
+        .select("id, name, slug, is_active")
+        .eq("id", clientId)
+        .maybeSingle()
+    if (fetchErr) return { ok: false, error: fetchErr.message }
+    if (!client) return { ok: false, error: "Značka nenalezena." }
+
+    if (quarantine) {
+        const [{ data: subs, error: subsErr }, { data: pays, error: paysErr }] = await Promise.all([
+            supabaseAdmin.from("subscriptions").select("status").eq("client_id", clientId),
+            supabaseAdmin.from("payments").select("status").eq("client_id", clientId),
+        ])
+        // Nedostupná odpověď není „nemá předplatné". Pojistka, která se při chybě
+        // dotazu otevře, není pojistka.
+        if (subsErr || paysErr) return { ok: false, error: `Peníze se nepodařilo ověřit: ${(subsErr || paysErr)?.message}` }
+        if ((subs || []).some(s => ZIVE_PREDPLATNE.has(String(s.status).toLowerCase()))) {
+            return { ok: false, error: "Značka má živé předplatné. Odchod platícího zákazníka patří obchodu, ne karanténě." }
+        }
+        if ((pays || []).some(p => String(p.status).toLowerCase() === "paid")) {
+            return { ok: false, error: "Značka už někdy zaplatila. Takovou do karantény neposílám — karanténa po 30 dnech maže obsah." }
+        }
+    }
+
+    const patch = quarantine
+        ? { is_active: false, deactivated_at: new Date().toISOString() }
+        // Návrat z karantény musí razítko smazat, jinak by druhý stupeň úklidu
+        // počítal třicet dní dál u značky, která je zpátky v provozu.
+        : { is_active: true, deactivated_at: null }
+
+    // Podmíněný claim se ptá na stav PŘED přepnutím: do karantény smí jen
+    // značka, která je právě aktivní, a zpátky jen ta, která je právě
+    // v karanténě. Obojí je shodou okolností `is_active === quarantine`.
+    const stavPredZmenou = quarantine
+
+    const { data: claimed, error: updateErr } = await supabaseAdmin
+        .from("clients")
+        .update(patch)
+        .eq("id", clientId)
+        .eq("is_active", stavPredZmenou)
+        .select("id, name")
+        .maybeSingle()
+    if (updateErr) return { ok: false, error: updateErr.message }
+    if (!claimed) {
+        return {
+            ok: false,
+            error: quarantine
+                ? "Značka už v karanténě je — načti přehled znovu."
+                : "Značka už je v provozu — načti přehled znovu.",
+        }
+    }
+
+    // Auditní řádek vzniká i u ručního kliku, ze stejného důvodu jako
+    // u `runTaskAgentNow`: jinak by v `agent_actions` chyběl přesně ten zásah,
+    // který někdo udělal mimo agenta. `reversible` → nic nečeká na schválení,
+    // jen se to zapíše. Kdo klikl, je v payloadu — `requestAction` si `actor`
+    // plní samo.
+    try {
+        const { requestAction } = await import("@/lib/agent-safety")
+        await requestAction({
+            clientId,
+            agentType: "ops",
+            action: quarantine ? "Značka do karantény (ručně)" : "Značka zpět do provozu (ručně)",
+            riskTier: "reversible",
+            payload: { slug: client.slug, name: client.name, quarantine, by: email },
+        })
+    } catch (err) {
+        // Audit selhal, ale stav značky se už změnil — zamlčet by to znamenalo
+        // zásah bez stopy. Hlásit, ne vracet chybu: klik proběhl.
+        console.error(`🚨 karanténa: auditní zápis selhal pro ${client.slug}: ${(err as Error)?.message}`)
+    }
+
+    return { ok: true, name: claimed.name }
 }

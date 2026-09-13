@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ExternalLink, ListPlus } from "lucide-react"
-import { getCompanyOverview, type ClientHealthDTO, type CompanyOverview } from "@/app/actions/company-actions"
+import { ExternalLink, ListPlus, EyeOff, Undo2 } from "lucide-react"
+import { getCompanyOverview, setClientQuarantine, type ClientHealthDTO, type CompanyOverview } from "@/app/actions/company-actions"
 import { countLabel, DAYS_AGO } from "@/lib/plural"
 import { createTask, listTeam } from "@/app/actions/task-actions"
 import { useStudio, useStudioNavigate } from "@/app/(dashboard)/StudioContext"
@@ -10,13 +10,19 @@ import { useStudio, useStudioNavigate } from "@/app/(dashboard)/StudioContext"
 /**
  * Firma — cross-tenant přehled zdraví účtů.
  *
- * **Pořád read-only, pokud jde o zákazníka.** Zásah do jeho účtu patří do
- * briefu, kde po něm zůstane schvalovací záznam; dvě cesty k témuž rozhodnutí
- * by znamenaly, že jen jedna z nich je v auditu.
+ * **Vůči zákazníkovi read-only.** Zásah do jeho účtu patří do briefu, kde po něm
+ * zůstane schvalovací záznam; dvě cesty k témuž rozhodnutí by znamenaly, že jen
+ * jedna z nich je v auditu.
  *
  * Co tu naopak chybělo: z řádku „Selhává platba" se nedalo nikam jít. Proklik
  * do studia a založení úkolu nejsou akce nad zákazníkem — jsou to poznámky
  * pro nás, a bez nich se riziko přepsalo na papír vedle klávesnice.
+ *
+ * Karanténa je z téhož ranku. Neříká nic zákazníkovi a nic mu nestrhne — říká
+ * nám, které profily přestat obsluhovat. Automatické kritérium
+ * (`scripts/neaktivni-klienti.ts`) testovací profil s čerstvým obsahem nikdy
+ * nechytí, takže jediná zbylá cesta vedla přes terminál. Auditní stopa je
+ * zachovaná: `setClientQuarantine` zapisuje do `agent_actions`.
  */
 
 const RISK_STYLE: Record<string, string> = {
@@ -45,7 +51,7 @@ function daysAgo(iso: string | null): string {
     return `před ${countLabel(d, DAYS_AGO)}`
 }
 
-/** Filtr přehledu. Read-only — deaktivaci i úklid dělají skripty s auditní stopou. */
+/** Filtr přehledu. Úklid (mazání/anonymizaci) dál dělá jen skript druhého stupně. */
 type Filtr = "aktivni" | "deaktivovane" | "vse"
 
 const FILTR_LABEL: Record<Filtr, string> = {
@@ -139,29 +145,54 @@ export function CompanyTab() {
                 <table className="w-full text-left min-w-[720px]">
                     <thead>
                         <tr className="border-b border-white/5">
-                            {["Klient", "Plán", "Rizika", "Obsah 14 d", "Poslední obsah", "Kredity", "IG"].map(h => (
-                                <th key={h} className="px-4 py-3 text-[9px] uppercase tracking-widest font-bold text-white/30">{h}</th>
+                            {["Klient", "Plán", "Rizika", "Obsah 14 d", "Poslední obsah", "Kredity", "IG", ""].map((h, i) => (
+                                <th key={h || `akce-${i}`} className="px-4 py-3 text-[9px] uppercase tracking-widest font-bold text-white/30">{h}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {zobrazene.map(c => <Row key={c.clientId} c={c} managerEmail={managerEmail} />)}
+                        {zobrazene.map(c => <Row key={c.clientId} c={c} managerEmail={managerEmail} onChanged={load} />)}
                     </tbody>
                 </table>
             </div>
 
             <p className="text-[9px] text-white/20 font-bold uppercase tracking-widest">
                 Sestaveno {new Date(data.generatedAt).toLocaleString("cs-CZ")} · stejná data pohánějí ranní brief ·
-                karanténa = deaktivovaná značka čekající na úklid (akce dělá brief, ne tenhle přehled)
+                karanténa = deaktivovaná značka, kterou pravidelné běhy vynechávají · po 30 dnech ji druhý stupeň
+                úklidu smaže nebo anonymizuje · platící značka do karantény nejde
             </p>
         </div>
     )
 }
 
-function Row({ c, managerEmail }: { c: ClientHealthDTO; managerEmail: string | null }) {
+function Row({ c, managerEmail, onChanged }: { c: ClientHealthDTO; managerEmail: string | null; onChanged: () => Promise<void> }) {
     const { setProjectId } = useStudio()
     const navigate = useStudioNavigate()
     const [taskState, setTaskState] = useState<"idle" | "busy" | "done" | "error">("idle")
+    const [karantena, setKarantena] = useState<"idle" | "busy">("idle")
+    /** Odmítnutí patří k řádku, kterého se týká — proto ne `alert()`. */
+    const [karantenaChyba, setKarantenaChyba] = useState<string | null>(null)
+
+    /**
+     * Do karantény a zpátky. Ptáme se jen při zavírání: návrat do provozu nic
+     * nespouští, kdežto karanténa nastartuje třicetidenní lhůtu úklidu.
+     */
+    const prepnoutKarantenu = async () => {
+        const doKarantény = c.isActive
+        if (doKarantény && !confirm(
+            `Poslat „${c.name}" do karantény?\n\n` +
+            "Značka zmizí z aktivního přehledu a pravidelné běhy ji budou vynechávat. " +
+            "Data zůstávají — vrátit ji jde jedním klikem.\n\n" +
+            "Po 30 dnech v karanténě ale druhý stupeň úklidu obsah smaže nebo anonymizuje.",
+        )) return
+
+        setKarantena("busy")
+        setKarantenaChyba(null)
+        const res = await setClientQuarantine(c.clientId, doKarantény)
+        if (!res.ok) setKarantenaChyba(res.error || "Nepodařilo se.")
+        else await onChanged()
+        setKarantena("idle")
+    }
 
     /**
      * Z rizika rovnou úkol. Název nese důvod, ne jen jméno — „Ozvat se: Pekárna
@@ -228,6 +259,22 @@ function Row({ c, managerEmail }: { c: ClientHealthDTO; managerEmail: string | n
                 {c.creditsTotal > 0 ? `${c.creditsRemaining}/${c.creditsTotal}` : "—"}
             </td>
             <td className="px-4 py-3 text-xs">{c.igConnected ? "✅" : "—"}</td>
+            <td className="px-4 py-3 text-right">
+                <button
+                    onClick={prepnoutKarantenu}
+                    disabled={karantena === "busy"}
+                    title={c.isActive
+                        ? "Do karantény — pravidelné běhy značku vynechají, data zůstanou"
+                        : "Zpět do provozu — zruší i lhůtu úklidu"}
+                    className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${
+                        c.isActive ? "text-white/35 hover:text-amber-400" : "text-white/35 hover:text-emerald-400"
+                    }`}
+                >
+                    {c.isActive ? <EyeOff className="w-3 h-3 shrink-0" /> : <Undo2 className="w-3 h-3 shrink-0" />}
+                    {karantena === "busy" ? "…" : c.isActive ? "skrýt" : "vrátit"}
+                </button>
+                {karantenaChyba && <p className="mt-1 text-[9px] text-red-400/80 font-bold max-w-[220px] text-right">{karantenaChyba}</p>}
+            </td>
         </tr>
     )
 }
