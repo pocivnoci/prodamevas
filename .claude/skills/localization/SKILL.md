@@ -168,6 +168,14 @@ hotové `<a href="…">{t("…linkLabel")}</a>`. Hlídá to aserce „zpráva s 
 nevolá prostým t()" v `scripts/test-i18n.ts` — a aserce „tagy v překladu sedí
 se zdrojem", aby překlad tag neztratil.
 
+## Trh není jazyk
+
+Jazyk značky neurčuje zemi. Počasí (`signals/weather.ts`), časové pásmo plánovače
+(`lib/schedule-planner.ts`) a konkrétní svátky jsou dnes vázané na ČR i pro
+cizojazyčnou značku; obsah sám v cizím jazyce jede správně. Rozbor a tvar opravy
+(`ClientConfig.country` + `timezone`) je v `docs/DESIGN_lokalizace_2026-09-12.md`,
+sekce „Značka mimo český trh".
+
 ## Guard
 
 `scripts/test-i18n.ts` (součást `npm run guard`): parita klíčů cs/en, platnost ICU

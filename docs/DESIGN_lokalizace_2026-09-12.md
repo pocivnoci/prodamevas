@@ -219,3 +219,39 @@ Zbytek je buď rozhodnutí (obchodní, právní), nebo vědomý dluh s malým do
 
 Invariant pro každý krok: guard drží, `npm run build` zelený, čeština vypadá
 stejně jako před krokem (zdrojový jazyk se nemění, jen se přesouvá do messages).
+
+## Značka mimo český trh: co chybí mimo jazyk
+
+Ověřeno spuštěním nad americkou značkou (13. 9. 2026). **Obsah v angličtině jede**:
+onboarding jazyk pozná z webu (`<html lang>` → `og:locale` → diakritika → spojky),
+`validateConfig()` ho udrží, copywriter dostane „Write in natural, modern,
+conversational English…", svátky se přepnou na anglickou sadu (ověřeno: 26. 11. 2026
+→ Thanksgiving, 25. 12. → Christmas Day). Čtyři věci ale zůstaly svázané s ČR a
+značka mimo něj na ně narazí:
+
+1. **Počasí se ptá jen na české město.** `instagram/signals/weather.ts` má v dotazu
+   na geokódování natvrdo `,CZ` a v předpovědi `lang=cz` (výchozí město „Praha").
+   Cizí město se nenajde, funkce vrátí `null` a kontextový agent o signál tiše
+   přijde — degradace není vidět v UI, jen ve varování v logu.
+2. **Plánovač počítá sloty v Praze.** `lib/schedule-planner.ts` odvozuje posun
+   zóny z `Europe/Prague`, takže slot „9:00" znamená devět ráno v Praze. Pro
+   americkou značku je to noc. Publikování proběhne správně, jen v nesmyslnou
+   hodinu pro publikum.
+3. **Americké svátky nejsou kompletní.** `INTL` kalendář v `instagram/signals/calendar.ts`
+   má Thanksgiving, Black Friday a Cyber Monday, ale ne Independence Day (ověřeno:
+   4. 7. 2026 vrátí prázdné `holidays`), Memorial Day ani Labor Day. `INTL` je
+   schválně „anglicky mluvící obecně", ne US — konkrétní trh potřebuje vlastní sadu.
+4. **Peníze jsou české.** Ceník i `lib/payments/checkout.ts` počítají v CZK, doklad
+   jde z Fakturoidu podle české legislativy a obchodní podmínky existují jen česky.
+   Zahraniční zákazník zaplatí kartou, ale uvidí částku v Kč. Navíc
+   `instagram/product-generator.ts` má v popisu schématu příklad ceny „299-499 Kč",
+   takže produktové nápady navrhují koruny i anglické značce.
+
+**Tvar opravy pro body 1–3** (bod 4 je obchodní a právní rozhodnutí, ne technické):
+`ClientConfig` dostane `country` a `timezone` s defaultem odvozeným z jazykového
+balíčku (`languagePack(lang).country`) — nové pole potřebuje default ve
+`validateConfig()`, jinak guard neprojde. Počasí pak bere zemi odtud místo `,CZ`
+a jazyk popisů z `contentLanguage(config)`; plánovač bere zónu odtud místo
+`Europe/Prague`; kalendář si podle `country` vybere sadu a `US` přibude vedle
+CZ/SK/PL/DE/INTL. Země ≠ jazyk (rakouská značka, švýcarská) — proto pole na
+konfiguraci, ne odvození z jazyka za běhu.
