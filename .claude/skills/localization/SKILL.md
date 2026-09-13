@@ -140,9 +140,33 @@ Kde se který překladač bere:
 - Zákaznická oznámení (`lib/agents/notice-templates.ts`, `lifecycle-templates.ts`)
   a digest kampaně (`renderCampaignDigest`) berou `t` z `mailTranslatorSync(locale, ns)`;
   jazyk zjišťuje odesílající funkce (`localeOfClientOwner`, `localeOfUser`).
+- Potvrzení plateb (`lib/payments/on-paid.ts`) jde v jazyce vlastníka značky —
+  plátce nemusí být přihlášený, takže `localeOfClientOwner` je jediný spolehlivý
+  zdroj. Položka dokladu (`payments.label`) a zápisy do deníku kreditů zůstávají
+  české: doklad jde po zemi odběratele, ne po jazyku UI.
 - Layout e-mailu nese `locale` (`<html lang>`, patička, odhlášení); ComGate/Stripe
   dostávají jazyk kupujícího (`paymentPageLanguage()`), Fakturoid jazyk podle země
   odběratele (`fakturoidLanguage`). Měna zůstává CZK.
+
+## Tučné a odkazy ve zprávě: `t.markup`, nikdy `t`
+
+`<strong>…</strong>` v textu zprávy **není text, je to ICU tag**. Prosté
+`t("klíč")` na takové zprávě vyhodí za běhu `FORMATTING_ERROR` — e-mail
+neodejde, tab spadne, a typy to nezachytí. Tag skládá handler:
+
+```ts
+const strong = (chunks: string) => `<strong>${chunks}</strong>`   // HTML e-mail
+t.markup("onPaid.plan.activated", { plan, strong })
+```
+
+```tsx
+t.rich("brief.intro", { em: chunks => <span className="text-white/50">{chunks}</span> })
+```
+
+Odkaz do zprávy nepatří (URL není překlad): zpráva má `{link}`, kód dosadí
+hotové `<a href="…">{t("…linkLabel")}</a>`. Hlídá to aserce „zpráva s tagem se
+nevolá prostým t()" v `scripts/test-i18n.ts` — a aserce „tagy v překladu sedí
+se zdrojem", aby překlad tag neztratil.
 
 ## Guard
 

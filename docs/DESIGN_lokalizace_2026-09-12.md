@@ -152,6 +152,29 @@ v jakém pořadí jde zbytek. Pravidla, která z toho plynou, jsou ve skillu
   funguje i v cronech bez request kontextu) + `localeOfUser`. První lokalizovaný
   transakční e-mail: uvítání po potvrzení účtu (`app/auth/callback/route.ts`).
 
+### Pošta zákazníkovi: hotovo v téhle větvi (vlna 4)
+
+- `lib/mail/i18n.ts`: `mailTranslatorSync(locale, ns)` nad staticky
+  naimportovanými zprávami (`mail`, `notices`, `worker`) — překladač jde postavit
+  i synchronně, takže šablony zůstaly čisté funkce a jdou vyrenderovat v guardu
+  bez `.env.local`. `localeOfUser(user)` a `localeOfClientOwner(clientId)`
+  (nejnovější vazba `owner`, stejné řazení jako `getOwnerEmail`).
+- Šablony: `build(vars, t, locale)`, `renderTemplate(…, locale)`, registr
+  `render(vars, unsubscribeEmail, locale)` a `draft(vars, locale)` — bez `locale`
+  čeština, takže volající, který jazyk nezná, dostane to co dřív. Migrované:
+  transakční (uvítání, potvrzení platby, předání značky), předplatitelské
+  (obnova, neúspěšná platba, konec, winback) a waitlistové.
+- Zákaznická oznámení (`notices`): `buildCustomerNotice`, `buildLifecycleEmail`
+  berou `t`/`locale`; jazyk zjišťuje odesílající funkce v okamžiku odeslání.
+- Workery (`worker`): digest kampaně (datum přes `Intl` podle locale, počty přes
+  ICU plural) a průběh onboardingových úloh (jazyk zadavatele z `uiLocale`
+  v payloadu, jinak z účtu).
+- Potvrzení plateb: dobití kreditů, rezervace konzultace i aktivace/obnova tarifu
+  v jazyce vlastníka značky, včetně řádku s daňovým dokladem.
+- Guard: aserce „zpráva s tagem se nevolá prostým t()" a „tagy v překladu sedí se
+  zdrojem" — `<strong>` je pro next-intl ICU tag a `t()` na něm vyhodí za běhu
+  `FORMATTING_ERROR`; tohle je jediná chyba téhle vlny, kterou typy nezachytí.
+
 ## Osa 2 — jazyk UI: co zbývá
 
 Zbytek je buď rozhodnutí (obchodní, právní), nebo vědomý dluh s malým dopadem:
@@ -172,21 +195,25 @@ Zbytek je buď rozhodnutí (obchodní, právní), nebo vědomý dluh s malým do
    řad a tisku vidí smíšený text (hlášky akcí přeložené, hlášky pipeline české).
    Plná věrnost = engine hlásí klíč + parametry místo věty (33 míst `report(...)`)
    — udělat, až bude první cizojazyčný zákazník.
-4. **Cron bez uživatele** — `campaign-worker`, `job-resume`, reaper: `agent_message`
+4. **E-maily správci a marketingové rozesílky** zůstávají české vědomě: ranní
+   brief, incident watch, health check, weekly report, konzultační brief a
+   nabídkové/novinkové šablony. Adminské popisky šablon (`label`, `fields`,
+   `GROUP_LABELS`, `KIND_LABELS`) taky — čte je jen správce v Mailingu.
+5. **Cron bez uživatele** — `campaign-worker`, `job-resume`, reaper: `agent_message`
    a `error` zapsané cronem jsou české (UI je v jiném jazyce nahradí popiskem fáze;
    `error` kampaně se ukáže česky). Rozhodnutí: jazyk vlastníka značky by šel
    dohledat (`localeOfClientOwner`), zatím to za tu cestu nestojí.
-5. **Label mapy v `lib/`** (`STATUS_LABELS`, `REEL_LABELS`, `feed-pattern`,
+6. **Label mapy v `lib/`** (`STATUS_LABELS`, `REEL_LABELS`, `feed-pattern`,
    `subtitle-presets`, `fact-check-modes`, `photo-policy`, `credits`) zůstávají
    české; migrované taby je překládají podle hodnoty. Zbytek, který ještě proteče
    do UI česky: `recommendFeedPattern().label`, `describeRisks()` (zdraví klienta,
    admin), chyby mostu z `lib/channels/*`, `lib/handoff.ts`.
-6. **Dokumenty pro zákazníka** — export produktového briefu (`lib/product-brief-docx.ts`)
+7. **Dokumenty pro zákazníka** — export produktového briefu (`lib/product-brief-docx.ts`)
    má české nadpisy a AI obsah v češtině (interní laboratoř produktů).
-7. **Formát data v angličtině** — `useFormatter()` z next-intl dává pro `en`
+8. **Formát data v angličtině** — `useFormatter()` z next-intl dává pro `en`
    americké pořadí (měsíc/den), `UI_LOCALE_TAGS` říká en-GB; při prvním britském
    zákazníkovi předat `formats` do request configu.
-8. **Odhlašovací stránka, výmaz dat, potvrzení z e-mailu správci**
+9. **Odhlašovací stránka, výmaz dat, potvrzení z e-mailu správci**
    (`/api/email/unsubscribe`, `/api/data-deletion`, `/api/agent-approval`) —
    veřejné stránky bez cookie; jazyk by musel nést podepsaný odkaz.
 
