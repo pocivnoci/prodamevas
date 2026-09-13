@@ -33,6 +33,11 @@ export const MESSAGE_FILES = [
     "adminGrowth",
     // průvodce novým zákazníkem (app/onboarding)
     "onboarding",
+    // hlášky ze server actions (app/actions) — jazyk toho, kdo klikl
+    "actionsPlan",
+    "actionsContent",
+    "actionsAccount",
+    "actionsAdmin",
 ] as const
 
 export type Messages = Record<string, unknown>
