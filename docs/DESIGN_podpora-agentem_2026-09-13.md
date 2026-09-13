@@ -130,8 +130,17 @@ slib.** Ověření na třech účtech — nulové kredity, `trialing`, `expired`
    Odznak `tasksAwaitingAnswer` i sekce „Čeká na tvou odpověď" pak fungují bez
    jediného řádku UI. Druhá schránka by znamenala druhé místo, kam se zapomene
    podívat.
-5. Guard `scripts/test-support-escalate.ts`: cizí a expirovaný token odmítnut,
-   `client_id` z těla ignorováno, druhý claim téže konverzace nezaloží druhý úkol.
+5. **Odpověď se musí vrátit klientovi.** `answerTaskQuestion()` dnes zapíše
+   odpověď do vlákna úkolu, vynuluje `spec_at` a odblokuje `blocked_on` — to je
+   smyčka mezi AI a týmem, klient o ní neví. U úkolů se `source: "support"` proto
+   odpověď navíc odešle: nový `NoticeKind` `support_reply` v
+   `lib/agents/notice-templates.ts`, adresát z `getOwnerEmail(clientId)`, cesta
+   přes `requestAction` s tierem `transactional` (odchází samo, s dedupe klíčem
+   = id úkolu). Bez tohohle kroku je eskalace jen schránka, do které klient mluví
+   a nikdo mu neodpoví.
+6. Guard `scripts/test-support-escalate.ts`: cizí a expirovaný token odmítnut,
+   `client_id` z těla ignorováno, druhý claim téže konverzace nezaloží druhý úkol,
+   odpověď na `source: "support"` úkol odešle právě jedno oznámení.
 
 ### Fáze 4 — Měření spotřeby (0,5 dne)
 
@@ -152,7 +161,29 @@ Příchozí česká linka, předání na člověka, provozní hodiny. Pro cílov
 (malé firmy, které rády volají) je to silné, ale je to jiný řád práce a jiný
 provozní režim. Ne dřív, než Fáze 0–4 poběží měsíc a budou z nich přepisy.
 
+## Kolo učení
+
+Eskalace není cíl, je to měření děr ve znalostní bázi. Dotaz, který se eskaluje
+podruhé, není dotaz — je to chybějící odpověď: patří do `lib/support/faq.ts`,
+`sync-support-kb.ts` bázi přesype a agent ho příště zvládne sám. Bez tohohle
+kroku eskalací neubývá a podpora se stane druhou schránkou, do které nikdo
+nechodí.
+
+Je to stejný invariant jako u obsahu („Zpětné vazby jsou posvátné"): nový signál
+bez konzumenta se přetrhne. Konzument signálu „klient se ptal a agent nevěděl"
+je FAQ, ne poznámka v úkolu.
+
 ## Ekonomika
+
+Tři oddělené měřiče — a jeden z nich úmyslně zůstane nulový.
+
+| Kde | Co se platí | Kolik |
+|---|---|---|
+| **ElevenLabs** | hlasové minuty | 0,08 USD/min nad tarif (0,16 při překročení concurrency) |
+| | textové zprávy | 0,003 USD/zpráva |
+| | LLM agenta | navrch, podle spotřeby |
+| **`ai_spend`** | týž náklad v našem účetnictví | `operation: "support_agent"`, `cost_usd` z webhooku |
+| **Kredity klienta** | **nic** | viz níž |
 
 | Scénář | Cena za konverzaci |
 |---|---|
@@ -163,6 +194,16 @@ provozní režim. Ne dřív, než Fáze 0–4 poběží měsíc a budou z nich p
 Proto je widget **textový jako výchozí** a hlas je volba. Tarif Pro zahrnuje
 1 238 minut, tedy ~240 pětiminutových hovorů měsíčně — při dnešním počtu klientů
 není limitem concurrency ani minuty, ale LLM navrch.
+
+**Podpora nestojí klienta kredity.** Kredity jsou za generování; účtovat je za
+otázku znamená naučit lidi se neptat — a kdo se nezeptá, neodejde s odpovědí, ale
+s výpovědí. Je to fixní náklad provozu, viditelný v `ai_spend` a v týdenní zprávě,
+ne položka na faktuře klienta. Kdyby náklad někdy přerostl (masivní zneužití
+hlasu), řeší se limitem minut na klienta, ne strháváním kreditů.
+
+Jediné číslo, které dnes nejde pořádně odhadnout, je LLM: závisí na délce promptu
+a velikosti báze. Až Fáze 1 agenta vytvoří, spočítá ho `agents_calculate_llm_usage`
+přesně pro náš prompt a naši bázi.
 
 ## Co tenhle návrh záměrně nedělá
 
