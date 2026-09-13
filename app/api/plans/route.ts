@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { requireAuth } from "@/lib/auth-guard"
+import { isAuthError, requireAuth } from "@/lib/auth-guard"
 
 /**
  * GET /api/plans — active subscription plans for the pricing UI (dashboard).
@@ -20,7 +20,7 @@ export async function GET() {
         if (error) throw error
         return NextResponse.json({ plans: data || [] })
     } catch (err: any) {
-        const status = err?.message?.includes("Neautorizovaný") ? 401 : 500
+        const status = isAuthError(err) ? 401 : 500
         return NextResponse.json({ error: err?.message || "Failed to load plans" }, { status })
     }
 }

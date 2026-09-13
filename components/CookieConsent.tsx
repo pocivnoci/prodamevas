@@ -28,6 +28,27 @@
 
 import { useSyncExternalStore, useCallback } from "react"
 import Link from "next/link"
+import { DEFAULT_UI_LOCALE, LOCALE_COOKIE, isUiLocale, type UiLocale } from "@/lib/i18n/locales"
+import csCore from "@/messages/cs/core.json"
+import enCore from "@/messages/en/core.json"
+
+/**
+ * Lišta žije v kořenovém layoutu, který je statický a bez `UiLocaleProvider`
+ * (marketing se předrenderovává), takže `useTranslations` tu není k dispozici.
+ * Texty jsou přesto v messages (`shell.cookies.*`) — bere se přímo JSON podle
+ * cookie `NEXT_LOCALE`; bez ní čeština, stejně jako zbytek webu.
+ */
+const COOKIE_COPY: Record<UiLocale, typeof csCore.shell.cookies> = { cs: csCore.shell.cookies, en: enCore.shell.cookies }
+
+function bannerLocale(): UiLocale {
+    try {
+        const match = document.cookie.match(new RegExp(`(?:^|; )${LOCALE_COOKIE}=([^;]+)`))
+        const value = match ? decodeURIComponent(match[1]) : null
+        return isUiLocale(value) ? value : DEFAULT_UI_LOCALE
+    } catch {
+        return DEFAULT_UI_LOCALE
+    }
+}
 
 export const CONSENT_KEY = "chrlit-cookie-consent"
 
@@ -89,25 +110,26 @@ export function CookieConsent() {
 
     // Rozhodnuto (nebo server) → lišta se nezobrazuje.
     if (decided !== null) return null
+    // Sem se dostane jen prohlížeč (serverový snapshot je „rozhodnuto"), takže
+    // `document` existuje.
+    const copy = COOKIE_COPY[bannerLocale()]
 
     return (
         <div
             role="dialog"
             aria-live="polite"
-            aria-label="Souhlas s cookies"
+            aria-label={copy.aria}
             className="fixed bottom-0 inset-x-0 z-[10000] border-t border-white/10 bg-[#050505]/95 backdrop-blur-sm"
         >
             <div className="max-w-5xl mx-auto px-6 py-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                 <div className="flex-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-2">
-                        Cookies
+                        {copy.label}
                     </p>
                     <p className="text-xs text-white/70 leading-relaxed max-w-2xl">
-                        Technicky nezbytné cookies pro přihlášení používáme vždy — bez nich by služba nefungovala.
-                        Kromě nich bychom rádi měřili návštěvnost přes Google Analytics, abychom věděli, co na webu
-                        opravit. To spustíme jen s vaším souhlasem a můžete ho kdykoli odvolat.{" "}
+                        {copy.text}{" "}
                         <Link href="/privacy" className="underline text-white/80 hover:text-white">
-                            Zásady zpracování údajů
+                            {copy.policy}
                         </Link>
                     </p>
                 </div>
@@ -117,14 +139,14 @@ export function CookieConsent() {
                         onClick={() => choose("denied")}
                         className="px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
-                        Odmítnout
+                        {copy.deny}
                     </button>
                     <button
                         type="button"
                         onClick={() => choose("granted")}
                         className="px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest bg-white text-black hover:bg-white/90 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
-                        Povolit měření
+                        {copy.allow}
                     </button>
                 </div>
             </div>

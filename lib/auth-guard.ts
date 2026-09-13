@@ -1,6 +1,33 @@
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { isSuperAdminEmail, superAdminEmails } from '@/lib/super-admins'
+import { actionTranslator } from '@/lib/i18n/actions'
+
+export type AuthErrorCode = 'unauthenticated' | 'missingProject' | 'missingClient' | 'forbidden' | 'noAdmins' | 'notAdmin'
+
+/**
+ * Chyba brány. Zpráva je v jazyce toho, kdo klikl (namespace `common`, klíče
+ * `auth.*`), a proto se podle ní NIKDY nerozhoduje — kód si čti z `code`
+ * (`isAuthError(err)`), ne z `err.message.includes('Neautorizovaný')`.
+ */
+export class AuthError extends Error {
+    readonly code: AuthErrorCode
+    constructor(code: AuthErrorCode, message: string) {
+        super(message)
+        this.name = 'AuthError'
+        this.code = code
+    }
+}
+
+/** Poznat chybu brány i přes hranici bundlu (instanceof nemusí držet). */
+export function isAuthError(err: unknown): err is AuthError {
+    return err instanceof AuthError || (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'AuthError')
+}
+
+async function authError(code: AuthErrorCode): Promise<AuthError> {
+    const t = await actionTranslator('common')
+    return new AuthError(code, t(`auth.${code}`))
+}
 
 /**
  * Ověří, zda je uživatel přihlášen. Necontroluje admin práva.
@@ -11,7 +38,7 @@ export async function requireAuth(): Promise<{ email: string; userId: string }> 
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user?.email) {
-        throw new Error('Neautorizovaný přístup: Uživatel není přihlášen.')
+        throw await authError('unauthenticated')
     }
 
     return { email: user.email, userId: user.id }
@@ -24,7 +51,7 @@ export async function requireAuth(): Promise<{ email: string; userId: string }> 
  */
 export async function requireProjectAccess(projectSlug: string): Promise<{ userId: string; clientId: string; email: string; isSuperAdmin: boolean }> {
     if (!projectSlug) {
-        throw new Error('Chybí identifikace projektu.')
+        throw await authError('missingProject')
     }
     // Auth BEFORE slug resolution — unauthenticated callers must not be able
     // to probe which tenant slugs exist via error-message differences.
@@ -41,7 +68,7 @@ export async function requireProjectAccess(projectSlug: string): Promise<{ userI
 export async function requireClientAccess(clientId: string): Promise<{ userId: string; clientId: string; email: string; isSuperAdmin: boolean }> {
     const { userId, email } = await requireAuth()
     if (!clientId) {
-        throw new Error('Chybí identifikace klienta.')
+        throw await authError('missingClient')
     }
 
     // Super admins bypass user_clients check
@@ -57,7 +84,7 @@ export async function requireClientAccess(clientId: string): Promise<{ userId: s
         .single()
 
     if (!data) {
-        throw new Error('Nemáte přístup k tomuto projektu.')
+        throw await authError('forbidden')
     }
 
     return { userId, clientId, email, isSuperAdmin: false }
@@ -74,11 +101,11 @@ export async function requireSuperAdmin(): Promise<{ email: string; userId: stri
     const admins = superAdminEmails()
 
     if (admins.length === 0) {
-        throw new Error('Neautorizovaný přístup: Systém nemá definované žádné administrátory (SUPER_ADMIN_EMAILS).')
+        throw await authError('noAdmins')
     }
 
     if (!isSuperAdminEmail(email)) {
-        throw new Error('Neautorizovaný přístup: Uživatel nemá administrátorská práva.')
+        throw await authError('notAdmin')
     }
 
     return { email, userId }

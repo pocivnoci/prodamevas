@@ -6,7 +6,15 @@
     "close": "Zavřít",
     "loading": "Načítám…",
     "retry": "Zkusit znovu",
-    "back": "Zpět"
+    "back": "Zpět",
+    "auth": {
+      "unauthenticated": "Neautorizovaný přístup: Uživatel není přihlášen.",
+      "missingProject": "Chybí identifikace projektu.",
+      "missingClient": "Chybí identifikace klienta.",
+      "forbidden": "Nemáte přístup k tomuto projektu.",
+      "noAdmins": "Neautorizovaný přístup: Systém nemá definované žádné administrátory (SUPER_ADMIN_EMAILS).",
+      "notAdmin": "Neautorizovaný přístup: Uživatel nemá administrátorská práva."
+    }
   },
   "nav": {
     "items": {
@@ -173,6 +181,14 @@
       "install": "Nainstalovat",
       "hide": "Skrýt",
       "hideAria": "Skrýt nabídku instalace"
+    },
+    "cookies": {
+      "aria": "Souhlas s cookies",
+      "label": "Cookies",
+      "text": "Technicky nezbytné cookies pro přihlášení používáme vždy — bez nich by služba nefungovala. Kromě nich bychom rádi měřili návštěvnost přes Google Analytics, abychom věděli, co na webu opravit. To spustíme jen s vaším souhlasem a můžete ho kdykoli odvolat.",
+      "policy": "Zásady zpracování údajů",
+      "deny": "Odmítnout",
+      "allow": "Povolit měření"
     }
   }
 }

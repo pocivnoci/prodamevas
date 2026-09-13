@@ -84,18 +84,73 @@ v jazyce značky" jsou onboardingové otázky: to je rozhovor s uživatelem.
 - **Ukázkové/portfoliové značky** (`showcase-kits.ts`, `portfolio-data.ts`).
 - **Právní texty** (`app/terms`, `app/privacy`, `lib/legal.ts`) — jsou vázané na
   jurisdikci, ne na jazyk; překlad je právní rozhodnutí, ne technické.
-- **Onboardingové otázky** — dokud není UI lokalizované; pak jdou po jazyku UI.
+- **Onboardingové otázky** jdou po jazyku UI (`uiLocale` v payloadu úlohy) — jsou
+  pro uživatele, ne pro publikum.
 
 ## Jazyk UI
 
-Zdrojový jazyk je čeština; texty žijí v `messages/cs.json` (zdroj pravdy) a
-překladech `messages/<locale>.json`, načítá je `next-intl` bez prefixu v URL
-(dashboard je hash-SPA, prefix by rozbil hluboké odkazy). Locale se řeší
-v `lib/i18n`: cookie `NEXT_LOCALE` → `user_metadata.locale` → `Accept-Language`
-→ `cs`. Komponenty: `useTranslations("<namespace>")`; server actions a e-maily:
-`getTranslations()`. Navigační registr (`app/(dashboard)/nav.ts`) nese klíče,
-ne texty. Skloňování počtů: `lib/plural.ts` (čeština má 3 tvary, angličtina 2 —
-pravidla per locale, ne `n === 1`).
+Zdrojový jazyk je čeština; texty žijí v `messages/cs/<soubor>.json` (zdroj pravdy)
+a překladech `messages/en/<soubor>.json`; seznam souborů je `MESSAGE_FILES`
+v `lib/i18n/messages.ts`. `next-intl` běží bez prefixu v URL (dashboard je hash-SPA,
+prefix by rozbil hluboké odkazy). Locale se řeší v `lib/i18n`: cookie `NEXT_LOCALE`
+→ `Accept-Language` → `cs`; přihlášení, OAuth callback a registrace opisují
+`user_metadata.locale` do cookie. Navigační registr (`app/(dashboard)/nav.ts`)
+nese klíče, ne texty. Počty přes ICU plural v messages (`lib/plural.ts` zůstává jen
+pro nemigrovaný kód).
+
+Kde se který překladač bere:
+
+| Kontext | Překladač | Jazyk |
+|---|---|---|
+| Klientská komponenta | `useTranslations("<ns>")` | `UiLocaleProvider` (cookie) |
+| Serverová komponenta | `await getTranslations("<ns>")` | request config |
+| Server action, API routa | `await actionTranslator("<ns>")` (`lib/i18n/actions.ts`), uvnitř funkce; mimo request spadne na češtinu | cookie requestu |
+| HTML mezistránka z routy | `actionTranslator("api")` + `resolveUiLocale()` pro `<html lang>` | cookie / Accept-Language |
+| E-mail, cron, agent | `mailTranslatorSync(locale, "mail" \| "notices" \| "worker")` (`lib/mail/i18n.ts`) | jazyk PŘÍJEMCE: `localeOfUser(user)`, `localeOfClientOwner(clientId)` |
+| Kořenový layout (statický, bez provideru) | přímý import `messages/<locale>/core.json` podle cookie (`CookieConsent`) | cookie |
+
+## Hlášky ze server actions a API rout
+
+- `const t = await actionTranslator("<ns>")` v každé exportované akci (ne na úrovni
+  modulu — request je per volání). `"use server"` soubor smí exportovat jen async
+  funkce. Namespace po doménách: `actionsPlan`, `actionsContent`, `actionsAccount`,
+  `actionsAdmin`, `api` (routy).
+- Překládá se jen to, co doletí do UI: `error`, `message`, `warning`, hozené `Error`,
+  které klient zobrazí, `agent_message` zapsané z requestu. Nepřekládá se: prompt pro
+  model (blok `// i18n-ignore-start: prompt` … `// i18n-ignore-end`), sentinel v datech
+  (`startsWith("Nový post")`, `source: "od klienta"` — řádkový `// i18n-ignore: <důvod>`),
+  deník kreditů, audit `agent_actions`, logy, e-maily správci.
+- Chyby z `lib/auth-guard.ts` jsou `AuthError` s `code` a lokalizovanou zprávou —
+  rozhoduj přes `isAuthError(err)`, nikdy podle textu zprávy.
+- Onboarding: `humanizeErrorWith(error, t)` (`app/onboarding/types.ts`) překládá
+  síťové a AI chyby (`onboarding.humanized.*`); `humanizeError` je česká varianta
+  pro kód bez překladače.
+- Průběh dlouhých úloh: engine hlásí `agent_message` česky (zdroj). GenerateTab
+  v jiném jazyce UI ukazuje popisek fáze podle `status` (`generate.progress.engine.*`).
+  Hlášky zapsané cronem bez uživatele (campaign-worker, job-resume) zůstávají české;
+  onboardingové úlohy berou jazyk zadavatele (`requested_by`).
+
+## E-maily v jazyce příjemce
+
+- Šablony `lib/mail/templates/*` jsou čisté funkce `build(vars, t, locale)`; registr
+  `render(vars, unsubscribeEmail, locale)` — bez `locale` čeština. Transakční,
+  předplatitelské a waitlistové jdou v jazyce příjemce; marketingové rozesílky
+  (news, offer, promo) a e-maily správci (daily brief, incident watch, health check,
+  weekly report) zůstávají česky — rozhodnutí, ne dluh.
+- Zákaznická oznámení (`lib/agents/notice-templates.ts`, `lifecycle-templates.ts`)
+  a digest kampaně (`renderCampaignDigest`) berou `t` z `mailTranslatorSync(locale, ns)`;
+  jazyk zjišťuje odesílající funkce (`localeOfClientOwner`, `localeOfUser`).
+- Layout e-mailu nese `locale` (`<html lang>`, patička, odhlášení); ComGate/Stripe
+  dostávají jazyk kupujícího (`paymentPageLanguage()`), Fakturoid jazyk podle země
+  odběratele (`fakturoidLanguage`). Měna zůstává CZK.
+
+## Guard
+
+`scripts/test-i18n.ts` (součást `npm run guard`): parita klíčů cs/en, platnost ICU
+a shoda proměnných, registr navigace nese klíče, `MIGRATED` (soubory bez češtiny
+mimo komentáře a bloky `i18n-ignore`; každý `i18n-ignore-start` má `end`; značka
+`i18n-ignore` platí i v komentáři za kódem), zapojení plateb, dokladů a e-mailů.
+Nový migrovaný soubor patří do `MIGRATED`, nový soubor zpráv do `MESSAGE_FILES`.
 
 ## Migrace tabu na messages (postup pro každý soubor)
 

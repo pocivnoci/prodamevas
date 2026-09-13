@@ -38,7 +38,7 @@ import {
     ACTION_CREDITS,
     ACTION_LABELS,
 } from "@/lib/subscription"
-import { requireProjectAccess } from "@/lib/auth-guard"
+import { isAuthError, requireProjectAccess } from "@/lib/auth-guard"
 import { actionTranslator, type ActionTranslator } from "@/lib/i18n/actions"
 
 export interface CreditGuardResult {
@@ -244,7 +244,7 @@ export async function creditGuard(
         console.error("Credit guard error (blocking action):", err?.message)
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
+            error: isAuthError(err)
                 ? err.message
                 : t("creditGuard.verifyFailed"),
             clientId: projectId,
@@ -343,7 +343,7 @@ export async function creditGuardBatch(
         console.error("Credit guard batch error (blocking action):", err?.message)
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
+            error: isAuthError(err)
                 ? err.message
                 : t("creditGuard.verifyFailed"),
             clientId: projectId,
@@ -385,7 +385,7 @@ export async function canGenerate(
     } catch (err: any) {
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
+            error: isAuthError(err)
                 ? err.message
                 : t("creditGuard.verifyFailedShort"),
         }

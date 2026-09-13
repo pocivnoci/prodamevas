@@ -172,6 +172,9 @@ const MIGRATED = [
     ].map(f => `app/actions/${f}.ts`),
     "app/onboarding/actions.ts",
     "app/onboarding/types.ts",
+    "lib/auth-guard.ts",
+    "app/api/plans/route.ts",
+    "components/CookieConsent.tsx",
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
 // `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel

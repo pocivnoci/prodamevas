@@ -6,7 +6,15 @@
     "close": "Close",
     "loading": "Loading…",
     "retry": "Try again",
-    "back": "Back"
+    "back": "Back",
+    "auth": {
+      "unauthenticated": "Unauthorized access: you are not signed in.",
+      "missingProject": "Missing project identifier.",
+      "missingClient": "Missing client identifier.",
+      "forbidden": "You do not have access to this project.",
+      "noAdmins": "Unauthorized access: no administrators are configured (SUPER_ADMIN_EMAILS).",
+      "notAdmin": "Unauthorized access: this account has no administrator rights."
+    }
   },
   "nav": {
     "items": {
@@ -173,6 +181,14 @@
       "install": "Install",
       "hide": "Hide",
       "hideAria": "Hide the install offer"
+    },
+    "cookies": {
+      "aria": "Cookie consent",
+      "label": "Cookies",
+      "text": "We always use the technically necessary cookies for signing in — the service would not work without them. Beyond those we would like to measure traffic with Google Analytics to learn what to fix on the site. That runs only with your consent, which you can withdraw at any time.",
+      "policy": "Privacy policy",
+      "deny": "Decline",
+      "allow": "Allow measurement"
     }
   }
 }
