@@ -5933,6 +5933,48 @@ test("38.3 každá akce evidence má bránu a whitelist sloupců", () => {
     }
 })
 
+test("38.7 evidence financí nesmí začít předstírat účetnictví", () => {
+    const act = codeOnly("app/actions/finance-actions.ts")
+    const exported = act.match(/export async function \w+/g) ?? []
+    assert(exported.length >= 4, "akce financí chybí")
+    // Peníze firmy — tady se brána zapomenout nesmí.
+    const guards = act.match(/await requireSuperAdmin\(\)/g) ?? []
+    assert(guards.length >= exported.length, "KAŽDÁ akce financí potřebuje requireSuperAdmin()")
+
+    // Whitelist bydlí ve slovníku, protože „use server" nesmí exportovat
+    // konstanty (38.0). `kind` v něm schválně není: přehození nákladu na vklad
+    // musí zároveň vynulovat `cost_type`, jinak to neprojde constraintem.
+    const dict = codeOnly("lib/finance.ts")
+    assert(/export const EDITABLE = \[/.test(dict), "úprava musí jet přes whitelist sloupců")
+    assert(/EDITABLE/.test(act), "akce musí whitelist opravdu použít, ne ho jen mít vedle")
+    const list = dict.slice(dict.indexOf("export const EDITABLE = ["), dict.indexOf("] as const", dict.indexOf("export const EDITABLE = [")))
+    for (const forbidden of ["kind", "created_by", "created_at", "updated_at"]) {
+        assert(!new RegExp(`"${forbidden}"`).test(list), `${forbidden} nesmí jít měnit z formuláře`)
+    }
+
+    // Evidence NENÍ účetnictví: kdyby si sem sahala na doklady nebo platby
+    // zákazníků, začne se totéž počítat dvakrát — jednou z Fakturoidu a jednou
+    // z ruky. A mazání v téhle akci se pak potká s daňovou stopou.
+    for (const cizi of ["invoices", "payments", "subscriptions", "credit_transactions"]) {
+        assert(!new RegExp(`from\\("${cizi}"\\)`).test(act),
+            `finance nesmí sahat na ${cizi} — vydané doklady a platby mají vlastní vrstvu`)
+    }
+
+    // Znaménko nese druh, ne částka. Záporná částka je past: kdo ji jednou
+    // zapomene, dostane vklad mezi náklady a součet tiše lže.
+    const mig = fileContent("supabase/migrations/20260913_finance.sql")
+    assert(/check \(amount_czk > 0\)/.test(mig), "částka musí být kladná — znaménko nese kind")
+    assert(/kind = 'vklad'\s+and cost_type is null/.test(mig),
+        "vklad nesmí mít fixní/variabilní — jinak ho filtr nákladů započítá")
+    // Interní data firmy, ne obsah tenanta: anon klíč sem nesmí.
+    assert(/alter table finance_entries enable row level security/.test(mig),
+        "tabulka financí potřebuje zapnuté RLS")
+
+    // Sekce patří do registru navigace, ne natvrdo do JSX.
+    assert(/id: "finance"/.test(codeOnly("app/(dashboard)/nav.ts")),
+        "Finance musí být v registru navigace")
+})
+
 test("38.4 číslo leadu přiděluje databáze, ne ruka", () => {
     // V tabulce se K0004 i K0005 objevily dvakrát hned první den. Sekvence tuhle
     // chybu nezná — a unikátní index ji nepustí ani oklikou.

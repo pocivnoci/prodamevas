@@ -31,6 +31,7 @@ export type StudioSection =
     | "company"
     | "tasks"
     | "leads"
+    | "finance"
 
 // Seznam platných sekcí odvozuje registr v `nav.ts` (import nahoře) — ručně
 // udržovaná kopie se od unionu výš pokaždé rozešla. Union zůstává ručně: je to
