@@ -1,3 +1,114 @@
 {
-  "actionsPlan": {}
+  "actionsPlan": {
+    "common": {
+      "postNotFound": "Příspěvek nenalezen.",
+      "connectInstagramFirst": "Nejdřív připojte Instagram účet v Nastavení."
+    },
+    "contentPlan": {
+      "generate": {
+        "planning": "📋 Plánuji obsah…",
+        "concepts": "📝 Plán: {done}/{total}{judged, select, yes { · oponentura ✓} other {}}",
+        "autoFilledAngle": "Automaticky doplněný post",
+        "done": "✅ Plán hotový",
+        "failed": "❌ Plánování selhalo"
+      },
+      "regenerate": {
+        "invalidJson": "Model nevrátil platný JSON."
+      }
+    },
+    "calendar": {
+      "retryPublish": {
+        "failed": "Akce selhala"
+      },
+      "publishNow": {
+        "reelWithoutVideo": "Tenhle reel nemá video — přegeneruj ho, publikovat zatím nejde.",
+        "noMedia": "Příspěvek nemá žádné médium k publikování.",
+        "failed": "Publikace selhala"
+      },
+      "confirmPlan": {
+        "failed": "Potvrzení plánu selhalo"
+      },
+      "schedule": {
+        "foreignPost": "Příspěvek nepatří tomuto projektu.",
+        "failed": "Plánování selhalo"
+      },
+      "armAutoPublish": {
+        "failed": "Naostření selhalo"
+      }
+    },
+    "campaign": {
+      "start": {
+        "emptyPlan": "Plán je prázdný.",
+        "reelLabel": {
+          "reel": "Reel",
+          "reel_long": "Dlouhý reel"
+        },
+        "reelsRequirePlan": "{label}: reels jsou dostupné od balíčku {plan}.",
+        "notEnoughCredits": "Nedostatek kreditů pro celou kampaň.",
+        "claimFailed": "Kampaň se nepodařilo spustit: {message}",
+        "alreadyStarted": "Tento plán už byl spuštěn.",
+        "createFailed": "Kampaň se nepodařilo založit: {message}"
+      },
+      "status": {
+        "notFound": "Kampaň nenalezena.",
+        "unauthorized": "Neautorizovaný přístup ke kampani."
+      }
+    },
+    "task": {
+      "common": {
+        "titleRequired": "Úkol potřebuje název."
+      },
+      "team": {
+        "emailAndNameRequired": "Člen týmu potřebuje e-mail i jméno."
+      },
+      "answer": {
+        "empty": "Odpověď nemůže být prázdná."
+      },
+      "note": {
+        "empty": "Poznámka nemůže být prázdná."
+      },
+      "runAgent": {
+        "failed": "Spuštění selhalo."
+      }
+    },
+    "approval": {
+      "approveAlways": {
+        "noPolicyKind": "Akce nemá druh, pro který by šel uložit stálý souhlas.",
+        "grantFailed": "Akce schválena, ale trvalé zapnutí selhalo: {error}"
+      }
+    },
+    "line": {
+      "common": {
+        "notFoundOrApproved": "Řada nenalezena nebo už byla schválena."
+      },
+      "generate": {
+        "placeholderName": "{category} (generuje se…)",
+        "starting": "Startuji…",
+        "createFailed": "Nepodařilo se založit řadu: {message}",
+        "failed": "Generování selhalo",
+        "lineFailed": "Generování řady selhalo"
+      },
+      "revise": {
+        "failed": "Úprava selhala"
+      },
+      "update": {
+        "skuMissing": "Produkt v řadě neexistuje.",
+        "failed": "Uložení selhalo"
+      },
+      "approve": {
+        "approvedOrMissing": "Tato řada už byla schválena nebo neexistuje.",
+        "noneSelected": "Nevybral jsi žádný produkt.",
+        "alreadyApproved": "Tato řada už byla schválena.",
+        "productsFailed": "Řada schválena, ale produkty se nepodařilo uložit: {message}",
+        "failed": "Schválení selhalo"
+      },
+      "discard": {
+        "alreadyApproved": "Řadu už nelze zahodit (je schválená).",
+        "failed": "Zahození selhalo"
+      },
+      "archive": {
+        "failed": "Archivace selhala"
+      }
+    }
+  }
 }

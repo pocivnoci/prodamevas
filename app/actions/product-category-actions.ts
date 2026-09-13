@@ -10,6 +10,7 @@ import {
 import { resolveClientId } from "@/instagram/configs"
 import { requireAuth, requireClientAccess, requireSuperAdmin } from "@/lib/auth-guard"
 import supabaseAdmin from "@/supabase/admin"
+import { actionTranslator, type ActionTranslator } from "@/lib/i18n/actions"
 
 // ─── Helper: slug → UUID ──────────────────────────────────
 
@@ -24,13 +25,13 @@ async function toUUID(projectId: string): Promise<string | null> {
 }
 
 /** Ownership check for a category row: per-client rows need membership, global rows (client_id null) need super admin. */
-async function requireCategoryAccess(id: string): Promise<void> {
+async function requireCategoryAccess(id: string, t: ActionTranslator): Promise<void> {
     const { data: category } = await supabaseAdmin
         .from("ig_product_categories")
         .select("client_id")
         .eq("id", id)
         .single()
-    if (!category) throw new Error("Kategorie nenalezena")
+    if (!category) throw new Error(t("productCategory.notFound"))
     if (category.client_id) {
         await requireClientAccess(category.client_id)
     } else {
@@ -74,9 +75,10 @@ export async function addProductCategory(
         manufacturing_hint?: string
     }
 ): Promise<{ success: boolean; category?: ProductCategory; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const clientUUID = await toUUID(projectId)
-        if (!clientUUID) return { success: false, error: `Klient "${projectId}" nenalezen` }
+        if (!clientUUID) return { success: false, error: t("productCategory.clientNotFound", { name: projectId }) }
         await requireClientAccess(clientUUID)
         const category = await createCategory(clientUUID, data)
         return { success: true, category }
@@ -98,8 +100,9 @@ export async function editProductCategory(
         manufacturing_hint: string
     }>
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
-        await requireCategoryAccess(id)
+        await requireCategoryAccess(id, t)
         await updateCategory(id, data)
         return { success: true }
     } catch (err: any) {
@@ -112,8 +115,9 @@ export async function editProductCategory(
 export async function removeProductCategory(
     id: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
-        await requireCategoryAccess(id)
+        await requireCategoryAccess(id, t)
         await deleteCategory(id)
         return { success: true }
     } catch (err: any) {

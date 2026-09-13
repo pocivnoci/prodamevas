@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 /**
  * Server actions for the dashboard "Schválení" (Approvals) tab — the human side
@@ -109,16 +110,17 @@ export async function approveAgentAction(actionId: string): Promise<{ ok: boolea
  */
 export async function approveAgentActionAlways(actionId: string): Promise<{ ok: boolean; error?: string }> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
     const { approveAction } = await import("@/lib/agent-safety")
     const res = await approveAction(actionId, email)
     if (!res.ok) return res
-    if (!res.policyKey) return { ok: false, error: "Akce nemá druh, pro který by šel uložit stálý souhlas." }
+    if (!res.policyKey) return { ok: false, error: t("approval.approveAlways.noPolicyKind") }
 
     const { grantPolicy } = await import("@/lib/agent-policy")
-    const granted = await grantPolicy(res.policyKey, email, { note: "schváleno z dashboardu" })
+    const granted = await grantPolicy(res.policyKey, email, { note: "schváleno z dashboardu" }) // i18n-ignore: poznámka do auditu souhlasů (agent_policies), ne UI
     // Akce už běží, takže tohle není celkové selhání — ale mlčet o něm nejde:
     // člověk by čekal, že se systém přestane ptát, a ono by se nic nezměnilo.
-    return granted.ok ? { ok: true } : { ok: false, error: `Akce schválena, ale trvalé zapnutí selhalo: ${granted.error}` }
+    return granted.ok ? { ok: true } : { ok: false, error: t("approval.approveAlways.grantFailed", { error: granted.error || "" }) }
 }
 
 export async function rejectAgentAction(actionId: string): Promise<{ ok: boolean; error?: string }> {

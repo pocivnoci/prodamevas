@@ -1,8 +1,9 @@
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import { getPlanForMedium } from "@/lib/pricing"
 import supabaseAdmin from "@/supabase/admin"
 import { isMediumType, type MediumType } from "@/lib/credits"
-import { isReelMedium, REEL_LABELS, type ReelMedium } from "@/lib/reel-media"
+import { isReelMedium, type ReelMedium } from "@/lib/reel-media"
 
 export const maxDuration = 10 // Fast — just creates a job record
 
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
         const { requireProjectAccess } = await import("@/lib/auth-guard")
         const { clientId, isSuperAdmin } = await requireProjectAccess(body.configName)
 
+        const t = await actionTranslator("api")
         // Rate limit: max 10 jobs per hour per client (admin bypass)
         const RATE_LIMIT_PER_HOUR = 10
         if (!isSuperAdmin) {
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
 
             if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
                 return NextResponse.json(
-                    { success: false, error: `Dosáhli jste limitu ${RATE_LIMIT_PER_HOUR} generování za hodinu. Zkuste to později.` },
+                    { success: false, error: t("job.rateLimit", { limit: RATE_LIMIT_PER_HOUR }) },
                     { status: 429 }
                 )
             }
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
                 .eq("id", body.ideaId)
                 .maybeSingle()
             if (!idea || idea.client_id !== clientId) {
-                return NextResponse.json({ success: false, error: "Nápad nenalezen" }, { status: 400 })
+                return NextResponse.json({ success: false, error: t("job.ideaNotFound") }, { status: 400 })
             }
         }
 
@@ -87,7 +89,7 @@ export async function POST(req: Request) {
             if (wantedReel && !canUseMedium(sub?.features, wantedReel)) {
                 if (isReelMedium(body.medium)) {
                     return NextResponse.json(
-                        { success: false, error: `${REEL_LABELS[wantedReel]}: reels jsou dostupné od balíčku ${getPlanForMedium(wantedReel)}.`, featureBlocked: true, planRequired: getPlanForMedium(wantedReel) },
+                        { success: false, error: t("job.reelBlocked", { medium: t(`media.${wantedReel}`), plan: getPlanForMedium(wantedReel) }), featureBlocked: true, planRequired: getPlanForMedium(wantedReel) },
                         { status: 403 }
                     )
                 }
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
             if ((body.medium === "story" || chargedMedium === "story") && !canUseMedium(sub?.features, "story")) {
                 if (body.medium === "story") {
                     return NextResponse.json(
-                        { success: false, error: "Stories nejsou v tomto balíčku dostupné.", featureBlocked: true, planRequired: "Start" },
+                        { success: false, error: t("job.storiesBlocked"), featureBlocked: true, planRequired: "Start" },
                         { status: 403 }
                     )
                 }
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
             guard = await creditGuard(body.configName, "post", undefined, chargedMedium)
             if (!guard.ok) {
                 return NextResponse.json(
-                    { success: false, error: guard.error || "Nedostatek kreditů" },
+                    { success: false, error: guard.error || t("job.noCredits") },
                     { status: 402 }
                 )
             }
@@ -149,7 +151,7 @@ export async function POST(req: Request) {
                 },
                 status: "researcher",
                 progress: 5,
-                agent_message: "🔍 Researcher vybírá zdroje...",
+                agent_message: t("job.researcherStart"),
             })
             .select("id")
             .single()
@@ -166,7 +168,7 @@ export async function POST(req: Request) {
                 await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
                 console.error("ig-create-job charge failed:", chargeErr?.message)
                 return NextResponse.json(
-                    { success: false, error: "Nepodařilo se odečíst kredit. Zkuste to znovu." },
+                    { success: false, error: t("job.chargeFailed") },
                     { status: 500 }
                 )
             }

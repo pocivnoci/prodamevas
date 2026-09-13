@@ -26,9 +26,10 @@ function check(name: string, cond: boolean, detail?: string) {
 
 const file = (p: string) => readFileSync(resolve(ROOT, p), "utf-8")
 /** Bez komentářů — komentáře smí být česky vždycky. */
-const codeOnly = (p: string) => file(p)
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "")
+const stripBlockComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "")
+/** Řádkový komentář za kódem (ne `://` v URL, ne `//` uvnitř řetězce). */
+const stripLineComment = (line: string) => line.replace(/(^|[^:"'`])\/\/.*$/, "$1")
+const codeOnly = (p: string) => stripBlockComments(file(p)).replace(/^\s*\/\/.*$/gm, "")
 
 type Tree = { [k: string]: string | Tree }
 function flatten(tree: Tree, prefix = ""): Map<string, string> {
@@ -146,14 +147,56 @@ const MIGRATED = [
     "app/onboarding/TaskProgress.tsx",
     "app/onboarding/task-client.ts",
     "app/onboarding/layout.tsx",
+    // adminský JSON editor konfigurace
+    "app/(dashboard)/dashboard/settings/page.tsx",
+    // API routy s hláškami pro prohlížeč
+    "app/api/ig-create-job/route.ts",
+    "app/api/ig-run-job/route.ts",
+    "app/api/ig-job-status/route.ts",
+    "app/api/onboarding/task-status/route.ts",
+    "app/api/onboarding/run-task/route.ts",
+    "app/api/payments/stripe/create/route.ts",
+    "app/api/ig-connect/start/route.ts",
+    "app/api/ig-connect/bridge/route.ts",
+    "app/api/ig-connect/bridge/return/route.ts",
+    "app/api/ig-connect/bridge/go/route.ts",
+    // server actions (vlna 3) — hlášky přes actionTranslator, prompty v i18n-ignore blocích
+    ...[
+        "admin-actions", "lead-actions", "mailing-actions", "growth-actions", "waitlist-admin",
+        "content-plan-actions", "calendar-actions", "campaign-actions", "task-actions",
+        "approval-actions", "ab-actions", "line-actions",
+        "ig-generate-action", "post-edit-actions", "brand-images-action", "variant-actions", "post-actions",
+        "memory-actions", "product-actions", "product-brief-actions", "product-category-actions", "print-actions",
+        "config-actions", "billing-actions", "credit-guard", "settings-actions", "ig-connection-actions",
+        "company-actions", "contact", "consultation-actions", "locale-actions",
+    ].map(f => `app/actions/${f}.ts`),
+    "app/onboarding/actions.ts",
+    "app/onboarding/types.ts",
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
 // `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel
-// v datech, text vázaný na prompt) — musí mít vedle sebe důvod.
+// v datech, text vázaný na prompt) — musí mít vedle sebe důvod. Víceřádkový blok
+// (prompt pro model, který je schválně česky) se ohraničí
+// `// i18n-ignore-start: <důvod>` … `// i18n-ignore-end`.
 const IGNORED = /console\.(log|warn|error|info)|i18n-ignore/
+/** Řádky mimo komentáře a mimo bloky i18n-ignore-start/end. */
+function checkedLines(f: string): string[] {
+    const out: string[] = []
+    let skipping = false
+    for (const raw of file(f).split("\n")) {
+        if (/\/\/\s*i18n-ignore-start/.test(raw)) { skipping = true; continue }
+        if (/\/\/\s*i18n-ignore-end/.test(raw)) { skipping = false; continue }
+        if (!skipping) out.push(raw)
+    }
+    return stripBlockComments(out.join("\n")).split("\n")
+}
 for (const f of MIGRATED) {
-    const offenders = codeOnly(f).split("\n").filter(l => CZECH.test(l) && !IGNORED.test(l))
+    // Čeština se hledá v kódu bez komentáře za ním; značka `i18n-ignore` ale žije
+    // právě v tom komentáři, proto se testuje na celém řádku.
+    const offenders = checkedLines(f).filter(l => CZECH.test(stripLineComment(l)) && !IGNORED.test(l))
     check(`${f}: žádný český text mimo komentáře`, offenders.length === 0, offenders[0]?.trim().slice(0, 100))
+    check(`${f}: každý blok i18n-ignore-start je uzavřený`,
+        (file(f).match(/i18n-ignore-start/g) || []).length === (file(f).match(/i18n-ignore-end/g) || []).length)
 }
 
 // ── 4. Zapojení ──

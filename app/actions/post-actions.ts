@@ -3,6 +3,7 @@
 import { parsePostMedia } from "@/lib/media-urls"
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 // ─── Delete IG Post ──────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ export async function deleteIGPost(
     postId: string,
     projectSlug: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -21,7 +23,7 @@ export async function deleteIGPost(
             .single()
 
         if (!post || post.client_id !== clientId) {
-            return { success: false, error: "Příspěvek nenalezen" }
+            return { success: false, error: t("common.postNotFound") }
         }
 
         // Delete images from storage

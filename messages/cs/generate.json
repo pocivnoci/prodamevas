@@ -188,6 +188,19 @@
         "visualPrompt": "Generuji vizuální prompt pro AI...",
         "image": "Generuji obrázek...",
         "polish": "Finální leštění a optimalizace..."
+      },
+      "engine": {
+        "pending": "Čekám na start...",
+        "researcher": "Researcher hledá zdroje...",
+        "strategist": "Stratég plánuje...",
+        "copywriter": "Copywriter píše text...",
+        "critic": "Kritik hodnotí kvalitu...",
+        "chief_editor": "Šéfredaktor rozhoduje...",
+        "designer": "Art director připravuje vizuál...",
+        "art_director": "Art director připravuje vizuál...",
+        "rendering": "Renderuji vizuál...",
+        "video": "Renderuji video...",
+        "uploading": "Ukládám..."
       }
     },
     "roles": {

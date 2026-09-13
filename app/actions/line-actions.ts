@@ -29,6 +29,7 @@ import {
     type LineSku,
     type LineValidationIssue,
 } from "@/instagram/line-generator"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 export interface LineRow {
     id: string
@@ -57,6 +58,7 @@ export async function generateLine(
     const guard = await creditGuard(projectSlug, "product_line")
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
+    const t = await actionTranslator("actionsPlan")
 
     // The row is created BEFORE generation so getLineProgress has something to poll
     // (the UI can't read a value from an action that hasn't returned yet). 'generating'
@@ -65,18 +67,18 @@ export async function generateLine(
         .from("ig_product_lines")
         .insert({
             client_id: clientId,
-            name: `${brief.category} (generuje se…)`,
+            name: t("line.generate.placeholderName", { category: brief.category }),
             slug: `draft-${Date.now()}`,
             price_tier: brief.priceTier,
             brief: { ...brief, runId: brief.runId || null },
             status: "generating",
-            progress: "Startuji…",
+            progress: t("line.generate.starting"),
         })
         .select("id")
         .single()
 
     if (insertErr || !row) {
-        return { success: false, error: `Nepodařilo se založit řadu: ${insertErr?.message}` }
+        return { success: false, error: t("line.generate.createFailed", { message: insertErr?.message || "" }) }
     }
 
     const setProgress = async (message: string) => {
@@ -111,17 +113,17 @@ export async function generateLine(
 
         if (updateErr) throw new Error(updateErr.message)
 
-        await guard.commit(`Produktová řada: ${line.line.name}`, row.id)
+        await guard.commit(`Produktová řada: ${line.line.name}`, row.id) // i18n-ignore: popis v deníku kreditů (interní záznam, ne UI)
         return { success: true, lineId: row.id, line, issues }
     } catch (err: any) {
         console.error("generateLine error:", err)
         // Not charged — commit() only runs on the success path above.
         await supabaseAdmin
             .from("ig_product_lines")
-            .update({ status: "failed", progress: err?.message?.slice(0, 300) || "Generování selhalo" })
+            .update({ status: "failed", progress: err?.message?.slice(0, 300) || t("line.generate.failed") })
             .eq("id", row.id)
             .eq("client_id", clientId)
-        return { success: false, error: err?.message || "Generování řady selhalo" }
+        return { success: false, error: err?.message || t("line.generate.lineFailed") }
     }
 }
 
@@ -197,6 +199,7 @@ export async function reviseLineSku(
     const guard = await creditGuard(projectSlug, "idea_generate")
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
+    const t = await actionTranslator("actionsPlan")
 
     try {
         const { data: row } = await supabaseAdmin
@@ -206,7 +209,7 @@ export async function reviseLineSku(
             .eq("client_id", clientId)
             .eq("status", "draft")
             .maybeSingle()
-        if (!row) return { success: false, error: "Řada nenalezena nebo už byla schválena." }
+        if (!row) return { success: false, error: t("line.common.notFoundOrApproved") }
 
         const config = await loadConfig(projectSlug)
         const generated: GeneratedLine = {
@@ -233,11 +236,11 @@ export async function reviseLineSku(
             .eq("client_id", clientId)
             .eq("status", "draft")
 
-        await guard.commit(`Úprava produktu v řadě: ${revised.name}`, lineId)
+        await guard.commit(`Úprava produktu v řadě: ${revised.name}`, lineId) // i18n-ignore: popis v deníku kreditů (interní záznam, ne UI)
         return { success: true, sku: revised }
     } catch (err: any) {
         console.error("reviseLineSku error:", err)
-        return { success: false, error: err?.message || "Úprava selhala" }
+        return { success: false, error: err?.message || t("line.revise.failed") }
     }
 }
 
@@ -248,6 +251,7 @@ export async function updateLineSku(
     skuIndex: number,
     patch: Partial<LineSku>,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { data: row } = await supabaseAdmin
@@ -257,10 +261,10 @@ export async function updateLineSku(
             .eq("client_id", clientId)
             .eq("status", "draft")
             .maybeSingle()
-        if (!row) return { success: false, error: "Řada nenalezena nebo už byla schválena." }
+        if (!row) return { success: false, error: t("line.common.notFoundOrApproved") }
 
         const skus = (row.skus || []) as LineSku[]
-        if (!skus[skuIndex]) return { success: false, error: "Produkt v řadě neexistuje." }
+        if (!skus[skuIndex]) return { success: false, error: t("line.update.skuMissing") }
         // step is structural — a patch must not be able to reorder the line
         const safePatch = { ...patch }
         delete safePatch.step
@@ -275,7 +279,7 @@ export async function updateLineSku(
 
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Uložení selhalo" }
+        return { success: false, error: err?.message || t("line.update.failed") }
     }
 }
 
@@ -295,6 +299,7 @@ export async function approveLine(
     lineId: string,
     selectedSteps?: number[],
 ): Promise<{ success: boolean; created?: number; ideas?: number; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -305,13 +310,13 @@ export async function approveLine(
             .eq("client_id", clientId)
             .eq("status", "draft")
             .maybeSingle()
-        if (!row) return { success: false, error: "Tato řada už byla schválena nebo neexistuje." }
+        if (!row) return { success: false, error: t("line.approve.approvedOrMissing") }
 
         const allSkus = (row.skus || []) as LineSku[]
         const skus = selectedSteps?.length
             ? allSkus.filter(s => selectedSteps.includes(s.step))
             : allSkus
-        if (skus.length === 0) return { success: false, error: "Nevybral jsi žádný produkt." }
+        if (skus.length === 0) return { success: false, error: t("line.approve.noneSelected") }
 
         // Slug must be unique per client and the draft slug was never checked
         // (the unique index deliberately excludes drafts).
@@ -326,7 +331,7 @@ export async function approveLine(
             .eq("status", "draft")
             .select("id")
             .maybeSingle()
-        if (!claimed) return { success: false, error: "Tato řada už byla schválena." }
+        if (!claimed) return { success: false, error: t("line.approve.alreadyApproved") }
 
         // 2) Catalog rows. Product slugs are unique per client, so collisions with an
         //    existing catalog entry are resolved rather than aborting the whole approval.
@@ -358,7 +363,7 @@ export async function approveLine(
             // 'draft': re-approving would re-run this insert and duplicate whatever
             // did land. Surfacing the failure lets the user add the rest by hand.
             console.error("approveLine: product insert failed", prodErr)
-            return { success: false, error: `Řada schválena, ale produkty se nepodařilo uložit: ${prodErr.message}` }
+            return { success: false, error: t("line.approve.productsFailed", { message: prodErr.message }) }
         }
 
         // 3) Launch topics into the idea bank — same deposit-once rule as startCampaign:
@@ -368,7 +373,7 @@ export async function approveLine(
         return { success: true, created: created?.length || 0, ideas }
     } catch (err: any) {
         console.error("approveLine error:", err)
-        return { success: false, error: err?.message || "Schválení selhalo" }
+        return { success: false, error: err?.message || t("line.approve.failed") }
     }
 }
 
@@ -376,6 +381,7 @@ export async function discardLine(
     projectSlug: string,
     lineId: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         // Status-scoped for the same reason as the approval claim: an approved line
@@ -388,10 +394,10 @@ export async function discardLine(
             .in("status", ["draft", "failed"])
             .select("id")
             .maybeSingle()
-        if (!data) return { success: false, error: "Řadu už nelze zahodit (je schválená)." }
+        if (!data) return { success: false, error: t("line.discard.alreadyApproved") }
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Zahození selhalo" }
+        return { success: false, error: err?.message || t("line.discard.failed") }
     }
 }
 
@@ -399,6 +405,7 @@ export async function archiveLine(
     projectSlug: string,
     lineId: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         await supabaseAdmin
@@ -409,7 +416,7 @@ export async function archiveLine(
             .eq("status", "active")
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Archivace selhala" }
+        return { success: false, error: err?.message || t("line.archive.failed") }
     }
 }
 
@@ -418,7 +425,7 @@ export async function archiveLine(
 // ============================================
 
 function formatPrice(czk: number): string {
-    return `${Math.round(czk).toLocaleString("cs-CZ")} Kč`
+    return `${Math.round(czk).toLocaleString("cs-CZ")} Kč` // i18n-ignore: cena v katalogu produktů (data značky v CZK), ne UI
 }
 
 async function uniqueLineSlug(clientId: string, base: string, selfId: string): Promise<string> {
@@ -466,6 +473,7 @@ async function depositLaunchIdeas(
         const config = await loadConfig(projectSlug).catch(() => null)
         const pillar = pickProductPillar(config)
 
+        // i18n-ignore-start: data zásobníku nápadů (obsah pro copywritera, jazyk značky — ne UI)
         const candidates = [
             {
                 title: `Představení řady ${line.name}`,
@@ -481,6 +489,7 @@ async function depositLaunchIdeas(
                 keywords: [sku.name, sku.role].filter(Boolean),
             })),
         ]
+        // i18n-ignore-end
 
         const { data: existing } = await supabaseAdmin
             .from("ig_post_ideas")
@@ -524,6 +533,6 @@ function pickProductPillar(config: any): string | null {
     if (keys.length === 0) return null
     const productish = keys.find(k =>
         /produkt|product|prodej|sales|nabidka|konverz/i.test(k) ||
-        /produkt|product|prodej|nabídka/i.test(pillars[k]?.label || ""))
+        /produkt|product|prodej|nabídka/i.test(pillars[k]?.label || "")) // i18n-ignore: heuristika nad štítky pilířů v configu, ne UI
     return productish || keys[0]
 }

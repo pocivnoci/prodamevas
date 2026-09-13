@@ -1,3 +1,101 @@
 {
-  "actionsAdmin": {}
+  "actionsAdmin": {
+    "common": {
+      "missingProject": "Missing project identifier.",
+      "projectNotFound": "Project \"{slug}\" doesn't exist.",
+      "unknownError": "unknown error"
+    },
+    "admin": {
+      "dashboardStats": {
+        "weekdays": {
+          "mon": "Mon",
+          "tue": "Tue",
+          "wed": "Wed",
+          "thu": "Thu",
+          "fri": "Fri",
+          "sat": "Sat",
+          "sun": "Sun"
+        }
+      },
+      "syncMetrics": {
+        "failed": "Metrics sync failed"
+      },
+      "refund": {
+        "adminOnly": "Only an admin can issue a refund.",
+        "notRefundable": "The payment doesn't exist, isn't paid, or has already been refunded.",
+        "steps": {
+          "creditsRevertFailed": "⚠️ Deduct {count, plural, one {# credit} other {# credits}} manually — the ledger reversal failed: {error}",
+          "creditsReverted": "The credits ({count}) from this top-up were deducted automatically.",
+          "consultationCancelled": "The consultation tied to this payment was cancelled automatically.",
+          "stripeCancelFailed": "⚠️ Cancel subscription {ref} manually in the gateway portal (automatic cancellation failed: {error})",
+          "stripeRefundFailed": "⚠️ Refund {amount} {currency} manually in the Stripe portal (ref {ref}) — automatic refund failed: {error}",
+          "refundManually": "Refund {amount} {currency} in the gateway portal ({provider}, ref {ref})",
+          "creditNote": "Issue a credit note in Fakturoid for invoice no. {number}",
+          "creditNoteWithLink": "Issue a credit note in Fakturoid for invoice no. {number} ({url})",
+          "creditNoteUnnumbered": "Issue a credit note in Fakturoid for the invoice for \"{label}\"",
+          "defaultLabel": "subscription"
+        }
+      },
+      "gift": {
+        "adminOnly": "Only an admin can grant a free plan.",
+        "termNotFound": "That term isn't in the price list.",
+        "planNotFound": "We don't offer that paid plan.",
+        "alreadyGifted": "{name} already has a free plan.",
+        "alreadyGiftedUntil": "{name} already has a free plan until {until, date, medium}.",
+        "hasPaidPlan": "{name} has a paid plan. A free one can only be granted after it ends.",
+        "hasPaidPlanUntil": "{name} has a paid plan until {until, date, medium}. A free one can only be granted after it ends.",
+        "insertFailed": "Couldn't create the free plan: {error}",
+        "activateFailed": "Couldn't activate the plan. Nothing changed — please try again.",
+        "done": "{name} has {plan} for free until {until, date, medium}. It ends on its own — nothing is charged and the client decides whether to continue."
+      },
+      "access": {
+        "adminOnly": "Only an admin can see access.",
+        "accountMissing": "(account doesn't exist)"
+      },
+      "transfer": {
+        "adminOnly": "Only an admin can hand over a client.",
+        "invalidEmail": "That doesn't look like an e-mail address.",
+        "stageFailed": "Staging the handover failed: {error}",
+        "invited": "{email} doesn't have an account yet, so we sent them an invitation. {name} will appear in their dashboard as soon as they sign in for the first time.",
+        "inviteNotSent": "{email} doesn't have an account yet and the invitation couldn't be sent — send them the link below yourself. {name} will appear in their dashboard on their first sign-in.",
+        "ownAccount": "That's your own account — you can only hand over to someone else.",
+        "linkFailed": "Handover failed: {error}",
+        "done": "{name} now belongs to {email}.{released, select, owners { The previous owners were disconnected.} admin { You're no longer in the project list — as an admin you can still get there.} other {}}"
+      },
+      "cancelHandoff": {
+        "adminOnly": "Only an admin can cancel a handover.",
+        "missingId": "Missing handover identifier.",
+        "projectNotFound": "Project doesn't exist.",
+        "alreadySettled": "The handover has already been claimed or cancelled."
+      }
+    },
+    "lead": {
+      "create": {
+        "nameRequired": "The company needs a name.",
+        "duplicate": "This contact is already in the records."
+      },
+      "update": {
+        "nothingToSave": "Nothing to save."
+      },
+      "status": {
+        "agentOnly": "This status is set by the agent, not by a person."
+      },
+      "contact": {
+        "noteRequired": "Write down how it went.",
+        "unknownKind": "Unknown contact type.",
+        "notFound": "Lead not found."
+      }
+    },
+    "mailing": {
+      "templateNotFound": "Template \"{id}\" doesn't exist.",
+      "noSubject": "(no subject)",
+      "subjectAndBodyRequired": "Subject and body are required.",
+      "subjectRequired": "Subject is required.",
+      "noValidManualRecipient": "Enter at least one valid address that hasn't unsubscribed.",
+      "noneInSegment": "None of the selected recipients are in the segment."
+    },
+    "growth": {
+      "loadFailed": "Failed to load growth data."
+    }
+  }
 }

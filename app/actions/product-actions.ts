@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import {
     generateProductIdeas,
     generateProductDesign,
@@ -29,6 +30,7 @@ export async function triggerProductIdeas(options: {
     count?: number
     theme?: string
 }): Promise<{ success: boolean; ideas?: ProductIdea[]; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
@@ -44,14 +46,14 @@ export async function triggerProductIdeas(options: {
             "Product ideas"
         )
 
-        await guard.commit(`Produktové nápady: ${options.theme || 'auto'}`)
+        await guard.commit(`Produktové nápady: ${options.theme || 'auto'}`) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
 
         return {
             success: true,
             ideas,
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("Product ideas error:", errorMessage)
         return { success: false, error: errorMessage.substring(0, 500) }
     }
@@ -63,6 +65,7 @@ export async function triggerProductDesign(options: {
     referenceImageUrl?: string
     ideaId?: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Credit check
         const guard = await creditGuard(options.configName, "product_design")
@@ -78,7 +81,7 @@ export async function triggerProductDesign(options: {
         )
 
         if (!result) {
-            return { success: false, error: "Product design generation returned null" }
+            return { success: false, error: t("product.design.empty") }
         }
 
         await guard.commit(`Design: ${options.idea.name}`)
@@ -95,7 +98,7 @@ export async function triggerProductDesign(options: {
             designUrl: result.designUrl,
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("Product design error:", errorMessage)
         return { success: false, error: errorMessage.substring(0, 500) }
     }
@@ -105,6 +108,7 @@ export async function triggerCustomProductDesign(options: {
     configName: string
     productDescription: string
 }): Promise<{ success: boolean; designUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Credit check
         const guard = await creditGuard(options.configName, "product_design")
@@ -139,7 +143,7 @@ export async function triggerCustomProductDesign(options: {
         )
 
         if (!result) {
-            return { success: false, error: "Custom product design generation returned null" }
+            return { success: false, error: t("product.design.empty") }
         }
 
         await guard.commit(`Custom design: ${options.productDescription.substring(0, 40)}`)
@@ -149,13 +153,14 @@ export async function triggerCustomProductDesign(options: {
             designUrl: result.designUrl,
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("Custom product design error:", errorMessage)
         return { success: false, error: errorMessage.substring(0, 500) }
     }
 }
 
 export async function saveProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">, designUrl?: string): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(configName)
 
@@ -186,11 +191,12 @@ export async function saveProductIdea(configName: string, idea: Omit<ProductIdea
         return { success: true }
     } catch (err: any) {
         console.error("saveProductIdea error:", err)
-        return { success: false, error: err.message || "Failed to save idea" }
+        return { success: false, error: err.message || t("product.idea.saveFailed") }
     }
 }
 
 export async function rejectProductIdea(configName: string, idea: Omit<ProductIdea, "id" | "client_id" | "created_at">): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(configName)
 
@@ -220,7 +226,7 @@ export async function rejectProductIdea(configName: string, idea: Omit<ProductId
         return { success: true }
     } catch (err: any) {
         console.error("rejectProductIdea error:", err)
-        return { success: false, error: err.message || "Failed to reject idea" }
+        return { success: false, error: err.message || t("product.idea.rejectFailed") }
     }
 }
 
@@ -245,6 +251,7 @@ export async function rateProductIdea(
     ideaId: string,
     rating: 1 | -1 | null,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -262,7 +269,7 @@ export async function rateProductIdea(
         return { success: true }
     } catch (err: any) {
         console.error("rateProductIdea error:", err)
-        return { success: false, error: err.message || "Hodnocení se neuložilo" }
+        return { success: false, error: err.message || t("common.ratingFailed") }
     }
 }
 
@@ -275,13 +282,14 @@ export async function uploadProductReference(
     ideaId: string,
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Tenant guard — this was the only product action without one, so any
         // authenticated user could write into another client's reference bucket.
         const { clientId } = await requireProjectAccess(projectId)
 
         const file = formData.get("file") as File
-        if (!file) return { success: false, error: "No file provided" }
+        if (!file) return { success: false, error: t("common.noFile") }
 
         const fileName = `${clientId}_${ideaId}_${Date.now()}`
         const arrayBuffer = await file.arrayBuffer()
@@ -304,7 +312,7 @@ export async function uploadProductReference(
         return { success: true, publicUrl: publicUrlData.publicUrl }
     } catch (err: any) {
         console.error("uploadProductReference error:", err)
-        return { success: false, error: err.message || "Upload failed" }
+        return { success: false, error: err.message || t("common.uploadFailed") }
     }
 }
 
@@ -365,6 +373,7 @@ export async function reviseProduct(
     feedback: string,
     configName: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(configName)
 
@@ -381,7 +390,7 @@ export async function reviseProduct(
             .eq("client_id", clientId)
             .single()
 
-        if (fetchErr || !original) throw new Error("Produkt nenalezen")
+        if (fetchErr || !original) throw new Error(t("product.notFound"))
 
         // 2. Load client config for brand voice
         const config = await loadConfig(configName)
@@ -398,9 +407,10 @@ export async function reviseProduct(
             .catch(() => config.products || [])
         const existingProducts = catalogProducts.slice(0, 8)
             .map(p => `- ${p.name} (${p.type})`)
-            .join("\n") || "Žádné"
+            .join("\n") || "Žádné" // i18n-ignore: prompt
 
         // 3. Build revision prompt
+        // i18n-ignore-start: prompt pro model — jazyk výstupu řídí contentLanguage(config)
         const prompt = `Jsi produktový stratég a copywriter pro značku "${brandName}" (${config.website || ""}).
 
 ## BRAND PERSONA
@@ -444,6 +454,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
   "supplierMessage": "professional English message for supplier",
   "designPrompt": "Updated English prompt for AI image generator — describe the revised product visually. Product photography, studio lighting, dark background."
 }`
+        // i18n-ignore-end
 
         const response = await ai.models.generateContent({
             model: getModel("text"),
@@ -463,7 +474,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
         try {
             parsed = JSON.parse(text.replace(/```json|```/g, "").trim())
         } catch {
-            throw new Error("AI vrátilo neplatný JSON")
+            throw new Error(t("product.revise.badJson"))
         }
 
         // 4. Update in-place
@@ -485,7 +496,7 @@ Zpráva pro dodavatele: ${original.supplier_message}
 
         if (updateErr) throw updateErr
 
-        await guard.commit(`Revize: ${parsed.name}`)
+        await guard.commit(`Revize: ${parsed.name}`) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         console.log(`✅ Product revised: ${ideaId}`)
         return { success: true }
     } catch (err: any) {
@@ -663,15 +674,16 @@ export async function uploadProductImage(
     productId: string,
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const file = formData.get("file") as File
         if (!file || !file.type.startsWith("image/")) {
-            return { success: false, error: "Neplatný soubor — nahraj PNG, JPG nebo WebP" }
+            return { success: false, error: t("product.image.invalidFile") }
         }
         if (file.size > 10_000_000) {
-            return { success: false, error: "Obrázek je příliš velký (max 10 MB)" }
+            return { success: false, error: t("product.image.tooLarge") }
         }
 
         // Get product slug for filename
@@ -682,7 +694,7 @@ export async function uploadProductImage(
             .eq("client_id", clientId)
             .single()
 
-        if (!product) return { success: false, error: "Produkt nenalezen" }
+        if (!product) return { success: false, error: t("product.notFound") }
 
         const buffer = Buffer.from(await file.arrayBuffer())
         const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg"
@@ -732,6 +744,7 @@ export async function deleteProductImage(
     productId: string,
     imageUrl: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -742,10 +755,10 @@ export async function deleteProductImage(
             .eq("client_id", clientId)
             .single()
 
-        if (!product) return { success: false, error: "Produkt nenalezen" }
+        if (!product) return { success: false, error: t("product.notFound") }
 
         const urls: string[] = product.image_urls || []
-        if (!urls.includes(imageUrl)) return { success: false, error: "Fotka u produktu není" }
+        if (!urls.includes(imageUrl)) return { success: false, error: t("product.image.notOnProduct") }
 
         const marker = "/product-images/"
         const at = imageUrl.indexOf(marker)
@@ -859,13 +872,14 @@ export async function syncConfigProductsToDb(): Promise<{ success: boolean; sync
 export async function scrapeProductsFromWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; found: number; inserted: number; images: number; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const config = await getClientConfig(projectSlug)
         const website = config?.website
         if (!website) {
-            return { success: false, found: 0, inserted: 0, images: 0, error: "Klient nemá nastavený web" }
+            return { success: false, found: 0, inserted: 0, images: 0, error: t("product.scrape.noWebsite") }
         }
 
         const { trackSpend } = await import("@/instagram/spend-tracker")

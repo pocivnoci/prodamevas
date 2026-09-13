@@ -629,6 +629,26 @@
       "replaceNote": "Applies only to an account that already exists; nobody is detached for an invite.",
       "transfer": "Hand over brand",
       "transferring": "Handing over…"
+    },
+    "adminEditor": {
+      "title": "Profile Settings",
+      "subtitle": "Full editor of profile data and SaaS logic",
+      "editorTitle": "Advanced JSON Editor",
+      "editorHint": "The complete profile lives here (tone of voice, products, colours). Edit with care!",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "loadFailed": "Could not load the configuration for project {project}",
+      "jsonError": "JSON format error: {message}",
+      "cannotSave": "Cannot save: {message}",
+      "saved": "Configuration saved and updated! You can keep using the Studio.",
+      "unknownError": "An unknown error occurred while saving.",
+      "manualTitle": "User manual for profile settings",
+      "manual": {
+        "pick": "Pick a project in the top right.",
+        "products": "In the JSON you can edit the <strong>\"products\"</strong> section by hand and add or remove any products or services for this model.",
+        "colors": "Changed colours (<strong>overlayGradient</strong>) or the font apply to newly generated posts right away.",
+        "syntax": "If you make an invalid syntax change (a missing quote), the editor will not let you save until you fix it."
+      }
     }
   }
 }

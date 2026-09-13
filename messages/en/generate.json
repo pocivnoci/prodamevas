@@ -188,6 +188,19 @@
         "visualPrompt": "Generating the visual prompt for the AI...",
         "image": "Generating the image...",
         "polish": "Final polish and optimisation..."
+      },
+      "engine": {
+        "pending": "Waiting to start...",
+        "researcher": "Researcher is gathering sources...",
+        "strategist": "Strategist is planning...",
+        "copywriter": "Copywriter is writing...",
+        "critic": "Critic is reviewing quality...",
+        "chief_editor": "Chief editor is deciding...",
+        "designer": "Art director is preparing the visual...",
+        "art_director": "Art director is preparing the visual...",
+        "rendering": "Rendering the visual...",
+        "video": "Rendering the video...",
+        "uploading": "Saving..."
       }
     },
     "roles": {

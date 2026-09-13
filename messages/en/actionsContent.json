@@ -1,3 +1,135 @@
 {
-  "actionsContent": {}
+  "actionsContent": {
+    "common": {
+      "unknownError": "Unknown error",
+      "unauthorized": "Unauthorized access.",
+      "postNotFound": "Post not found.",
+      "clientNotFound": "Client not found.",
+      "noFile": "No file selected.",
+      "uploadFailed": "Upload failed.",
+      "uploadFailedDetail": "Upload failed: {detail}",
+      "editFailed": "Edit failed.",
+      "ratingFailed": "The rating wasn’t saved."
+    },
+    "generate": {
+      "tenantMismatch": "projectId and configName must be the same project.",
+      "batch": {
+        "missingProject": "Missing project identifier.",
+        "noCredits": "Not enough credits",
+        "done": "Batch generation of {count, plural, one {# post} other {# posts}} finished"
+      },
+      "ideas": {
+        "notFound": "Idea not found"
+      },
+      "promo": {
+        "failed": "Couldn’t create the promo post."
+      },
+      "upload": {
+        "imagesOnly": "Only images can be uploaded (PNG, JPEG or WebP).",
+        "tooLarge": "The file is too large."
+      },
+      "monthlyPlan": {
+        "alreadyGenerated": "The monthly plan has already been generated.",
+        "insertFailed": "Couldn’t save the plan posts: {detail}"
+      }
+    },
+    "postEdit": {
+      "posted": "A published post can’t be edited — create a variant instead.",
+      "edit": {
+        "emptyInstruction": "Describe what should change.",
+        "reelImage": "A reel’s video can’t be edited — edit the text, re-render the subtitles (no credits), or generate the post again.",
+        "noImage": "This post has no image to edit.",
+        "qaWarning": "The text in the image may not be perfectly clean after the edit — check it.",
+        "uploadFailed": "Uploading the edited image failed."
+      },
+      "manual": {
+        "empty": "The text can’t be empty.",
+        "failed": "Saving the text failed."
+      },
+      "revert": {
+        "posted": "A published post can’t be reverted.",
+        "nothing": "Nothing to revert.",
+        "failed": "Revert failed."
+      },
+      "subtitles": {
+        "posted": "A published reel can’t be re-rendered — create a variant instead.",
+        "notReel": "This post isn’t a reel.",
+        "noSource": "We don’t have the raw video for this reel — the subtitles can only be changed by generating it again.",
+        "preparing": "🎞️ Preparing the subtitle re-render…",
+        "jobFailed": "Couldn’t create the job: {detail}"
+      }
+    },
+    "variant": {
+      "generate": {
+        "noCredits": "Not enough credits for a variant."
+      },
+      "multiple": {
+        "none": "Couldn’t generate any variant"
+      }
+    },
+    "memory": {
+      "notFound": "Memory not found"
+    },
+    "product": {
+      "notFound": "Product not found",
+      "design": {
+        "empty": "Design generation returned nothing."
+      },
+      "idea": {
+        "saveFailed": "Couldn’t save the idea.",
+        "rejectFailed": "Couldn’t reject the idea."
+      },
+      "revise": {
+        "badJson": "The AI returned invalid JSON"
+      },
+      "image": {
+        "invalidFile": "Invalid file — upload a PNG, JPG or WebP",
+        "tooLarge": "The image is too large (max 10 MB)",
+        "notOnProduct": "This photo isn’t attached to the product"
+      },
+      "scrape": {
+        "noWebsite": "The client has no website set"
+      }
+    },
+    "productCategory": {
+      "notFound": "Category not found",
+      "clientNotFound": "Client \"{name}\" not found"
+    },
+    "brandImages": {
+      "upload": {
+        "missingClient": "Missing client identifier",
+        "imagesOnly": "Only images are supported (JPG, PNG, WebP, HEIC from iPhone).",
+        "tooLarge": "The image is too large (max 9 MB). Try shrinking it or sending it from a computer.",
+        "unreadable": "This photo can’t be processed (probably an iPhone HEIC). Send it as a JPG, or on your iPhone enable Settings → Camera → Formats → \"Most Compatible\"."
+      },
+      "delete": {
+        "failed": "Deletion failed: {detail}"
+      },
+      "tags": {
+        "empty": "Pick at least one tag — without a tag the photo won’t be used in posts.",
+        "notFound": "Photo not found."
+      }
+    },
+    "print": {
+      "designNotFound": "Design not found.",
+      "categoryMissing": "The design’s category doesn’t exist.",
+      "generate": {
+        "createFailed": "Couldn’t create the design: {detail}",
+        "categoryMissing": "Category \"{slug}\" doesn’t exist",
+        "failed": "Design generation failed",
+        "progress": {
+          "start": "Starting…",
+          "concept": "Drafting the concept (Pro ladder)…",
+          "logoFailed": "Couldn’t load the logo — continuing without it",
+          "printFile": "Preparing the print file…"
+        }
+      },
+      "mockup": {
+        "failed": "Mockup failed"
+      },
+      "winner": {
+        "failed": "Picking the winner failed"
+      }
+    }
+  }
 }

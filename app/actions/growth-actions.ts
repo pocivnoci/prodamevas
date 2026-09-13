@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 export interface GrowthPoint {
     date: string // ISO
@@ -28,6 +29,7 @@ export async function getGrowthData(projectSlug: string): Promise<{
     data?: GrowthData
     error?: string
 }> {
+    const t = await actionTranslator("actionsAdmin")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -61,6 +63,6 @@ export async function getGrowthData(projectSlug: string): Promise<{
         }
     } catch (err: any) {
         console.error("getGrowthData error:", err?.message)
-        return { success: false, error: err?.message || "Failed to load growth data" }
+        return { success: false, error: err?.message || t("growth.loadFailed") }
     }
 }

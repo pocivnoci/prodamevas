@@ -1,3 +1,135 @@
 {
-  "actionsContent": {}
+  "actionsContent": {
+    "common": {
+      "unknownError": "Neznámá chyba",
+      "unauthorized": "Neautorizovaný přístup.",
+      "postNotFound": "Příspěvek nenalezen.",
+      "clientNotFound": "Klient nenalezen.",
+      "noFile": "Nebyl vybrán žádný soubor.",
+      "uploadFailed": "Nahrání selhalo.",
+      "uploadFailedDetail": "Upload selhal: {detail}",
+      "editFailed": "Úprava selhala.",
+      "ratingFailed": "Hodnocení se neuložilo."
+    },
+    "generate": {
+      "tenantMismatch": "projectId a configName musí být tentýž projekt.",
+      "batch": {
+        "missingProject": "Chybí identifikace projektu.",
+        "noCredits": "Nedostatek kreditů",
+        "done": "Batch generování {count, plural, one {# postu} few {# postů} other {# postů}} dokončeno"
+      },
+      "ideas": {
+        "notFound": "Nápad nenalezen"
+      },
+      "promo": {
+        "failed": "Promo příspěvek se nepodařilo vytvořit."
+      },
+      "upload": {
+        "imagesOnly": "Nahrát jde jen obrázek (PNG, JPEG nebo WebP).",
+        "tooLarge": "Soubor je příliš velký."
+      },
+      "monthlyPlan": {
+        "alreadyGenerated": "Měsíční plán už byl vygenerován.",
+        "insertFailed": "Příspěvky plánu se nepodařilo uložit: {detail}"
+      }
+    },
+    "postEdit": {
+      "posted": "Publikovaný příspěvek už nejde upravit — vytvoř variantu.",
+      "edit": {
+        "emptyInstruction": "Napiš, co se má upravit.",
+        "reelImage": "Obraz reelu nejde upravit — uprav text, přerenderuj titulky (bez kreditů), nebo vygeneruj příspěvek znovu.",
+        "noImage": "Příspěvek nemá obrázek k úpravě.",
+        "qaWarning": "Text v obrázku po úpravě nemusí být úplně čistý — zkontroluj ho.",
+        "uploadFailed": "Nahrání upraveného obrázku selhalo."
+      },
+      "manual": {
+        "empty": "Text nemůže být prázdný.",
+        "failed": "Uložení textu selhalo."
+      },
+      "revert": {
+        "posted": "Publikovaný příspěvek už nejde vrátit zpět.",
+        "nothing": "Není co vrátit.",
+        "failed": "Vrácení selhalo."
+      },
+      "subtitles": {
+        "posted": "Publikovaný reel už nejde přerenderovat — vytvoř variantu.",
+        "notReel": "Tenhle příspěvek není reel.",
+        "noSource": "U tohohle reelu nemáme uložené surové video — titulky jdou změnit jen vygenerováním znovu.",
+        "preparing": "🎞️ Připravuji přerenderování titulků…",
+        "jobFailed": "Úlohu se nepodařilo založit: {detail}"
+      }
+    },
+    "variant": {
+      "generate": {
+        "noCredits": "Nedostatek kreditů na variantu."
+      },
+      "multiple": {
+        "none": "Nepodařilo se vygenerovat žádnou variantu"
+      }
+    },
+    "memory": {
+      "notFound": "Paměť nenalezena"
+    },
+    "product": {
+      "notFound": "Produkt nenalezen",
+      "design": {
+        "empty": "Generování designu nic nevrátilo."
+      },
+      "idea": {
+        "saveFailed": "Nápad se nepodařilo uložit.",
+        "rejectFailed": "Nápad se nepodařilo zamítnout."
+      },
+      "revise": {
+        "badJson": "AI vrátilo neplatný JSON"
+      },
+      "image": {
+        "invalidFile": "Neplatný soubor — nahraj PNG, JPG nebo WebP",
+        "tooLarge": "Obrázek je příliš velký (max 10 MB)",
+        "notOnProduct": "Fotka u produktu není"
+      },
+      "scrape": {
+        "noWebsite": "Klient nemá nastavený web"
+      }
+    },
+    "productCategory": {
+      "notFound": "Kategorie nenalezena",
+      "clientNotFound": "Klient \"{name}\" nenalezen"
+    },
+    "brandImages": {
+      "upload": {
+        "missingClient": "Chybí identifikace klienta",
+        "imagesOnly": "Podporovány jsou pouze obrázky (JPG, PNG, WebP, HEIC z iPhonu).",
+        "tooLarge": "Obrázek je příliš velký (max 9 MB). Zkus ho zmenšit nebo poslat z počítače.",
+        "unreadable": "Tuhle fotku nejde zpracovat (nejspíš HEIC z iPhonu). Pošli ji jako JPG, nebo na iPhonu zapni Nastavení → Fotoaparát → Formáty → „Nejkompatibilnější\"."
+      },
+      "delete": {
+        "failed": "Smazání selhalo: {detail}"
+      },
+      "tags": {
+        "empty": "Vyber aspoň jeden štítek — bez štítku se fotka v příspěvcích nepoužije.",
+        "notFound": "Fotka nenalezena."
+      }
+    },
+    "print": {
+      "designNotFound": "Design nenalezen.",
+      "categoryMissing": "Kategorie designu neexistuje.",
+      "generate": {
+        "createFailed": "Nepodařilo se založit design: {detail}",
+        "categoryMissing": "Kategorie \"{slug}\" neexistuje",
+        "failed": "Generování designu selhalo",
+        "progress": {
+          "start": "Startuji…",
+          "concept": "Navrhuji koncept (Pro ladder)…",
+          "logoFailed": "Logo se nepodařilo načíst — pokračuji bez něj",
+          "printFile": "Připravuji tiskový soubor…"
+        }
+      },
+      "mockup": {
+        "failed": "Mockup selhal"
+      },
+      "winner": {
+        "failed": "Výběr vítěze selhal"
+      }
+    }
+  }
 }

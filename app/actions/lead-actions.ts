@@ -22,6 +22,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
+import { actionTranslator } from "@/lib/i18n/actions"
 // Číselníky a typy bydlí v `lib/leads.ts`, ne tady: soubor s `"use server"` smí
 // exportovat jenom async funkce. Konstanta vedle nich projde buildem a shodí se
 // až za běhu při vyhodnocení modulu — tedy na produkci, ne v CI.
@@ -101,9 +102,10 @@ export async function createLead(input: {
     priority?: string | null
 }): Promise<LeadResult> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
 
     const company = input.company?.trim()
-    if (!company) return { success: false, error: "Firma potřebuje název." }
+    if (!company) return { success: false, error: t("lead.create.nameRequired") }
 
     const { data, error } = await supabaseAdmin
         .from("leads")
@@ -124,7 +126,7 @@ export async function createLead(input: {
     if (error) {
         console.error("createLead error:", error.message)
         // Unikátní index na e-mailu chrání před dvojím zavedením téže firmy.
-        if (error.code === "23505") return { success: false, error: "Tenhle kontakt už v evidenci je." }
+        if (error.code === "23505") return { success: false, error: t("lead.create.duplicate") }
         return { success: false, error: error.message }
     }
     revalidatePath("/dashboard/instagram")
@@ -134,6 +136,7 @@ export async function createLead(input: {
 /** Úprava políčka. Prázdný řetězec je „vymazáno", ne „nezměněno". */
 export async function updateLead(id: string, patch: LeadPatch): Promise<LeadResult> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
 
     const clean: Record<string, string | null> = {}
     for (const key of EDITABLE) {
@@ -141,7 +144,7 @@ export async function updateLead(id: string, patch: LeadPatch): Promise<LeadResu
         const raw = patch[key]
         clean[key] = typeof raw === "string" ? (raw.trim() || null) : null
     }
-    if (Object.keys(clean).length === 0) return { success: false, error: "Není co uložit." }
+    if (Object.keys(clean).length === 0) return { success: false, error: t("lead.update.nothingToSave") }
 
     const { data, error } = await supabaseAdmin
         .from("leads")
@@ -164,11 +167,12 @@ export async function updateLead(id: string, patch: LeadPatch): Promise<LeadResu
  */
 export async function setLeadStatus(id: string, status: string): Promise<LeadResult> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
 
     if (!(HUMAN_STATUSES as readonly string[]).includes(status)) {
         // `qualified` sem patří nejmíň ze všech: je to vstupenka do fronty
         // studeného oslovení, kterou člověk nemá jak chtít.
-        return { success: false, error: "Tenhle stav nastavuje agent, ne člověk." }
+        return { success: false, error: t("lead.status.agentOnly") }
     }
 
     const { data, error } = await supabaseAdmin
@@ -206,16 +210,17 @@ export async function addLeadContact(leadId: string, input: {
     nextAt?: string | null
 }): Promise<LeadResult> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
 
     const note = input.note?.trim()
-    if (!note) return { success: false, error: "Napiš, jak to dopadlo." }
+    if (!note) return { success: false, error: t("lead.contact.noteRequired") }
     if (!(CONTACT_KINDS as readonly string[]).includes(input.kind)) {
-        return { success: false, error: "Neznámý typ kontaktu." }
+        return { success: false, error: t("lead.contact.unknownKind") }
     }
 
     const { data: lead } = await supabaseAdmin
         .from("leads").select("first_contact_at").eq("id", leadId).maybeSingle()
-    if (!lead) return { success: false, error: "Lead nenalezen." }
+    if (!lead) return { success: false, error: t("lead.contact.notFound") }
 
     const { error: evErr } = await supabaseAdmin.from("lead_events").insert({
         lead_id: leadId, kind: input.kind, actor: email,

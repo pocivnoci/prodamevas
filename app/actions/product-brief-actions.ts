@@ -31,6 +31,7 @@ export interface ProductAnalysis {
     timeline: string
 }
 
+// i18n-ignore-start: schéma odpovědi modelu — popisy polí jsou součást promptu
 const ANALYSIS_SCHEMA = {
     type: Type.OBJECT,
     properties: {
@@ -83,6 +84,7 @@ const ANALYSIS_SCHEMA = {
     },
     required: ["estimatedUnitCost", "recommendedRetailPrice", "marginPerUnit", "marginPercent", "moqRecommendation", "firstBatchSize", "firstBatchCost", "breakEvenUnits", "revenueScenarios", "targetAudience", "competitorAnalysis", "launchStrategy", "risks", "timeline"],
 }
+// i18n-ignore-end
 
 interface ProductBriefIdea {
     name: string
@@ -123,6 +125,7 @@ async function analyzeProductForBriefInner(
         const config = await loadConfig(configName)
         const L = contentLanguage(config)
 
+        // i18n-ignore-start: prompt pro model — jazyk výstupu řídí contentLanguage(config)
         const prompt = `Jsi product business analyst. Na základě produktového nápadu vygeneruj DETAILNÍ business analýzu.
 
 ## BRAND
@@ -151,6 +154,7 @@ Analyzuj tento produkt z BUSINESS hlediska. Buď REALISTICKÝ, ne optimistický.
 - Identifikuj rizika
 
 Buď konkrétní, piš čísla, ne vágní odhady.`
+        // i18n-ignore-end
 
         const result = await generateText(prompt, {
             responseSchema: ANALYSIS_SCHEMA,

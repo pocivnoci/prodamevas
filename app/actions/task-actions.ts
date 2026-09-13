@@ -16,6 +16,7 @@ import { requireSuperAdmin } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import type { TeamMember, TeamRole } from "@/lib/team"
 import { QUESTION_PREFIX } from "@/lib/tasks/question"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 export type TaskStatus = "todo" | "doing" | "blocked" | "done" | "dropped"
 export type TaskSource = "sheet" | "app"
@@ -139,9 +140,10 @@ export async function createTask(input: {
     clientId?: string | null
 }): Promise<TaskResult> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
 
     const title = input.title?.trim()
-    if (!title) return { success: false, error: "Úkol potřebuje název." }
+    if (!title) return { success: false, error: t("task.common.titleRequired") }
 
     const { data, error } = await supabaseAdmin
         .from("tasks")
@@ -231,12 +233,13 @@ export async function updateTask(id: string, input: {
     clientId?: string | null
 }): Promise<TaskResult> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: email }
 
     if (input.title !== undefined) {
         const title = input.title.trim()
-        if (!title) return { success: false, error: "Úkol potřebuje název." }
+        if (!title) return { success: false, error: t("task.common.titleRequired") }
         patch.title = title
     }
     if (input.note !== undefined) patch.note = input.note?.trim() || null
@@ -400,10 +403,11 @@ export async function upsertTeamMember(input: {
     active?: boolean
 }): Promise<{ success: boolean; error?: string }> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
 
     const email = input.email?.trim().toLowerCase()
     const name = input.name?.trim()
-    if (!email || !name) return { success: false, error: "Člen týmu potřebuje e-mail i jméno." }
+    if (!email || !name) return { success: false, error: t("task.team.emailAndNameRequired") }
 
     const { error } = await supabaseAdmin
         .from("team_members")
@@ -448,9 +452,10 @@ export async function listTaskEvents(taskId: string): Promise<TaskEvent[]> {
  */
 export async function answerTaskQuestion(taskId: string, text: string): Promise<TaskResult> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
 
     const body = text?.trim()
-    if (!body) return { success: false, error: "Odpověď nemůže být prázdná." }
+    if (!body) return { success: false, error: t("task.answer.empty") }
 
     const { logEvent } = await import("@/lib/tasks/triage")
     await logEvent(taskId, email, "answer", body)
@@ -479,9 +484,10 @@ export async function answerTaskQuestion(taskId: string, text: string): Promise<
 /** Poznámka do vlákna. Nic nespouští — je to jen zápis do historie. */
 export async function addTaskNote(taskId: string, text: string): Promise<{ success: boolean; error?: string }> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
 
     const body = text?.trim()
-    if (!body) return { success: false, error: "Poznámka nemůže být prázdná." }
+    if (!body) return { success: false, error: t("task.note.empty") }
 
     const { logEvent } = await import("@/lib/tasks/triage")
     await logEvent(taskId, email, "note", body)
@@ -549,19 +555,20 @@ export async function retriageTask(taskId: string): Promise<TaskResult> {
  */
 export async function runTaskAgentNow(): Promise<{ success: boolean; error?: string }> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsPlan")
     try {
         const { requestAction } = await import("@/lib/agent-safety")
         await requestAction({
-            agentType: "ops", action: "Roztřídění úkolů (ručně)", riskTier: "internal",
+            agentType: "ops", action: "Roztřídění úkolů (ručně)", riskTier: "internal", // i18n-ignore: popisek do auditu agent_actions (interní agent, ne UI)
             taskType: "task_triage", clientId: null, payload: {},
         })
         await requestAction({
-            agentType: "ops", action: "Návrhy úkolů (ručně)", riskTier: "internal",
+            agentType: "ops", action: "Návrhy úkolů (ručně)", riskTier: "internal", // i18n-ignore: popisek do auditu agent_actions (interní agent, ne UI)
             taskType: "task_propose", clientId: null, payload: {},
         })
         return { success: true }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Spuštění selhalo." }
+        return { success: false, error: (err as Error)?.message || t("task.runAgent.failed") }
     }
 }
 

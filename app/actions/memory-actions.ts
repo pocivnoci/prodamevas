@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 // ─── Brand Memory Management ────────────────────────────────────────
 
@@ -54,13 +55,14 @@ export async function updateBrandMemory(
     id: string,
     updates: { content?: string; confidence?: number; memory_type?: string }
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { data: memory } = await supabaseAdmin
             .from("ig_brand_memory")
             .select("client_id")
             .eq("id", id)
             .single()
-        if (!memory) return { success: false, error: "Paměť nenalezena" }
+        if (!memory) return { success: false, error: t("memory.notFound") }
         await requireClientAccess(memory.client_id)
 
         const updateData: Record<string, any> = {}
@@ -82,13 +84,14 @@ export async function updateBrandMemory(
 }
 
 export async function deleteBrandMemory(id: string): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { data: memory } = await supabaseAdmin
             .from("ig_brand_memory")
             .select("client_id")
             .eq("id", id)
             .single()
-        if (!memory) return { success: false, error: "Paměť nenalezena" }
+        if (!memory) return { success: false, error: t("memory.notFound") }
         await requireClientAccess(memory.client_id)
 
         const { error } = await supabaseAdmin

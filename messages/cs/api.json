@@ -1,0 +1,69 @@
+{
+  "api": {
+    "common": {
+      "unauthorized": "Neautorizovaný přístup",
+      "missingId": "Chybí parametr id",
+      "unknownError": "Neznámá chyba"
+    },
+    "job": {
+      "rateLimit": "Dosáhli jste limitu {limit} generování za hodinu. Zkuste to později.",
+      "ideaNotFound": "Nápad nenalezen",
+      "reelBlocked": "{medium}: reels jsou dostupné od balíčku {plan}.",
+      "storiesBlocked": "Stories nejsou v tomto balíčku dostupné.",
+      "noCredits": "Nedostatek kreditů",
+      "chargeFailed": "Nepodařilo se odečíst kredit. Zkuste to znovu.",
+      "researcherStart": "🔍 Researcher vybírá zdroje...",
+      "subtitlesDone": "✅ Titulky přerenderované",
+      "subtitlesFailed": "❌ Přerenderování titulků selhalo",
+      "done": "✅ Hotovo!",
+      "videoPending": "🎬 Video se ještě renderuje — příspěvek dokončíme automaticky během pár minut, najdete ho v Příspěvcích.",
+      "busy": "⏸️ Velký provoz — zkuste to prosím za chvíli",
+      "busyError": "Právě je velký provoz a kvalitní post se nepodařilo dokončit. Zkuste to prosím za pár minut — kvalita má přednost před rychlostí.",
+      "failed": "❌ Generování selhalo",
+      "timeout": "⏱️ Timeout",
+      "stuck": "Generování vypršelo (timeout) — kredit jsme vrátili, zkuste to prosím znovu."
+    },
+    "media": {
+      "reel": "Reel",
+      "reel_long": "Dlouhý reel"
+    },
+    "task": {
+      "missingTaskId": "Chybí taskId",
+      "notFound": "Úloha nenalezena",
+      "forbidden": "Nemáš přístup k této úloze",
+      "expired": "Příprava vypršela. Zkus to prosím znovu.",
+      "expiredShort": "⏱️ Vypršel čas"
+    },
+    "payments": {
+      "alreadyOwned": "Nastavení značky už máte — stačí si vybrat termín.",
+      "stripeNotConfigured": "Stripe není nakonfigurovaná",
+      "missingParams": "Chybí clientSlug/clientId nebo planId",
+      "planNotFound": "Plán nenalezen",
+      "createFailed": "Založení platby selhalo"
+    },
+    "igConnect": {
+      "missingSlug": "Chybí slug projektu.",
+      "oauthNotConfigured": "Instagram OAuth není nakonfigurován (META_APP_ID).",
+      "label": "Připojení Instagramu",
+      "bridge": {
+        "title": "Poslední krok otevři v prohlížeči",
+        "text": "Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari.",
+        "button": "Otevřít přihlášení",
+        "hintIphoneLead": "Na iPhonu:",
+        "hintIphone": "když místo Safari naskočí appka Instagramu a napíše „something went wrong\", podrž tlačítko prstem a vyber „Otevřít na nové kartě\" — přes dlouhý stisk iOS appku neotevírá. Kdyby to nepomohlo, dokonči připojení na počítači; stačí jednou.",
+        "hintBack": "Až připojení dokončíš, přepni se zpátky do Chrlitu — účet se tu ověří sám."
+      },
+      "return": {
+        "title": "Hotovo",
+        "doneHeading": "Hotovo — přepni se zpátky do Chrlitu",
+        "doneBody": "Tuhle záložku můžeš zavřít. V aplikaci se stav připojení ověří sám; kdyby ne, klepni v Nastavení na „Ověřit“.",
+        "failedHeading": "Připojení se nedokončilo",
+        "failedBody": "Instagram autorizaci nedokončil. Vrať se do Chrlitu a zkus Připojit znovu; účet musí být profesní (Business nebo Creator)."
+      },
+      "expired": {
+        "title": "Odkaz vypršel",
+        "body": "Platí patnáct minut. Vrať se do Chrlitu ({siteUrl}) a klepni na Připojit znovu."
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useFormatter, useTranslations } from "next-intl"
+import { useFormatter, useLocale, useTranslations } from "next-intl"
 import {
     getIGPostTypes,
     getIGPostFormats,
@@ -64,6 +64,7 @@ const NEW_ITEM_HOOK = "Nový post — klikni 🔄 pro vygenerování konceptu" /
 export function GenerateTab({ projectId }: { projectId: string }) {
     const { refreshSubscription, setActiveSection, subscription, generateIntent, setGenerateIntent } = useStudio()
     const t = useTranslations("generate")
+    const locale = useLocale()
     const hints = useHints()
     const fmt = useFormatter()
     /** "2026-07-18" → krátké datum v jazyce UI („18. 7.") pro souhrn plánu. Poledne UTC,
@@ -258,7 +259,11 @@ export function GenerateTab({ projectId }: { projectId: string }) {
                         setAgentStatus({
                             stage: status.status,
                             progress: status.progress || 0,
-                            message: status.agentMessage,
+                            // Engine hlásí průběh česky (zdrojový jazyk); v jiném
+                            // jazyce UI se ukáže popisek fáze podle `status`.
+                            message: locale === "cs" || !t.has(`progress.engine.${status.status}`)
+                                ? status.agentMessage
+                                : t(`progress.engine.${status.status}`),
                         })
                     }
                     // Capture editorial conversation log

@@ -29,6 +29,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { creditGuard } from "./credit-guard"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { fetchImageBuffer, nearestAspectRatio } from "@/lib/image-buffer"
 import { parsePostMedia } from "@/lib/media-urls"
 import type { IGPost, PostEditHistoryEntry } from "@/lib/types/database"
@@ -97,8 +98,9 @@ async function editPostInner(
     postId: string,
     edit: PostEditInput,
 ): Promise<PostEditResult> {
+    const t = await actionTranslator("actionsContent")
     const instruction = edit.instruction?.trim()
-    if (!instruction) return { success: false, error: "Napiš, co se má upravit." }
+    if (!instruction) return { success: false, error: t("postEdit.edit.emptyInstruction") }
 
     const wantsImage = edit.scope !== "text"
     const wantsText = edit.scope !== "image"
@@ -107,7 +109,7 @@ async function editPostInner(
     try {
         clientId = (await requireProjectAccess(projectSlug)).clientId
     } catch (err: any) {
-        return { success: false, error: err?.message || "Neautorizovaný přístup." }
+        return { success: false, error: err?.message || t("common.unauthorized") }
     }
 
     const { data: post } = await supabaseAdmin
@@ -117,22 +119,22 @@ async function editPostInner(
         .eq("client_id", clientId)
         .maybeSingle()
 
-    if (!post) return { success: false, error: "Příspěvek nenalezen." }
+    if (!post) return { success: false, error: t("common.postNotFound") }
 
     // Already live on Instagram — editing the row would silently desync it from the
     // published media (ig_media_id / permalink point at what followers actually see).
     if (post.status === "posted" || post.status === "posting") {
-        return { success: false, error: "Publikovaný příspěvek už nejde upravit — vytvoř variantu." }
+        return { success: false, error: t("postEdit.posted") }
     }
 
     const media = parsePostMedia(post.image_url, post.media_type)
 
     // A reel is an MP4; the image model can't edit video. Text edits are still fine.
     if (wantsImage && media.kind === "reel") {
-        return { success: false, error: "Obraz reelu nejde upravit — uprav text, přerenderuj titulky (bez kreditů), nebo vygeneruj příspěvek znovu." }
+        return { success: false, error: t("postEdit.edit.reelImage") }
     }
     if (wantsImage && !media.thumbUrl) {
-        return { success: false, error: "Příspěvek nemá obrázek k úpravě." }
+        return { success: false, error: t("postEdit.edit.noImage") }
     }
 
     // Credits: the image branch is one Nano Banana call, the text branch is cheap and free.
@@ -186,7 +188,7 @@ async function editPostInner(
             const revised = await reviseCaption(config, {
                 originalCaption: post.caption || "",
                 originalHashtags: post.hashtags || [],
-                postTypeDisplayName: post.ig_post_types?.display_name || "Instagram příspěvek",
+                postTypeDisplayName: post.ig_post_types?.display_name || "Instagram příspěvek", // i18n-ignore: prompt
                 feedback: buildTextFeedback(instruction, edit.preserve),
                 product,
                 postTypeName: post.ig_post_types?.name || "",
@@ -209,7 +211,7 @@ async function editPostInner(
             await refreshFactStatus(config, postId, revised.caption || "", {
                 topic: instruction,
                 product,
-                label: "Retuš postu",
+                label: "Retuš postu", // i18n-ignore: jen do logu
             })
         }
 
@@ -284,16 +286,16 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
                         // Ship whichever attempt is closer — same ship-best doctrine as the
                         // orchestrator, minus the regeneration rung.
                         if (qaScore(qa2) < qaScore(qa)) edited = fixed
-                        else warning = "Text v obrázku po úpravě nemusí být úplně čistý — zkontroluj ho."
+                        else warning = t("postEdit.edit.qaWarning")
                     } catch (fixErr: any) {
                         console.warn(`   ⚠️ Korektivní edit selhal: ${fixErr?.message?.substring(0, 80)}`)
-                        warning = "Text v obrázku po úpravě nemusí být úplně čistý — zkontroluj ho."
+                        warning = t("postEdit.edit.qaWarning")
                     }
                 }
             }
 
             const newUrl = await uploadPostImage(edited, config)
-            if (!newUrl) throw new Error("Nahrání upraveného obrázku selhalo.")
+            if (!newUrl) throw new Error(t("postEdit.edit.uploadFailed"))
 
             // Splice the edited slide back in — the other slides of a carousel/story are
             // untouched and must keep their original URLs and order.
@@ -321,7 +323,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
 
         if (saveErr) throw saveErr
 
-        if (guard) await guard.commit(`Úprava příspěvku: ${instruction.slice(0, 60)}`, postId)
+        if (guard) await guard.commit(`Úprava příspěvku: ${instruction.slice(0, 60)}`, postId) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
 
         // The user telling us what was wrong is the strongest signal in the system —
         // the same learning the old revision path fed. Fire & forget.
@@ -354,7 +356,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
             waitUntil(
                 upsertMemory(clientId, {
                     type: "visual",
-                    content: `Úprava vizuálu na přání klienta: ${instruction.trim().slice(0, 160)}`,
+                    content: `Úprava vizuálu na přání klienta: ${instruction.trim().slice(0, 160)}`, // i18n-ignore: paměť značky — jazyk obsahu, ne UI
                     confidence: 0.3,
                     sourcePostIds: [postId],
                 }).catch((err: unknown) => console.warn(`⚠️ učení z úpravy vizuálu selhalo: ${(err as Error)?.message?.slice(0, 120)}`))
@@ -365,7 +367,7 @@ ${qa.fixHint ? `Specific fix: ${qa.fixHint}` : ""}`,
         return { success: true, post: saved as IGPost, imageChanged, warning }
     } catch (err: any) {
         console.error("editPost error:", err?.message || err)
-        return { success: false, error: err?.message || "Úprava selhala." }
+        return { success: false, error: err?.message || t("common.editFailed") }
     }
 }
 
@@ -393,14 +395,15 @@ export async function saveManualText(
     postId: string,
     text: { caption: string; hashtags?: string[] },
 ): Promise<PostEditResult> {
+    const t = await actionTranslator("actionsContent")
     const caption = (text.caption ?? "").trim()
-    if (!caption) return { success: false, error: "Text nemůže být prázdný." }
+    if (!caption) return { success: false, error: t("postEdit.manual.empty") }
 
     let clientId: string
     try {
         clientId = (await requireProjectAccess(projectSlug)).clientId
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Neautorizovaný přístup." }
+        return { success: false, error: (err as Error)?.message || t("common.unauthorized") }
     }
 
     const { data: post } = await supabaseAdmin
@@ -410,12 +413,12 @@ export async function saveManualText(
         .eq("client_id", clientId)
         .maybeSingle()
 
-    if (!post) return { success: false, error: "Příspěvek nenalezen." }
+    if (!post) return { success: false, error: t("common.postNotFound") }
 
     // Stejný zámek jako u retuše: řádek publikovaného postu se nesmí rozejít s tím,
     // co lidé na Instagramu skutečně vidí.
     if (post.status === "posted" || post.status === "posting") {
-        return { success: false, error: "Publikovaný příspěvek už nejde upravit — vytvoř variantu." }
+        return { success: false, error: t("postEdit.posted") }
     }
 
     // Tentýž úklid, jakým prochází engine (`sanitizeHashtags`): mřížka na začátku,
@@ -481,7 +484,7 @@ export async function saveManualText(
             fact = await refreshFactStatus(config, postId, caption, {
                 topic: caption,
                 product,
-                label: "Ruční úprava postu",
+                label: "Ruční úprava postu", // i18n-ignore: jen do logu
             })
         } catch (err) {
             console.warn(`   ⚠️ Stav faktické brány se po ruční úpravě neosvěžil: ${(err as Error).message?.slice(0, 100)}`)
@@ -516,7 +519,7 @@ export async function saveManualText(
         }
     } catch (err) {
         console.error("saveManualText error:", (err as Error)?.message || err)
-        return { success: false, error: (err as Error)?.message || "Uložení textu selhalo." }
+        return { success: false, error: (err as Error)?.message || t("postEdit.manual.failed") }
     }
 }
 
@@ -530,6 +533,7 @@ export async function revertPostEdit(
     projectSlug: string,
     postId: string,
 ): Promise<PostEditResult> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -540,14 +544,14 @@ export async function revertPostEdit(
             .eq("client_id", clientId)
             .maybeSingle()
 
-        if (!post) return { success: false, error: "Příspěvek nenalezen." }
+        if (!post) return { success: false, error: t("common.postNotFound") }
         if (post.status === "posted" || post.status === "posting") {
-            return { success: false, error: "Publikovaný příspěvek už nejde vrátit zpět." }
+            return { success: false, error: t("postEdit.revert.posted") }
         }
 
         const history: PostEditHistoryEntry[] = Array.isArray(post.edit_history) ? post.edit_history : []
         const previous = history[history.length - 1]
-        if (!previous) return { success: false, error: "Není co vrátit." }
+        if (!previous) return { success: false, error: t("postEdit.revert.nothing") }
 
         // Přerenderování titulků se textu ani návrhu nedotklo, takže se z jeho kroku
         // vrací JEN video a jeho zdroj. Kdyby se vracel celý řádek, přepsal by
@@ -577,7 +581,7 @@ export async function revertPostEdit(
         return { success: true, post: saved as IGPost }
     } catch (err: any) {
         console.error("revertPostEdit error:", err?.message || err)
-        return { success: false, error: err?.message || "Vrácení selhalo." }
+        return { success: false, error: err?.message || t("postEdit.revert.failed") }
     }
 }
 
@@ -610,11 +614,12 @@ export async function recomposeReelSubtitles(
     projectSlug: string,
     edits: ReelSubtitleEdits = {},
 ): Promise<{ success: boolean; jobId?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     let clientId: string
     try {
         clientId = (await requireProjectAccess(projectSlug)).clientId
     } catch (err: any) {
-        return { success: false, error: err?.message || "Neautorizovaný přístup." }
+        return { success: false, error: err?.message || t("common.unauthorized") }
     }
 
     const { data: post } = await supabaseAdmin
@@ -624,17 +629,17 @@ export async function recomposeReelSubtitles(
         .eq("client_id", clientId)
         .maybeSingle()
 
-    if (!post) return { success: false, error: "Příspěvek nenalezen." }
+    if (!post) return { success: false, error: t("common.postNotFound") }
     if (post.status === "posted" || post.status === "posting") {
-        return { success: false, error: "Publikovaný reel už nejde přerenderovat — vytvoř variantu." }
+        return { success: false, error: t("postEdit.subtitles.posted") }
     }
-    if (!isReelMedium(post.media_type)) return { success: false, error: "Tenhle příspěvek není reel." }
+    if (!isReelMedium(post.media_type)) return { success: false, error: t("postEdit.subtitles.notReel") }
 
     const source = post.video_source as { rawVideoPath?: string; voiceoverPath?: string; mode?: string } | null
     // Textový reel voiceover nikdy neměl (hudba je rovnou ve videu) — chybějící WAV
     // u něj není chybějící zdroj, jen jiný režim.
     if (!source?.rawVideoPath || (source.mode !== "text" && !source.voiceoverPath)) {
-        return { success: false, error: "U tohohle reelu nemáme uložené surové video — titulky jdou změnit jen vygenerováním znovu." }
+        return { success: false, error: t("postEdit.subtitles.noSource") }
     }
 
     const { data: job, error } = await supabaseAdmin
@@ -652,12 +657,12 @@ export async function recomposeReelSubtitles(
             },
             status: "video",
             progress: 5,
-            agent_message: "🎞️ Připravuji přerenderování titulků…",
+            agent_message: t("postEdit.subtitles.preparing"),
         })
         .select("id")
         .single()
 
-    if (error || !job) return { success: false, error: `Úlohu se nepodařilo založit: ${error?.message || "neznámá chyba"}` }
+    if (error || !job) return { success: false, error: t("postEdit.subtitles.jobFailed", { detail: error?.message || t("common.unknownError") }) }
     return { success: true, jobId: job.id }
 }
 
@@ -667,7 +672,7 @@ export async function recomposeReelSubtitles(
 function buildTextFeedback(instruction: string, preserve?: string): string {
     const keep = preserve?.trim()
     return keep
-        ? `${instruction}\n\nNESAHEJ NA (ponech beze změny): ${keep}`
+        ? `${instruction}\n\nNESAHEJ NA (ponech beze změny): ${keep}` // i18n-ignore: prompt
         : instruction
 }
 
@@ -677,11 +682,11 @@ function clampSlide(index: number | undefined, count: number): number {
 }
 
 /** Pokyn, kterým se ruční úprava podepisuje v historii i ve `feedback`. */
-const MANUAL_TEXT_INSTRUCTION = "Ruční úprava textu"
+const MANUAL_TEXT_INSTRUCTION = "Ruční úprava textu" // i18n-ignore: podpis v historii úprav (záznam v DB, ne UI)
 
 /** Co se pošle učicí smyčce — musí říct, PROČ se text měnil, ne jen že se měnil. */
 const MANUAL_TEXT_FEEDBACK =
-    "Uživatel přepsal text příspěvku ručně. Takhle to znít mělo — porovnej to s původním zněním a poznamenej si rozdíl."
+    "Uživatel přepsal text příspěvku ručně. Takhle to znít mělo — porovnej to s původním zněním a poznamenej si rozdíl." // i18n-ignore: prompt pro učicí smyčku
 
 type FactProduct = { name: string; slug: string; price?: string | null; description?: string | null } | null
 type FactSourceRow = NonNullable<IGPost["fact_sources"]>[number]

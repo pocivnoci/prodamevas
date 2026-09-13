@@ -15,7 +15,7 @@
 import { getTranslations } from "next-intl/server"
 import { createTranslator } from "next-intl"
 import { loadMessages } from "./messages"
-import { DEFAULT_UI_LOCALE } from "./locales"
+import { DEFAULT_UI_LOCALE, UI_TIME_ZONE } from "./locales"
 
 export type ActionTranslator = ((key: string, values?: Record<string, string | number | Date>) => string) & {
     has: (key: string) => boolean
@@ -32,6 +32,8 @@ export async function actionTranslator(namespace: string): Promise<ActionTransla
             locale: DEFAULT_UI_LOCALE,
             messages: messages as Parameters<typeof createTranslator>[0]["messages"],
             namespace,
+            // Stejná zóna jako request config — ICU datum nesmí mimo request ujet o den.
+            timeZone: UI_TIME_ZONE,
         })
     }
     const t = ((key: string, values?: Record<string, string | number | Date>) => base(key, values)) as ActionTranslator

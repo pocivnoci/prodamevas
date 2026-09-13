@@ -1,3 +1,5 @@
+import { resolveUiLocale } from "@/lib/i18n/server"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import { requireProjectAccess } from "@/lib/auth-guard"
 
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const slug = searchParams.get("slug")
     if (!slug) {
-        return NextResponse.json({ error: "Chybí slug projektu." }, { status: 400 })
+        return NextResponse.json({ error: (await actionTranslator("api"))("igConnect.missingSlug") }, { status: 400 })
     }
     // Volající říká, že běží v prostředí, ze kterého se přihlášení k Instagramu
     // nedá dokončit (appka přidaná na plochu iPhonu). Viz interstitial() níž.
@@ -109,13 +111,15 @@ function escapeHtml(s: string): string {
  * ani cíl (jednorázový `state` upload-postu) — Safari má vlastní cookie jar, takže
  * cokoli chráněného `requireProjectAccess` by tam skončilo na loginu.
  */
-function interstitial(url: string): NextResponse {
+async function interstitial(url: string): Promise<NextResponse> {
+    const t = await actionTranslator("api")
+    const locale = await resolveUiLocale()
     const html = `<!doctype html>
-<html lang="cs">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Připojení Instagramu</title>
+<title>${escapeHtml(t("igConnect.label"))}</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -133,12 +137,12 @@ function interstitial(url: string): NextResponse {
 </head>
 <body>
 <main>
-  <p class="label">Připojení Instagramu</p>
-  <h1>Poslední krok otevři v prohlížeči</h1>
-  <p class="text">Instagram odmítá přihlášení uvnitř aplikace přidané na plochu. Tlačítko níž otevře přihlášení v Safari.</p>
-  <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">Otevřít přihlášení</a>
-  <p class="hint"><strong>Na iPhonu:</strong> když místo Safari naskočí appka Instagramu a napíše „something went wrong", <strong>podrž tlačítko prstem</strong> a vyber <strong>Otevřít na nové kartě</strong> — přes dlouhý stisk iOS appku neotevírá. Kdyby to nepomohlo, dokonči připojení na počítači; stačí jednou.</p>
-  <p class="hint">Až připojení dokončíš, přepni se zpátky do Chrlitu — účet se tu ověří sám.</p>
+  <p class="label">${escapeHtml(t("igConnect.label"))}</p>
+  <h1>${escapeHtml(t("igConnect.bridge.title"))}</h1>
+  <p class="text">${escapeHtml(t("igConnect.bridge.text"))}</p>
+  <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(t("igConnect.bridge.button"))}</a>
+  <p class="hint"><strong>${escapeHtml(t("igConnect.bridge.hintIphoneLead"))}</strong> ${escapeHtml(t("igConnect.bridge.hintIphone"))}</p>
+  <p class="hint">${escapeHtml(t("igConnect.bridge.hintBack"))}</p>
 </main>
 </body>
 </html>`

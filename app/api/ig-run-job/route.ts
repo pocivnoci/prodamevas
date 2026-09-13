@@ -1,3 +1,4 @@
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { generateOnePost } from "@/instagram/autopilot"
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
     const updateJob = async (update: Record<string, any>) => {
         await supabaseAdmin.from("ig_jobs").update(update).eq("id", jobId)
     }
+    const t = await actionTranslator("api")
 
     const config = job.config as any
 
@@ -63,14 +65,14 @@ export async function POST(req: Request) {
                 async (progress, message) => { await updateJob({ status: "video", progress, agent_message: message }) },
             )
             await updateJob({
-                status: "done", progress: 100, agent_message: "✅ Titulky přerenderované", retry_after: null,
+                status: "done", progress: 100, agent_message: t("job.subtitlesDone"), retry_after: null,
                 result: { success: true, postId: config.postId, imageUrl, cards, cost: 0 },
             })
             return NextResponse.json({ success: true, jobId, postId: config.postId, imageUrl })
         } catch (err: any) {
             const msg = err?.message?.substring(0, 500) || "Unknown error"
             console.error("ig-run-job reel_recompose error:", msg)
-            await updateJob({ status: "failed", agent_message: "❌ Přerenderování titulků selhalo", error: msg })
+            await updateJob({ status: "failed", agent_message: t("job.subtitlesFailed"), error: msg })
             return NextResponse.json({ success: false, error: msg }, { status: 500 })
         }
     }
@@ -124,7 +126,7 @@ export async function POST(req: Request) {
         await updateJob({
             status: "done",
             progress: 100,
-            agent_message: "✅ Hotovo!",
+            agent_message: t("job.done"),
             // Dokončený job už nikdy nesmí propadnout sweepu odložených zakázek.
             retry_after: null,
             result: {
@@ -167,7 +169,7 @@ export async function POST(req: Request) {
             if (parked) {
                 return NextResponse.json({
                     success: false, deferred: true, video: true, retryAfter: parked.retryAfter,
-                    error: "🎬 Video se ještě renderuje — příspěvek dokončíme automaticky během pár minut, najdete ho v Příspěvcích.",
+                    error: t("job.videoPending"),
                 }, { status: 503 })
             }
         }
@@ -190,8 +192,8 @@ export async function POST(req: Request) {
 
         await updateJob({
             status: "failed",
-            agent_message: quality ? "⏸️ Velký provoz — zkuste to prosím za chvíli" : "❌ Generování selhalo",
-            error: quality ? "Právě je velký provoz a kvalitní post se nepodařilo dokončit. Zkuste to prosím za pár minut — kvalita má přednost před rychlostí." : msg,
+            agent_message: quality ? t("job.busy") : t("job.failed"),
+            error: quality ? t("job.busyError") : msg,
         })
 
         // Refund the charge made at job creation (idempotent via unique index on action+reference_id)

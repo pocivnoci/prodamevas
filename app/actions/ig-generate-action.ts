@@ -13,6 +13,7 @@ import { generateOnePost, generateBatch } from "@/instagram/autopilot"
 import supabaseAdmin from "@/supabase/admin"
 import { loadConfig } from "@/instagram/configs"
 import { requireAuth, requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { MAX_POSTS_PER_WEEK, monthSpanDays, postsForSpan } from "@/lib/schedule-planner"
 
 
@@ -55,15 +56,16 @@ export async function triggerBatchGeneration(options: {
     errors: number
     message: string
 }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Tenant PRÁCE a tenant ÚČTU je jeden a tentýž. Dřív šla práce podle
         // `configName` a účet podle `projectId` — dva nezávislé vstupy z prohlížeče,
         // takže se dalo generovat do cizí značky a zaplatit (nebo nezaplatit) za
         // vlastní. Brána běží nad slugem, který skutečně řídí generování.
         const slug = options.configName || options.projectId
-        if (!slug) return { success: false, generated: 0, errors: 0, message: "Chybí identifikace projektu." }
+        if (!slug) return { success: false, generated: 0, errors: 0, message: t("generate.batch.missingProject") }
         if (options.projectId && options.projectId !== slug) {
-            return { success: false, generated: 0, errors: 0, message: "projectId a configName musí být tentýž projekt." }
+            return { success: false, generated: 0, errors: 0, message: t("generate.tenantMismatch") }
         }
         await requireProjectAccess(slug)
         // Upfront credit check for entire batch — vždy, ne jen když někdo poslal projectId.
@@ -71,7 +73,7 @@ export async function triggerBatchGeneration(options: {
         if (!options.dryRun) {
             batchGuard = await creditGuardBatch(slug, "post", options.count)
             if (!batchGuard.ok) {
-                return { success: false, generated: 0, errors: 0, message: batchGuard.error || "Nedostatek kreditů" }
+                return { success: false, generated: 0, errors: 0, message: batchGuard.error || t("generate.batch.noCredits") }
             }
         }
 
@@ -88,17 +90,17 @@ export async function triggerBatchGeneration(options: {
 
         // Deduct credits for all posts (generateBatch throws on total failure)
         if (batchGuard && !options.dryRun) {
-            await batchGuard.commitCount(options.count, `Batch: ${options.count} postů`)
+            await batchGuard.commitCount(options.count, `Batch: ${options.count} postů`) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         }
 
         return {
             success: true,
             generated: options.count,
             errors: 0,
-            message: `Batch generování ${options.count} postů dokončeno`,
+            message: t("generate.batch.done", { count: options.count }),
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("IG batch generation error:", errorMessage)
         return {
             success: false,
@@ -143,6 +145,7 @@ export async function deleteIdea(
     ideaId: string,
     projectId: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectId)
 
@@ -153,7 +156,7 @@ export async function deleteIdea(
             .single()
 
         if (!idea || idea.client_id !== clientId) {
-            return { success: false, error: "Nápad nenalezen" }
+            return { success: false, error: t("generate.ideas.notFound") }
         }
 
         const { error } = await supabaseAdmin
@@ -173,6 +176,7 @@ export async function setIdeaActive(
     projectId: string,
     isActive: boolean
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectId)
 
@@ -183,7 +187,7 @@ export async function setIdeaActive(
             .single()
 
         if (!idea || idea.client_id !== clientId) {
-            return { success: false, error: "Nápad nenalezen" }
+            return { success: false, error: t("generate.ideas.notFound") }
         }
 
         const { error } = await supabaseAdmin
@@ -232,11 +236,12 @@ export async function triggerAIIdeasGeneration(options: {
     categoryId?: string
     projectId?: string
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Brána nad slugem, podle kterého se generuje; `projectId` (účet) smí být jen
         // tentýž projekt — jinak jde práce do jedné značky a účet druhé.
         if (options.projectId && options.projectId !== options.configName) {
-            return { success: false, generatedCount: 0, error: "projectId a configName musí být tentýž projekt." }
+            return { success: false, generatedCount: 0, error: t("generate.tenantMismatch") }
         }
         await requireProjectAccess(options.configName)
         // Credit check + commit with single guard instance
@@ -255,7 +260,7 @@ export async function triggerAIIdeasGeneration(options: {
         // Deduct credits after success — same guard instance, no redundant DB call
         if (guard) {
             const catLabel = options.categoryId ? ` → ${options.categoryId}` : ""
-            await guard.commit(`Nápady: ${options.pillarId}${catLabel}`)
+            await guard.commit(`Nápady: ${options.pillarId}${catLabel}`) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         }
 
         return {
@@ -263,7 +268,7 @@ export async function triggerAIIdeasGeneration(options: {
             generatedCount: result?.length || 0,
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("AI Idea generation error:", errorMessage)
         return { success: false, generatedCount: 0, error: errorMessage.substring(0, 500) }
     }
@@ -318,6 +323,7 @@ export async function triggerAIReviewsGeneration(options: {
     configName: string
     count?: number
 }): Promise<{ success: boolean; generatedCount: number; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Recenze se zapisují do ig_reviews tenanta z configName a engine z nich pak
         // píše posty — pouhé přihlášení nesmí stačit k zápisu do cizí značky.
@@ -333,7 +339,7 @@ export async function triggerAIReviewsGeneration(options: {
             generatedCount: result?.length || 0,
         }
     } catch (err: any) {
-        const errorMessage = err?.message || String(err) || "Unknown error"
+        const errorMessage = err?.message || String(err) || t("common.unknownError")
         console.error("AI Review generation error:", errorMessage)
         return { success: false, generatedCount: 0, error: errorMessage.substring(0, 500) }
     }
@@ -374,6 +380,7 @@ export async function createPromoPost(
 async function createPromoPostInner(
     options: PromoPostOptions,
 ): Promise<{ success: boolean; postId?: string; caption?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
@@ -383,6 +390,7 @@ async function createPromoPostInner(
         console.log(`📝 Generuji promo caption pro "${options.ideaName}"...`)
         const { generateText } = await import("@/instagram/gemini-client")
 
+        // i18n-ignore-start: prompt pro model — jazyk výstupu řídí contentLanguage(config)
         const captionPrompt = `Jsi senior copywriter pro značku "${config.name}" (${config.website}).
 Napiš prodejní Instagram caption pro NOVÝ PRODUKT.
 
@@ -420,6 +428,7 @@ Použij 5-8 hashtagů: mix core + niche + 1-2 specifické pro tento produkt.` : 
   "cta": "call to action s odkazem na ${config.website}",
   "hashtags": ["#tag1", "#tag2", "#tag3"]
 }`
+        // i18n-ignore-end
 
         const rawText = await generateText(captionPrompt)
 
@@ -458,7 +467,7 @@ Použij 5-8 hashtagů: mix core + niche + 1-2 specifické pro tento produkt.` : 
         }
     } catch (err: any) {
         console.error("createPromoPost error:", err)
-        return { success: false, error: err.message || "Failed to create promo post" }
+        return { success: false, error: err.message || t("generate.promo.failed") }
     }
 }
 
@@ -470,19 +479,20 @@ export async function uploadCustomImage(
     projectId: string,
     formData: FormData
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         // Vlastnictví projektu + omezení obsahu: bucket je veřejný a sdílený, takže
         // bez allow-listu by sem kdokoli přihlášený uložil libovolný soubor (i HTML)
         // pod naší doménou na rok do cache. Stejné typy a strop jako klientské buckety.
         await requireProjectAccess(projectId)
         const file = formData.get("file") as File
-        if (!file) return { success: false, error: "No file provided" }
+        if (!file) return { success: false, error: t("common.noFile") }
         const { CLIENT_BUCKET_MIME_TYPES, CLIENT_BUCKET_SIZE_LIMIT } = await import("@/lib/storage-buckets")
         if (!file.type.startsWith("image/") || !CLIENT_BUCKET_MIME_TYPES.includes(file.type)) {
-            return { success: false, error: "Nahrát jde jen obrázek (PNG, JPEG nebo WebP)." }
+            return { success: false, error: t("generate.upload.imagesOnly") }
         }
         if (file.size > CLIENT_BUCKET_SIZE_LIMIT) {
-            return { success: false, error: "Soubor je příliš velký." }
+            return { success: false, error: t("generate.upload.tooLarge") }
         }
 
         const fileName = `${projectId}_custom_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
@@ -506,7 +516,7 @@ export async function uploadCustomImage(
         return { success: true, publicUrl: publicUrlData.publicUrl }
     } catch (err: any) {
         console.error("uploadCustomImage error:", err)
-        return { success: false, error: err.message || "Upload failed" }
+        return { success: false, error: err.message || t("common.uploadFailed") }
     }
 }
 
@@ -516,6 +526,7 @@ export async function uploadCustomImage(
 
 // Template captions for locked posts — visible only through 3px blur, so content doesn't matter.
 // Just needs to look like real text at a glance.
+// i18n-ignore-start: atrapy captionů zamčeného plánu — rozmazaný obsah, ne UI
 const PLACEHOLDER_HOOKS = [
     "Tohle vám nikdo neřekne o vašem podnikání",
     "3 věci které děláte špatně na Instagramu",
@@ -545,6 +556,7 @@ const PLACEHOLDER_HOOKS = [
     "Novinka v nabídce — první pohled",
     "Tohle jsme nečekali — příběh z praxe",
 ]
+// i18n-ignore-end
 
 /**
  * Kolik příspěvků měsíce vznikne doopravdy v ukázkové kampani z onboardingu
@@ -567,6 +579,7 @@ export async function generateMonthlyPlan(options: {
     configName: string
     projectId: string
 }): Promise<{ success: boolean; postsCreated: number; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(options.configName)
         const config = await loadConfig(options.configName)
@@ -594,7 +607,7 @@ export async function generateMonthlyPlan(options: {
                 ? lastGen >= windowStart
                 : (now.getTime() - lastGen.getTime()) / 86_400_000 < monthSpanDays(lastGen)
             if (alreadyThisPeriod) {
-                return { success: false, postsCreated: 0, error: "Měsíční plán už byl vygenerován." }
+                return { success: false, postsCreated: 0, error: t("generate.monthlyPlan.alreadyGenerated") }
             }
         }
 
@@ -625,7 +638,7 @@ export async function generateMonthlyPlan(options: {
             const postTypeName = weekPlan[i % weekPlan.length]
             const pillar = pillarKeys[i % pillarKeys.length] || "reach"
             const hook = PLACEHOLDER_HOOKS[i % PLACEHOLDER_HOOKS.length]
-            const fakeBody = `Inspirujte se naším obsahem a posuňte svou značku na novou úroveň. Více na ${config.website}`
+            const fakeBody = `Inspirujte se naším obsahem a posuňte svou značku na novou úroveň. Více na ${config.website}` // i18n-ignore: atrapa captionu zamčeného plánu
 
             return {
                 client_id: clientId,
@@ -644,7 +657,7 @@ export async function generateMonthlyPlan(options: {
             .from("ig_posts")
             .insert(insertRows)
 
-        if (insertError) throw new Error(`Failed to insert plan posts: ${insertError.message}`)
+        if (insertError) throw new Error(t("generate.monthlyPlan.insertFailed", { detail: insertError.message }))
 
         // Update subscription: mark plan as generated
         if (sub) {

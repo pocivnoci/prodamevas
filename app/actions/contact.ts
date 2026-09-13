@@ -19,6 +19,7 @@
 
 import supabaseAdmin from '@/supabase/admin'
 import { normalizeTermMonths } from '@/lib/pricing'
+import { actionTranslator } from '@/lib/i18n/actions'
 
 /** Delší adresa než tohle není adresa, ale pokus o zaplnění sloupce. */
 const MAX_LEN = 200
@@ -60,13 +61,14 @@ function cleanWebsite(v: FormDataEntryValue | null): string | null {
 }
 
 export async function leaveContact(formData: FormData): Promise<ContactResult> {
+    const t = await actionTranslator('actionsAccount')
     const email = cleanText(formData.get('email'))?.toLowerCase() ?? null
 
     if (!email) {
-        return { success: false, error: 'Vyplňte prosím e-mail.' }
+        return { success: false, error: t('contact.leaveContact.emailRequired') }
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return { success: false, error: 'Zadejte platnou e-mailovou adresu.' }
+        return { success: false, error: t('contact.leaveContact.emailInvalid') }
     }
 
     const phone = cleanPhone(formData.get('phone'))
@@ -109,5 +111,5 @@ export async function leaveContact(formData: FormData): Promise<ContactResult> {
     }
 
     console.error('Kontakt z landingu selhal:', error.message)
-    return { success: false, error: 'Něco se pokazilo. Zkuste to prosím znovu.' }
+    return { success: false, error: t('contact.leaveContact.failed') }
 }

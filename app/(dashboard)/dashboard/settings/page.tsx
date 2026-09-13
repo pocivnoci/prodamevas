@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useTranslations } from "next-intl"
 import { getAvailableIGClients } from "@/app/actions/admin-actions"
 import { getClientConfig, updateClientConfig } from "@/app/actions/settings-actions"
 import { CircleCheck, CircleX, Lightbulb, TriangleAlert } from "lucide-react"
@@ -9,6 +10,7 @@ import { CircleCheck, CircleX, Lightbulb, TriangleAlert } from "lucide-react"
 type ClientInfo = { id: string; name: string; icon: string; description: string }
 
 export default function SettingsPage() {
+    const t = useTranslations("settings")
     const [projectId, setProjectId] = useState("")
     const [clients, setClients] = useState<ClientInfo[]>([])
     
@@ -46,7 +48,7 @@ export default function SettingsPage() {
                 setConfigData(data)
                 setJsonStr(JSON.stringify(data, null, 2))
             } else {
-                setErrorMsg(`Nepodařilo se načíst konfiguraci pro projekt ${projectId}`)
+                setErrorMsg(t("adminEditor.loadFailed", { project: projectId }))
             }
             setIsLoading(false)
         }).catch(err => {
@@ -65,7 +67,7 @@ export default function SettingsPage() {
             JSON.parse(value)
             setJsonError(null)
         } catch (e: any) {
-            setJsonError(`Chyba formátu JSON: ${e.message}`)
+            setJsonError(t("adminEditor.jsonError", { message: e.message }))
         }
     }
 
@@ -76,7 +78,7 @@ export default function SettingsPage() {
         try {
             parsedConfig = JSON.parse(jsonStr)
         } catch (e: any) {
-            setJsonError(`Nelze uložit: ${e.message}`)
+            setJsonError(t("adminEditor.cannotSave", { message: e.message }))
             return
         }
 
@@ -87,11 +89,11 @@ export default function SettingsPage() {
         const res = await updateClientConfig(projectId, parsedConfig)
         
         if (res.success) {
-            setSuccessMsg("Konfigurace úspěšně uložena a aktualizována! Můžeš pokračovat v používání Studia.")
+            setSuccessMsg(t("adminEditor.saved"))
             // Format perfectly
             setJsonStr(JSON.stringify(parsedConfig, null, 2))
         } else {
-            setErrorMsg(res.error || "Při ukládání došlo k neznámé chybě.")
+            setErrorMsg(res.error || t("adminEditor.unknownError"))
         }
         
         setIsSaving(false)
@@ -101,9 +103,9 @@ export default function SettingsPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                    <h1 className="text-4xl font-black uppercase tracking-tighter text-white">Nastavení Profilu</h1>
+                    <h1 className="text-4xl font-black uppercase tracking-tighter text-white">{t("adminEditor.title")}</h1>
                     <p className="text-white/50 mt-2 font-bold uppercase tracking-widest text-[10px]">
-                        Komplexní editor profilových dat a SaaS logiky
+                        {t("adminEditor.subtitle")}
                     </p>
                 </div>
 
@@ -130,9 +132,9 @@ export default function SettingsPage() {
             <div className="bg-[#0f0f0f] border border-white/10 rounded-sm overflow-hidden flex flex-col shadow-sm">
                 <div className="bg-[#050505] p-4 border-b border-white/10 flex items-center justify-between">
                     <div>
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-white/90">Pokročilý JSON Editor</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-white/90">{t("adminEditor.editorTitle")}</h2>
                         <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest">
-                            Zde jsou kompletní informace o profilu (Tone of Voice, Produkty, Barvy). Opatrně s přepisy!
+                            {t("adminEditor.editorHint")}
                         </p>
                     </div>
                     <button
@@ -146,7 +148,7 @@ export default function SettingsPage() {
                                     : "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                         }`}
                     >
-                        {isSaving ? "Ukládám..." : "Uložit změny"}
+                        {isSaving ? t("adminEditor.saving") : t("adminEditor.save")}
                     </button>
                 </div>
 
@@ -194,12 +196,12 @@ export default function SettingsPage() {
             </div>
             
             <div className="p-4 bg-aisummit-cinnabar/10 border border-aisummit-cinnabar/20 rounded-sm">
-                <h3 className="text-xs text-aisummit-cinnabar font-bold uppercase tracking-widest mb-2 flex items-center gap-2"><Lightbulb className="w-4 h-4" /> Uživatelský manuál k nastavení profilu</h3>
+                <h3 className="text-xs text-aisummit-cinnabar font-bold uppercase tracking-widest mb-2 flex items-center gap-2"><Lightbulb className="w-4 h-4" /> {t("adminEditor.manualTitle")}</h3>
                 <ul className="text-[11px] text-white/60 space-y-1 ml-6 list-disc">
-                    <li>Vyber projekt nahoře vpravo.</li>
-                    <li>V JSONu můžeš ručně upravit sekci <strong className="text-white/80">"products"</strong> a přidat / smazat libovolné produkty nebo služby pro tento model.</li>
-                    <li>Upravené barvy (<strong className="text-white/80">overlayGradient</strong>) nebo font se ihned promítnou do generování nových postů.</li>
-                    <li>Pokud provedeš neplatnou změnu v syntaxi (chybějící uvozovky), editor ti nedovolí uložit kód, dokud chybu neopravíš.</li>
+                    <li>{t("adminEditor.manual.pick")}</li>
+                    <li>{t.rich("adminEditor.manual.products", { strong: (chunks) => <strong className="text-white/80">{chunks}</strong> })}</li>
+                    <li>{t.rich("adminEditor.manual.colors", { strong: (chunks) => <strong className="text-white/80">{chunks}</strong> })}</li>
+                    <li>{t("adminEditor.manual.syntax")}</li>
                 </ul>
             </div>
         </div>

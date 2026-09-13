@@ -36,6 +36,7 @@ import { upsertMemory } from "@/instagram/memory-agent"
 // Shared with editPost — one definition of "download a shipped image back into bytes"
 import { fetchImageBuffer as fetchBuffer } from "@/lib/image-buffer"
 import { contentLanguage } from "@/instagram/language"
+import { actionTranslator, type ActionTranslator } from "@/lib/i18n/actions"
 
 const BUCKET = "product-designs"
 
@@ -84,6 +85,7 @@ export async function generatePrintDesign(
     projectSlug: string,
     options: PrintDesignOptions,
 ): Promise<{ success: boolean; design?: PrintDesignRow; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     const guard = await creditGuard(projectSlug, "product_design")
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
@@ -99,14 +101,14 @@ export async function generatePrintDesign(
             theme: options.theme,
             variant_group: options.variantGroup || null,
             status: "running",
-            progress: "Startuji…",
+            progress: t("print.generate.progress.start"),
             brief: { runId: options.runId || null },
         })
         .select("id")
         .single()
 
     if (insertErr || !row) {
-        return { success: false, error: `Nepodařilo se založit design: ${insertErr?.message}` }
+        return { success: false, error: t("print.generate.createFailed", { detail: insertErr?.message ?? "" }) }
     }
 
     const setProgress = (message: string) => {
@@ -120,7 +122,7 @@ export async function generatePrintDesign(
     try {
         const config = await loadConfig(projectSlug)
         const category = await resolveCategory(options.categorySlug, clientId)
-        if (!category) throw new Error(`Kategorie "${options.categorySlug}" neexistuje`)
+        if (!category) throw new Error(t("print.generate.categoryMissing", { slug: options.categorySlug }))
 
         const [product, line, recentBriefs] = await Promise.all([
             loadProductContext(clientId, options.productId),
@@ -128,7 +130,7 @@ export async function generatePrintDesign(
             loadRecentBriefs(clientId, options.categorySlug),
         ])
 
-        setProgress("Navrhuji koncept (Pro ladder)…")
+        setProgress(t("print.generate.progress.concept"))
         const brief = await generatePrintBrief(config, clientId, {
             category,
             theme: options.theme,
@@ -146,20 +148,20 @@ export async function generatePrintDesign(
         if (options.includeLogo && config.logoFile && !logoBuffer) {
             // Previously this failed silently and the user never learned why the
             // logo was missing from a design they explicitly asked to include it in.
-            setProgress("Logo se nepodařilo načíst — pokračuji bez něj")
+            setProgress(t("print.generate.progress.logoFailed"))
         }
 
         const result = await runPrintArtwork(config, category, brief, logoBuffer, setProgress)
 
-        setProgress("Připravuji tiskový soubor…")
+        setProgress(t("print.generate.progress.printFile"))
         const { printBuffer, dielineBuffer, spec } = await finalizePrintFile(result.artwork, category, result.brief)
 
         const stamp = Date.now()
         const safeName = slugForFile(result.brief.name)
         const [artworkUrl, printUrl, dielineUrl] = await Promise.all([
-            upload(result.artwork, `${clientId}/${safeName}_${stamp}_artwork.png`),
-            upload(printBuffer, `${clientId}/${safeName}_${stamp}_print300dpi.png`),
-            upload(dielineBuffer, `${clientId}/${safeName}_${stamp}_dieline.png`),
+            upload(result.artwork, `${clientId}/${safeName}_${stamp}_artwork.png`, t),
+            upload(printBuffer, `${clientId}/${safeName}_${stamp}_print300dpi.png`, t),
+            upload(dielineBuffer, `${clientId}/${safeName}_${stamp}_dieline.png`, t),
         ])
 
         const { data: saved } = await supabaseAdmin
@@ -180,7 +182,7 @@ export async function generatePrintDesign(
             .select("*")
             .single()
 
-        await guard.commit(`Tiskový design: ${result.brief.name}`, row.id)
+        await guard.commit(`Tiskový design: ${result.brief.name}`, row.id) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         return { success: true, design: saved as PrintDesignRow }
     } catch (err: any) {
         console.error("generatePrintDesign error:", err)
@@ -190,7 +192,7 @@ export async function generatePrintDesign(
             .eq("id", row.id)
             .eq("client_id", clientId)
         // Not charged — commit() only runs on the success path.
-        return { success: false, error: err?.message || "Generování designu selhalo" }
+        return { success: false, error: err?.message || t("print.generate.failed") }
     }
 }
 
@@ -250,6 +252,7 @@ async function editPrintDesignInner(
     designId: string,
     instruction: string,
 ): Promise<{ success: boolean; design?: PrintDesignRow; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     const guard = await creditGuard(projectSlug, "product_mockup") // edit = one image call
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
@@ -261,10 +264,10 @@ async function editPrintDesignInner(
             .eq("id", designId)
             .eq("client_id", clientId)
             .maybeSingle()
-        if (!design?.artwork_url) return { success: false, error: "Design nenalezen." }
+        if (!design?.artwork_url) return { success: false, error: t("print.designNotFound") }
 
         const category = await resolveCategory(design.category_slug, clientId)
-        if (!category) return { success: false, error: "Kategorie designu neexistuje." }
+        if (!category) return { success: false, error: t("print.categoryMissing") }
         const geo = resolvePrintGeometry(category)
 
         const config = await loadConfig(projectSlug)
@@ -284,9 +287,9 @@ Any ${contentLanguage(config).englishName} text must keep its exact spelling and
         const stamp = Date.now()
         const safeName = slugForFile(brief?.name || "design")
         const [artworkUrl, printUrl, dielineUrl] = await Promise.all([
-            upload(edited, `${clientId}/${safeName}_${stamp}_artwork.png`),
-            upload(printBuffer, `${clientId}/${safeName}_${stamp}_print300dpi.png`),
-            upload(dielineBuffer, `${clientId}/${safeName}_${stamp}_dieline.png`),
+            upload(edited, `${clientId}/${safeName}_${stamp}_artwork.png`, t),
+            upload(printBuffer, `${clientId}/${safeName}_${stamp}_print300dpi.png`, t),
+            upload(dielineBuffer, `${clientId}/${safeName}_${stamp}_dieline.png`, t),
         ])
 
         const { data: saved } = await supabaseAdmin
@@ -303,11 +306,11 @@ Any ${contentLanguage(config).englishName} text must keep its exact spelling and
             .select("*")
             .single()
 
-        await guard.commit(`Úprava designu: ${instruction.slice(0, 60)}`, designId)
+        await guard.commit(`Úprava designu: ${instruction.slice(0, 60)}`, designId) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         return { success: true, design: saved as PrintDesignRow }
     } catch (err: any) {
         console.error("editPrintDesign error:", err)
-        return { success: false, error: err?.message || "Úprava selhala" }
+        return { success: false, error: err?.message || t("common.editFailed") }
     }
 }
 
@@ -319,6 +322,7 @@ export async function generateMockup(
     projectSlug: string,
     designId: string,
 ): Promise<{ success: boolean; mockupUrl?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     const guard = await creditGuard(projectSlug, "product_mockup")
     if (!guard.ok) return { success: false, error: guard.error }
     const clientId = guard.clientId
@@ -330,14 +334,14 @@ export async function generateMockup(
             .eq("id", designId)
             .eq("client_id", clientId)
             .maybeSingle()
-        if (!design?.artwork_url) return { success: false, error: "Design nenalezen." }
+        if (!design?.artwork_url) return { success: false, error: t("print.designNotFound") }
 
         const category = await resolveCategory(design.category_slug, clientId)
-        if (!category) return { success: false, error: "Kategorie designu neexistuje." }
+        if (!category) return { success: false, error: t("print.categoryMissing") }
 
         const artwork = await fetchBuffer(design.artwork_url)
         const mockup = await renderProductMockup(artwork, category, design.brief as PrintBrief, clientId)
-        const mockupUrl = await upload(mockup, `${clientId}/${slugForFile((design.brief as any)?.name || "design")}_${Date.now()}_mockup.png`)
+        const mockupUrl = await upload(mockup, `${clientId}/${slugForFile((design.brief as any)?.name || "design")}_${Date.now()}_mockup.png`, t)
 
         await supabaseAdmin
             .from("ig_product_designs")
@@ -349,7 +353,7 @@ export async function generateMockup(
         return { success: true, mockupUrl }
     } catch (err: any) {
         console.error("generateMockup error:", err)
-        return { success: false, error: err?.message || "Mockup selhal" }
+        return { success: false, error: err?.message || t("print.mockup.failed") }
     }
 }
 
@@ -408,6 +412,7 @@ export async function ratePrintDesign(
     designId: string,
     rating: 1 | -1 | null,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         await supabaseAdmin
@@ -417,7 +422,7 @@ export async function ratePrintDesign(
             .eq("client_id", clientId)
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Hodnocení se neuložilo" }
+        return { success: false, error: err?.message || t("common.ratingFailed") }
     }
 }
 
@@ -432,6 +437,7 @@ export async function selectDesignWinner(
     projectSlug: string,
     designId: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -441,7 +447,7 @@ export async function selectDesignWinner(
             .eq("id", designId)
             .eq("client_id", clientId)
             .maybeSingle()
-        if (!winner) return { success: false, error: "Design nenalezen." }
+        if (!winner) return { success: false, error: t("print.designNotFound") }
 
         // Exactly one winner per group
         if (winner.variant_group) {
@@ -459,6 +465,7 @@ export async function selectDesignWinner(
 
         const brief = winner.brief as PrintBrief | null
         if (brief?.composition) {
+            // i18n-ignore-start: paměť značky — jazyk obsahu, ne UI
             const lesson = [
                 brief.concept,
                 `Kompozice: ${brief.composition}`,
@@ -471,12 +478,13 @@ export async function selectDesignWinner(
                 content: `Vybraný tiskový design (${winner.category_slug || "produkt"}): ${lesson}`.slice(0, 500),
                 confidence: 0.6,
             }).catch(err => console.warn(`selectDesignWinner: memory upsert failed — ${err?.message}`))
+            // i18n-ignore-end
         }
 
         return { success: true }
     } catch (err: any) {
         console.error("selectDesignWinner error:", err)
-        return { success: false, error: err?.message || "Výběr vítěze selhal" }
+        return { success: false, error: err?.message || t("print.winner.failed") }
     }
 }
 
@@ -562,11 +570,11 @@ async function loadLogoSafe(logoFile: string): Promise<Buffer | null> {
     }
 }
 
-async function upload(buffer: Buffer, path: string): Promise<string> {
+async function upload(buffer: Buffer, path: string, t: ActionTranslator): Promise<string> {
     const { error } = await supabaseAdmin.storage
         .from(BUCKET)
         .upload(path, buffer, { contentType: "image/png", cacheControl: "31536000", upsert: true })
-    if (error) throw new Error(`Upload selhal: ${error.message}`)
+    if (error) throw new Error(t("common.uploadFailedDetail", { detail: error.message }))
     const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path)
     return data.publicUrl
 }

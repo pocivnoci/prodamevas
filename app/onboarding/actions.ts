@@ -1,6 +1,7 @@
 'use server'
 
 import { resolveUiLocale } from '@/lib/i18n/server'
+import { actionTranslator } from '@/lib/i18n/actions'
 import { createClient } from '@/supabase/server'
 import supabaseAdmin from '@/supabase/admin'
 import { requireAuth, requireProjectAccess } from '@/lib/auth-guard'
@@ -8,7 +9,7 @@ import { generateText } from '@/instagram/gemini-client'
 import { getModel } from '@/instagram/models'
 import type { ClientConfig } from '@/instagram/configs/types'
 import { isSuperAdminEmail } from '@/lib/super-admins'
-import { humanizeError } from './types'
+import { humanizeErrorWith } from './types'
 import type { WebsiteAnalysis, ReviewSection, ManualBusinessInfo } from './types'
 
 // POZOR: tenhle soubor NESMÍ re-exportovat typy (`export type { … } from`).
@@ -49,7 +50,7 @@ async function enqueueOnboarding(
         })
         return { success: true, taskId }
     } catch (error) {
-        return { success: false, error: humanizeError(error) }
+        return { success: false, error: humanizeErrorWith(error, await actionTranslator("onboarding")) }
     }
 }
 
@@ -109,21 +110,24 @@ async function closeForToday(): Promise<{ success: false; error: string }> {
         const { sendEmail, getFounderEmail } = await import('@/lib/email')
         const to = getFounderEmail()
         if (to) {
+            // i18n-ignore-start: e-mail zakladateli (interní notifikace, jiná osa než UI)
             await sendEmail({
                 to,
                 subject: `Denní strop onboardingů vyčerpán (${ONBOARDING_DAILY_CAP})`,
                 html: `<p>Dnešní strop nových onboardingů je plný. Poslední odmítnutý zájemce: <strong>${email}</strong> — je ve waitlistu.</p>`,
                 text: `Dnešní strop nových onboardingů je plný. Poslední odmítnutý zájemce: ${email} — je ve waitlistu.`,
             })
+            // i18n-ignore-end
         }
     } catch (err: any) {
         console.warn(`⚠️ Upozornění na vyčerpaný strop se neodeslalo: ${err?.message}`)
     }
 
     console.warn(`🚧 Denní strop onboardingů (${ONBOARDING_DAILY_CAP}) vyčerpán — odmítnut ${email}`)
+    const t = await actionTranslator('actionsAccount')
     return {
         success: false,
-        error: 'Dnes už máme plno — nové značky bereme po dávkách, aby první příspěvky za něco stály. Zapsali jsme si vás a ozveme se zítra.',
+        error: t('onboarding.dailyCap.closed'),
     }
 }
 
@@ -163,6 +167,7 @@ export async function generateImageBrief(
         const hasBehindScenes = pillarKeys.includes('behind_scenes') || pillarKeys.includes('backstage')
         const hasProducts = (config.products?.length || 0) > 0
 
+        // i18n-ignore-start: prompt
         const prompt = `Jsi expert na Instagram marketing. Na základě konfigurace značky vygeneruj SHOT LIST — konkrétní seznam fotek, které by klient měl dodat pro nejlepší výsledky.
 
 ## ZNAČKA
@@ -193,6 +198,7 @@ Vrať JSON pole:
 ]
 
 Vrať POUZE platný JSON pole.`
+        // i18n-ignore-end
 
         const briefSchema = {
             type: "array",
@@ -238,6 +244,7 @@ export async function ensureImageBrief(
     projectId: string,
     opts: { force?: boolean } = {},
 ): Promise<{ success: boolean; brief?: ImageBriefItem[]; error?: string }> {
+    const t = await actionTranslator('actionsAccount')
     try {
         const { clientId } = await requireProjectAccess(projectId)
 
@@ -247,7 +254,7 @@ export async function ensureImageBrief(
             .eq('id', clientId)
             .single()
         if (readError || !row) {
-            return { success: false, error: readError?.message || 'Klient nenalezen' }
+            return { success: false, error: readError?.message || t('onboarding.ensureImageBrief.clientNotFound') }
         }
 
         const config = (row.config || {}) as ClientConfig
@@ -257,7 +264,7 @@ export async function ensureImageBrief(
 
         const generated = await generateImageBrief(config)
         if (!generated.success || !generated.brief?.length) {
-            return { success: false, error: generated.error || 'Model vrátil prázdný shot list.' }
+            return { success: false, error: generated.error || t('onboarding.ensureImageBrief.emptyBrief') }
         }
 
         // Config se mezitím mohl změnit (jiná karta, jiný agent) — ber čerstvý
@@ -283,7 +290,7 @@ export async function ensureImageBrief(
         return { success: true, brief: generated.brief }
     } catch (error) {
         console.error('ensureImageBrief error:', error)
-        return { success: false, error: humanizeError(error) }
+        return { success: false, error: humanizeErrorWith(error, await actionTranslator("onboarding")) }
     }
 }
 
@@ -292,6 +299,7 @@ export async function ensureImageBrief(
 // STEP 3B: REFINE ONE SECTION (based on user feedback)
 // ============================================
 
+// i18n-ignore-start: prompt (názvy sekcí jdou do promptu pro model, ne do UI)
 const SECTION_LABELS: Record<ReviewSection, string> = {
     brand_voice: 'Brand Voice (persona, traits, anti-patterns)',
     pillars: 'Content Pilíře a Kategorie',
@@ -299,6 +307,7 @@ const SECTION_LABELS: Record<ReviewSection, string> = {
     visual: 'Vizuální identita (gradient, font, feed aesthetic)',
     hooks_cta: 'Hook templates a CTA strategie',
 }
+// i18n-ignore-end
 
 export async function refineConfigSection(
     config: ClientConfig,
@@ -309,6 +318,7 @@ export async function refineConfigSection(
     try {
         await requireAuth()
         const sectionData = extractSectionData(config, section)
+        // i18n-ignore-start: prompt
         const prompt = `Uživatel kontroluje konfiguraci Instagram autopilota pro "${config.name}" (${analysis.industry}).
 
 ## SEKCE K PŘEPRACOVÁNÍ: ${SECTION_LABELS[section]}
@@ -335,11 +345,12 @@ ${section === 'visual' ? `Vrať JSON objekt s: feedAesthetic (colorPalette, over
 ${section === 'hooks_cta' ? `Vrať JSON objekt s: hookTemplates (pole s pattern, example, bestFor, trigger) a ctaStrategies (soft, medium, hard, none — každý pole stringů).` : ''}
 
 ${writeRuleCs(contentLanguage(config))} Vrať POUZE platný JSON.`
+        // i18n-ignore-end
 
         // User-triggered section refine — Pro tier (latency-tolerant, one section at a time).
         const raw = await generateText(prompt, { temperature: 0.7, model: getModel("textPro"), fallbackModel: getModel("textPro", "fallback") })
         const jsonMatch = raw.match(/[\[{][\s\S]*[\]}]/)
-        if (!jsonMatch) throw new Error('AI nevrátilo platný JSON')
+        if (!jsonMatch) throw new Error('AI nevrátilo platný JSON') // i18n-ignore: do UI nedoletí — humanizeError (./types.ts) ji podle „json" přepíše
 
         const refined = JSON.parse(jsonMatch[0])
         const updated = applySectionData(config, section, refined)
@@ -347,7 +358,7 @@ ${writeRuleCs(contentLanguage(config))} Vrať POUZE platný JSON.`
         return { success: true, config: updated }
     } catch (error) {
         console.error(`Refine section ${section} error:`, error)
-        return { success: false, error: humanizeError(error) }
+        return { success: false, error: humanizeErrorWith(error, await actionTranslator("onboarding")) }
     }
 }
 
@@ -421,7 +432,7 @@ export async function saveReviewedConfig(
         return { success: true, clientSlug: savedSlug }
     } catch (error) {
         console.error('Save config error:', error)
-        return { success: false, error: humanizeError(error) }
+        return { success: false, error: humanizeErrorWith(error, await actionTranslator("onboarding")) }
     }
 }
 
@@ -540,7 +551,7 @@ export async function startOnboardingBootstrap(clientSlug: string): Promise<{
         return { success: true, campaignId: campaign.id }
     } catch (error) {
         console.error('startOnboardingBootstrap error:', error)
-        return { success: false, error: humanizeError(error) }
+        return { success: false, error: humanizeErrorWith(error, await actionTranslator("onboarding")) }
     }
 }
 

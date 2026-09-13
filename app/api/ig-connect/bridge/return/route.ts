@@ -1,3 +1,5 @@
+import { resolveUiLocale } from "@/lib/i18n/server"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import { syncUploadPostConnection } from "@/app/actions/ig-connection-actions"
 
@@ -49,6 +51,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${dashboard}?ig=${flag}#settings`)
 }
 
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+}
+
 /**
  * Konec cesty v externím prohlížeči.
  *
@@ -57,17 +63,17 @@ export async function GET(request: Request) {
  * udělá otevřená appka při návratu (listener na `focus` + `visibilitychange`
  * v SettingsTab). Stránka jen řekne uživateli, že má přepnout zpátky.
  */
-function handoffBack(failed = false): NextResponse {
-    const heading = failed ? "Připojení se nedokončilo" : "Hotovo — přepni se zpátky do Chrlitu"
-    const body = failed
-        ? "Instagram autorizaci nedokončil. Vrať se do Chrlitu a zkus Připojit znovu; účet musí být profesní (Business nebo Creator)."
-        : "Tuhle záložku můžeš zavřít. V aplikaci se stav připojení ověří sám; kdyby ne, klepni v Nastavení na „Ověřit“."
+async function handoffBack(failed = false): Promise<NextResponse> {
+    const t = await actionTranslator("api")
+    const locale = await resolveUiLocale()
+    const heading = failed ? t("igConnect.return.failedHeading") : t("igConnect.return.doneHeading")
+    const body = failed ? t("igConnect.return.failedBody") : t("igConnect.return.doneBody")
     const html = `<!doctype html>
-<html lang="cs">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hotovo</title>
+<title>${escapeHtml(t("igConnect.return.title"))}</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -80,9 +86,9 @@ function handoffBack(failed = false): NextResponse {
 </head>
 <body>
 <main>
-  <p class="label">Připojení Instagramu</p>
-  <h1>${heading}</h1>
-  <p>${body}</p>
+  <p class="label">${escapeHtml(t("igConnect.label"))}</p>
+  <h1>${escapeHtml(heading)}</h1>
+  <p>${escapeHtml(body)}</p>
 </main>
 </body>
 </html>`

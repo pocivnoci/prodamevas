@@ -9,6 +9,7 @@
  * platbu identicky.
  */
 
+import { actionTranslator } from "@/lib/i18n/actions"
 import { paymentPageLanguage } from "@/lib/i18n/server"
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
@@ -20,14 +21,15 @@ export async function POST(req: NextRequest) {
     const { requireAuth } = await import("@/lib/auth-guard")
     try { await requireAuth() } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
 
+    const t = await actionTranslator("api")
     if (!isStripeConfigured()) {
-        return NextResponse.json({ error: "Stripe není nakonfigurovaná" }, { status: 503 })
+        return NextResponse.json({ error: t("payments.stripeNotConfigured") }, { status: 503 })
     }
 
     try {
         const { clientSlug, clientId, planId, email, termMonths } = await req.json()
         if ((!clientSlug && !clientId) || !planId) {
-            return NextResponse.json({ error: "Chybí clientSlug/clientId nebo planId" }, { status: 400 })
+            return NextResponse.json({ error: t("payments.missingParams") }, { status: 400 })
         }
         // Období z requestu se nikdy nebere doslova — cokoliv mimo 3/6/12 je měsíc.
         const term = normalizeTermMonths(termMonths)
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
         const { data: plan } = await supabaseAdmin
             .from("subscription_plans").select("id, name, price_czk")
             .eq("id", planId).eq("is_active", true).single()
-        if (!plan) return NextResponse.json({ error: "Plán nenalezen" }, { status: 404 })
+        if (!plan) return NextResponse.json({ error: t("payments.planNotFound") }, { status: 404 })
 
         let payerEmail: string | null = email || null
         if (!payerEmail) {
@@ -63,6 +65,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, sessionId: result.providerRef, redirect: result.redirectUrl, redirectUrl: result.redirectUrl })
     } catch (err: any) {
         console.error("Stripe create error:", err?.message || err)
-        return NextResponse.json({ error: err?.message || "Založení platby selhalo" }, { status: 500 })
+        return NextResponse.json({ error: err?.message || t("payments.createFailed") }, { status: 500 })
     }
 }

@@ -9,6 +9,7 @@ import { stripFinishedCopy } from "@/instagram/configs/format-brief"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { isReelMedium } from "@/lib/reel-media"
 import { contentLanguage } from "@/instagram/language"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 export async function getClientConfig(projectSlug: string): Promise<any> {
     try {
@@ -165,7 +166,7 @@ export async function suggestPostFormat(
     const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
     return trackSpend(
         "other",
-        { clientId: await spendClientId(projectSlug), refId: `návrh_formátu:${keyword}` },
+        { clientId: await spendClientId(projectSlug), refId: `návrh_formátu:${keyword}` }, // i18n-ignore: identifikátor záznamu v ai_spend
         () => suggestPostFormatInner(projectSlug, keyword),
     )
 }
@@ -174,16 +175,17 @@ async function suggestPostFormatInner(
     projectSlug: string,
     keyword: string
 ): Promise<{ success: boolean; draft?: PostFormatInput; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         await requireProjectAccess(projectSlug)
         const kw = (keyword || "").trim()
-        if (!kw) return { success: false, error: "Napiš, jaký formát chceš (např. soutěž)" }
+        if (!kw) return { success: false, error: t("config.suggestPostFormat.keywordRequired") }
 
         const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug, true)
         const pillars: Record<string, any> = config.contentPillars || {}
         const pillarKeys = Object.keys(pillars)
-        if (pillarKeys.length === 0) return { success: false, error: "Nejdřív vytvoř aspoň jedno téma (pilíř)." }
+        if (pillarKeys.length === 0) return { success: false, error: t("config.suggestPostFormat.pillarRequired") }
 
         const pillarList = pillarKeys
             .map(k => `- ${k} = ${pillars[k]?.label || k}${pillars[k]?.description ? ` (${pillars[k].description})` : ""}`)
@@ -191,6 +193,7 @@ async function suggestPostFormatInner(
         const productNames = (config.products || []).map((p: any) => p?.name).filter(Boolean).slice(0, 8).join(", ")
 
         const L = contentLanguage(config)
+        // i18n-ignore-start: prompt
         const prompt = `Jsi Instagram stratég. Uživatel chce PŘIDAT jeden formát příspěvku (šablonu) a napsal jen klíčové slovo.
 
 ⚠️ FORMÁT NENÍ PŘÍSPĚVEK. Je to ŠABLONA, kterou značka použije na DESÍTKY různých témat.
@@ -233,6 +236,7 @@ je to mechanismus. Konkrétní výhru ani termín NE, ty patří do námětu.
 "uses_product" = true jen když formát ukazuje konkrétní produkt. "manual_only" = true pro
 soutěže, giveawaye, limitky a časově omezené akce (reálné závazky značky — AI je nesmí
 generovat sama). aspectRatio "9:16" jen pro reel.`
+        // i18n-ignore-end
 
         // Same resilient pattern as onboarding's generateCustomFormats: ask for JSON,
         // extract the object, retry once on a transient AI/parse failure.
@@ -253,7 +257,7 @@ generovat sama). aspectRatio "9:16" jen pro reel.`
             }
         }
         if (!parsed?.display_name || !parsed?.description) {
-            return { success: false, error: "AI návrh se nepovedl — zkus jiné slovo nebo vyplň ručně." }
+            return { success: false, error: t("config.suggestPostFormat.aiFailed") }
         }
 
         const medium: PostFormatInput["medium"] = isMediumType(parsed.medium) ? parsed.medium : "image"
@@ -262,7 +266,7 @@ generovat sama). aspectRatio "9:16" jen pro reel.`
             : (["1:1", "4:5", "3:4"].includes(parsed.aspectRatio) ? parsed.aspectRatio : "4:5")) as PostFormatInput["aspectRatio"]
         // Safety net for the manualOnly rule: a giveaway must never fall into autopilot
         // even if the model forgets the flag or the keyword itself screams "contest".
-        const contestish = /sout[eě]ž|giveaw|contest|limitk|limited|drop/.test(kw.toLowerCase())
+        const contestish = /sout[eě]ž|giveaw|contest|limitk|limited|drop/.test(kw.toLowerCase()) // i18n-ignore: heuristika nad klíčovým slovem uživatele
 
         const draft: PostFormatInput = {
             display_name: String(parsed.display_name).slice(0, 60),
@@ -281,7 +285,7 @@ generovat sama). aspectRatio "9:16" jen pro reel.`
         return { success: true, draft }
     } catch (err: any) {
         console.error("suggestPostFormat error:", err?.message || err)
-        return { success: false, error: err?.message || "Nepodařilo se navrhnout formát" }
+        return { success: false, error: err?.message || t("config.suggestPostFormat.failed") }
     }
 }
 
@@ -289,13 +293,14 @@ export async function upsertPostFormat(
     projectSlug: string,
     input: PostFormatInput
 ): Promise<{ success: boolean; name?: string; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const name = slugifyFormatName(input.name || input.display_name)
-        if (!name) return { success: false, error: "Neplatný název formátu" }
+        if (!name) return { success: false, error: t("config.upsertPostFormat.invalidName") }
         if (!input.display_name?.trim() || !input.description?.trim()) {
-            return { success: false, error: "Název a popis formátu jsou povinné" }
+            return { success: false, error: t("config.upsertPostFormat.nameAndDescriptionRequired") }
         }
 
         const { data: client, error: fetchErr } = await supabaseAdmin
@@ -307,7 +312,7 @@ export async function upsertPostFormat(
 
         const config = client.config || {}
         if (!config.contentPillars?.[input.pillar]) {
-            return { success: false, error: `Téma "${input.pillar}" v konfiguraci neexistuje` }
+            return { success: false, error: t("config.upsertPostFormat.pillarMissing", { pillar: input.pillar }) }
         }
 
         // Reels and stories are 9:16 only; feed media must use a feed-legal ratio.
@@ -396,6 +401,7 @@ export async function removePostFormat(
     projectSlug: string,
     name: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -408,8 +414,8 @@ export async function removePostFormat(
 
         const config = client.config || {}
         const postTypes: string[] = Array.isArray(config.postTypes) ? config.postTypes : []
-        if (!postTypes.includes(name)) return { success: false, error: "Formát neexistuje" }
-        if (postTypes.length <= 1) return { success: false, error: "Poslední formát nelze smazat" }
+        if (!postTypes.includes(name)) return { success: false, error: t("config.removePostFormat.notFound") }
+        if (postTypes.length <= 1) return { success: false, error: t("config.removePostFormat.lastFormat") }
 
         // Remove from the source of truth (postTypeDefs) + active list + render map.
         config.postTypes = postTypes.filter(n => n !== name)
@@ -458,15 +464,16 @@ export async function uploadClientLogo(
     projectSlug: string,
     formData: FormData
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const file = formData.get("file") as File
         if (!file || !file.type.startsWith("image/")) {
-            return { success: false, error: "Neplatný soubor — nahraj PNG nebo JPG" }
+            return { success: false, error: t("config.uploadClientLogo.invalidFile") }
         }
         if (file.size > 5_000_000) {
-            return { success: false, error: "Logo je příliš velké (max 5 MB)" }
+            return { success: false, error: t("config.uploadClientLogo.tooLarge") }
         }
 
         const buffer = Buffer.from(await file.arrayBuffer())
@@ -552,6 +559,7 @@ export async function recommendFeedPattern(projectSlug: string): Promise<FeedPat
 }
 
 async function recommendFeedPatternInner(projectSlug: string): Promise<FeedPatternRecommendation> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { data: client } = await supabaseAdmin
@@ -564,22 +572,22 @@ async function recommendFeedPatternInner(projectSlug: string): Promise<FeedPatte
         // Handles are stored with the leading "@" (and a few clients have a bare "@").
         const handle = String(cfg.instagram || "").replace(/^@+/, "").trim()
         if (!handle) {
-            return { success: false, error: "Klient nemá vyplněný Instagram účet — doplňte ho v Základních údajích." }
+            return { success: false, error: t("config.recommendFeedPattern.noInstagram") }
         }
 
         const { fetchInstagramProfile } = await import("@/lib/ig-scraper")
         const profile = await fetchInstagramProfile(handle, { includePosts: true })
         if (!profile) {
-            return { success: false, error: `Účet @${handle} se nepodařilo načíst (soukromý účet, překlep, nebo je scraper dočasně nedostupný).` }
+            return { success: false, error: t("config.recommendFeedPattern.profileUnavailable", { handle }) }
         }
         if (!profile.recentPosts?.length) {
-            return { success: false, error: `Na účtu @${handle} nejsou žádné příspěvky k analýze.` }
+            return { success: false, error: t("config.recommendFeedPattern.noPosts", { handle }) }
         }
 
         const { analyzeFeedVisuals } = await import("@/instagram/feed-vision")
         const visuals = await analyzeFeedVisuals(profile.recentPosts, cfg.name || projectSlug, cfg.language)
         if (!visuals) {
-            return { success: false, error: "Vizuální analýza feedu selhala — zkuste to prosím znovu." }
+            return { success: false, error: t("config.recommendFeedPattern.analysisFailed") }
         }
 
         const { recommendPattern, getPatternDef } = await import("@/lib/feed-pattern")
@@ -601,6 +609,7 @@ async function recommendFeedPatternInner(projectSlug: string): Promise<FeedPatte
 export async function rescanClientWebsite(
     projectSlug: string
 ): Promise<{ success: boolean; newImages: number; existingImages: number; foundUrls: number; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -614,7 +623,7 @@ export async function rescanClientWebsite(
         const currentConfig = client?.config || {}
         const websiteUrl = currentConfig.website
         if (!websiteUrl) {
-            return { success: false, newImages: 0, existingImages: 0, foundUrls: 0, error: "Klient nemá nastavenou URL webu" }
+            return { success: false, newImages: 0, existingImages: 0, foundUrls: 0, error: t("config.rescanClientWebsite.noWebsite") }
         }
 
         // Fetch website and extract images
@@ -625,7 +634,7 @@ export async function rescanClientWebsite(
             headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
             signal: AbortSignal.timeout(15000),
         })
-        if (!resp.ok) throw new Error(`Web vrátil ${resp.status}`)
+        if (!resp.ok) throw new Error(t("config.rescanClientWebsite.siteStatus", { status: resp.status }))
         const html = await resp.text()
 
         // Extract image URLs from HTML
@@ -672,7 +681,7 @@ export async function rescanClientWebsite(
             }
         }
         // Prioritize gallery/rooms/product pages
-        const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i
+        const priorityKeywords = /galeri|pokoje|apart|rooms|suite|product|nabid|sluzb|služb|photo|foto|ubytov|akce|cenik|ceník|menu/i // i18n-ignore: heuristika nad URL podstránek
         const uniqueSubpages = [...new Set(subpageUrls)].sort((a, b) => {
             const ap = priorityKeywords.test(a) ? 0 : 1
             const bp = priorityKeywords.test(b) ? 0 : 1
@@ -793,13 +802,14 @@ export async function rescanClientWebsite(
 export async function suggestBrandFacts(
     projectSlug: string
 ): Promise<{ success: boolean; facts: { text: string; source?: string }[]; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const { loadConfig } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug, true)
         if (!config?.website) {
-            return { success: false, facts: [], error: "Klient nemá nastavenou adresu webu" }
+            return { success: false, facts: [], error: t("config.suggestBrandFacts.noWebsite") }
         }
 
         const { suggestFactsFromSite, mergeFacts } = await import("@/lib/brand-facts")
@@ -833,10 +843,11 @@ export async function confirmBrandFact(
     postId: string,
     claim: string,
 ): Promise<{ success: boolean; factStatus?: string | null; flags?: string[]; sources?: { claim: string; url: string; title?: string; quote?: string }[]; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const text = (claim || "").trim()
-        if (!text) return { success: false, error: "Prázdné tvrzení" }
+        if (!text) return { success: false, error: t("config.confirmBrandFact.emptyClaim") }
 
         const { loadConfig, invalidateConfigCache } = await import("@/instagram/configs")
         const config = await loadConfig(projectSlug, true)
@@ -844,7 +855,7 @@ export async function confirmBrandFact(
         const { mergeFacts } = await import("@/lib/brand-facts")
         const merged = mergeFacts(config.brandFacts || [], [{
             text,
-            source: "od klienta",
+            source: "od klienta", // i18n-ignore: sentinel — zdroj faktu v datech (guard 36.4j, test-brand-facts)
             verifiedAt: new Date().toISOString().slice(0, 10),
         }])
 
@@ -960,7 +971,7 @@ export async function deleteClient(
 /** Sdílený bucket ukázek — ne klientský: ukázka je katalogová, ne obsah značky. */
 const VOICE_SAMPLE_BUCKET = "voice-samples"
 
-const VOICE_SAMPLE_SENTENCE = "Dobrý den, tohle je ukázka hlasu, kterým bude mluvit váš reel."
+const VOICE_SAMPLE_SENTENCE = "Dobrý den, tohle je ukázka hlasu, kterým bude mluvit váš reel." // i18n-ignore: katalogová věta pro TTS (jeden soubor pro celou flotilu), ne text UI
 
 /**
  * Ukázka hlasu pro Nastavení. Syntetizuje se JEDNOU pro celou flotilu a cachuje
@@ -977,12 +988,13 @@ export async function previewVoice(
     projectSlug: string,
     voiceId: string,
 ): Promise<{ success: boolean; url?: string; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         await requireProjectAccess(projectSlug)
 
         const { findVoice } = await import("@/lib/voice-library")
         const profile = findVoice(voiceId)
-        if (!profile) return { success: false, error: `Hlas „${voiceId}" v knihovně není` }
+        if (!profile) return { success: false, error: t("config.previewVoice.notInLibrary", { voiceId }) }
 
         const file = `${profile.provider}-${profile.id}.wav`
         const publicUrl = () => supabaseAdmin.storage.from(VOICE_SAMPLE_BUCKET).getPublicUrl(file).data.publicUrl
@@ -996,7 +1008,7 @@ export async function previewVoice(
         const { trackSpend, spendClientId } = await import("@/instagram/spend-tracker")
         const wav = await trackSpend(
             "other",
-            { clientId: await spendClientId(projectSlug), refId: `ukázka_hlasu:${profile.id}` },
+            { clientId: await spendClientId(projectSlug), refId: `ukázka_hlasu:${profile.id}` }, // i18n-ignore: identifikátor záznamu v ai_spend
             async () => {
                 const { getTtsProvider } = await import("@/instagram/tts")
                 return getTtsProvider(profile.provider).synthesize(VOICE_SAMPLE_SENTENCE, {

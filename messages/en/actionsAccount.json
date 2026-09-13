@@ -1,3 +1,134 @@
 {
-  "actionsAccount": {}
+  "actionsAccount": {
+    "common": {
+      "saveFailed": "Save failed."
+    },
+    "config": {
+      "suggestPostFormat": {
+        "keywordRequired": "Type the format you want (e.g. contest)",
+        "pillarRequired": "Create at least one topic (pillar) first.",
+        "aiFailed": "The AI suggestion failed — try another word or fill it in by hand.",
+        "failed": "Could not suggest a format"
+      },
+      "upsertPostFormat": {
+        "invalidName": "Invalid format name",
+        "nameAndDescriptionRequired": "Format name and description are required",
+        "pillarMissing": "Topic \"{pillar}\" does not exist in the configuration"
+      },
+      "removePostFormat": {
+        "notFound": "Format does not exist",
+        "lastFormat": "The last format cannot be deleted"
+      },
+      "uploadClientLogo": {
+        "invalidFile": "Invalid file — upload a PNG or JPG",
+        "tooLarge": "The logo is too large (max 5 MB)"
+      },
+      "recommendFeedPattern": {
+        "noInstagram": "The client has no Instagram account set — add it under Basic info.",
+        "profileUnavailable": "Could not load @{handle} (private account, a typo, or the scraper is temporarily unavailable).",
+        "noPosts": "@{handle} has no posts to analyze.",
+        "analysisFailed": "The visual feed analysis failed — please try again."
+      },
+      "rescanClientWebsite": {
+        "noWebsite": "The client has no website URL set",
+        "siteStatus": "The website returned {status}"
+      },
+      "suggestBrandFacts": {
+        "noWebsite": "The client has no website address set"
+      },
+      "confirmBrandFact": {
+        "emptyClaim": "Empty claim"
+      },
+      "previewVoice": {
+        "notInLibrary": "Voice \"{voiceId}\" is not in the library"
+      }
+    },
+    "settings": {
+      "activateFreePlan": {
+        "planNotFound": "Plan not found.",
+        "requiresPayment": "This plan requires payment.",
+        "failed": "Plan activation failed."
+      },
+      "updateClientConfig": {
+        "invalidFormat": "Invalid configuration format (must be a JSON object)."
+      }
+    },
+    "billing": {
+      "saveBillingDetails": {
+        "nameRequired": "Enter your name or company name.",
+        "streetRequired": "Enter the street and house number.",
+        "cityRequired": "Enter the city.",
+        "zipInvalid": "The postal code must have 5 digits.",
+        "icoRequired": "A company must have a company ID (IČO).",
+        "icoInvalid": "The company ID (IČO) is not valid — check the digits."
+      },
+      "recordInstantAccessConsent": {
+        "detailsFirst": "Fill in your billing details first.",
+        "failed": "Saving the consent failed."
+      },
+      "billingPortalUrl": {
+        "failed": "Could not open subscription management right now. Please try again."
+      },
+      "syncCancelToGateway": {
+        "failed": "The change could not be passed to the payment gateway."
+      },
+      "cancelSubscription": {
+        "noSubscription": "You have no active subscription to cancel."
+      },
+      "resumeSubscription": {
+        "noSubscription": "You have no subscription to resume.",
+        "gift": "The free plan does not renew. To continue, pick a plan."
+      }
+    },
+    "creditGuard": {
+      "notAllowed": "This action is not allowed.",
+      "batchNotAllowed": "Not enough credits for the batch.",
+      "batchReserveFailed": "Not enough credits for the batch. You need {required}, {remaining} left.",
+      "verifyFailed": "Could not verify credits. Please try again.",
+      "verifyFailedShort": "Could not verify credits.",
+      "reasons": {
+        "noSubscription": "You have no active subscription. Pick a plan to continue.",
+        "trialExpired": "Your trial has expired. Pick a plan to continue.",
+        "subscriptionExpired": "Your subscription has expired. Renew it to continue.",
+        "featureBlocked": "The \"{action}\" feature requires a Chrlit subscription.",
+        "insufficient": "Not enough credits. You need {required}, {remaining} left. Top up credits at {price} each.",
+        "insufficientBatch": "Not enough credits for {count}× {action}. You need {required}, {remaining} left. Top up credits at {price} each.",
+        "burst": "Too many requests in a row ({count}/min). Wait a moment and try again.",
+        "daily": "Daily generation limit reached ({limit}/day). Get in touch if you need more."
+      },
+      "actions": {
+        "post": "Post",
+        "post_edit": "Post edit",
+        "post_variant": "Post variant",
+        "idea_generate": "Idea generation",
+        "product_ideas": "Product ideas",
+        "product_visual": "Product visualization",
+        "product_design": "Print design",
+        "product_mockup": "Product mockup",
+        "product_brief": "Business Brief",
+        "product_line": "Product line"
+      }
+    },
+    "contact": {
+      "leaveContact": {
+        "emailRequired": "Please enter your e-mail.",
+        "emailInvalid": "Enter a valid e-mail address.",
+        "failed": "Something went wrong. Please try again."
+      }
+    },
+    "locale": {
+      "setUiLocale": {
+        "unsupported": "Unsupported language: {locale}"
+      }
+    },
+    "onboarding": {
+      "dailyCap": {
+        "closed": "We are full for today — we take new brands in batches so the first posts are worth it. We have noted you down and will get back to you tomorrow."
+      },
+      "ensureImageBrief": {
+        "clientNotFound": "Client not found",
+        "emptyBrief": "The model returned an empty shot list."
+      }
+    }
+  }
 }

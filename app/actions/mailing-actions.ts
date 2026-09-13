@@ -11,6 +11,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireSuperAdmin } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { renderBrandedEmailParts } from "@/lib/notifications"
 import { BROADCAST_TEMPLATES, EMAIL_TEMPLATES, getTemplate } from "@/lib/mail/registry"
 import type { TemplateField, TemplateVars } from "@/lib/mail/template"
@@ -177,16 +178,17 @@ export async function previewMail(input: {
     body?: string
 }): Promise<MailPreview> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
     const sample = "ukazka@chrlit.cz"
 
     if (input.templateId) {
-        const t = getTemplate(input.templateId)
-        if (!t) throw new Error(`Šablona „${input.templateId}" neexistuje.`)
-        const { subject, html, text } = t.render(input.vars || {}, sample)
+        const tpl = getTemplate(input.templateId)
+        if (!tpl) throw new Error(t("mailing.templateNotFound", { id: input.templateId }))
+        const { subject, html, text } = tpl.render(input.vars || {}, sample)
         return { subject, html, text, kb: Buffer.byteLength(html, "utf8") / 1024 }
     }
 
-    const subject = input.subject?.trim() || "(bez předmětu)"
+    const subject = input.subject?.trim() || t("mailing.noSubject")
     const { html, text } = renderBrandedEmailParts(subject, input.body || "", { unsubscribeEmail: sample })
     return { subject, html, text, kb: Buffer.byteLength(html, "utf8") / 1024 }
 }
@@ -200,22 +202,23 @@ export async function sendTestEmail(input: {
     attachments?: MailingAttachmentInput[]
 }): Promise<string> {
     const { email } = await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
     const { sendEmail } = await import("@/lib/email")
     // Test musí dorazit i s přílohou — jinak se to, co adresát doopravdy dostane,
     // pozná až po ostrém odeslání.
     const attachments = validateAttachments(input.attachments)
 
     if (input.templateId) {
-        const t = getTemplate(input.templateId)
-        if (!t) throw new Error(`Šablona „${input.templateId}" neexistuje.`)
-        const { subject, html, text } = t.render(input.vars || {}, email)
+        const tpl = getTemplate(input.templateId)
+        if (!tpl) throw new Error(t("mailing.templateNotFound", { id: input.templateId }))
+        const { subject, html, text } = tpl.render(input.vars || {}, email)
         await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text, attachments })
         return email
     }
 
     const subject = input.subject?.trim()
     const body = input.body?.trim()
-    if (!subject || !body) throw new Error("Předmět i text jsou povinné.")
+    if (!subject || !body) throw new Error(t("mailing.subjectAndBodyRequired"))
     const { html, text } = renderBrandedEmailParts(subject, body, { unsubscribeEmail: email })
     await sendEmail({ to: email, subject: `[TEST] ${subject}`, html, text, attachments })
     return email
@@ -242,6 +245,7 @@ export async function sendBroadcast(input: {
     attachments?: MailingAttachmentInput[]
 }): Promise<BroadcastResult> {
     await requireSuperAdmin()
+    const t = await actionTranslator("actionsAdmin")
 
     // Přílohy se ověří PŘED tím, než se pošle první e-mail. Padnout uprostřed
     // rozesílky by znamenalo, že část lidí dostala zprávu a část ne.
@@ -249,14 +253,14 @@ export async function sendBroadcast(input: {
 
     // Zpráva se skládá jednou; per příjemce se mění jen odhlašovací odkaz.
     const template = input.template ? getTemplate(input.template.id) : null
-    if (input.template && !template) throw new Error(`Šablona „${input.template.id}" neexistuje.`)
+    if (input.template && !template) throw new Error(t("mailing.templateNotFound", { id: input.template.id }))
 
     const subject = template
         ? template.render(input.template!.vars, "ukazka@chrlit.cz").subject
         : input.subject?.trim()
     const body = input.body?.trim()
-    if (!subject) throw new Error("Předmět je povinný.")
-    if (!template && !body) throw new Error("Předmět i text jsou povinné.")
+    if (!subject) throw new Error(t("mailing.subjectRequired"))
+    if (!template && !body) throw new Error(t("mailing.subjectAndBodyRequired"))
 
     const renderFor = (email: string): { html: string; text: string } =>
         template
@@ -269,14 +273,14 @@ export async function sendBroadcast(input: {
         // Co se ověřit MUSÍ: tvar adresy (překlep = tichá ztráta) a odhlášení,
         // které platí bez ohledu na to, kdo adresu do pole napsal.
         recipients = await sanitizeManual(input.recipients || [])
-        if (recipients.length === 0) throw new Error("Zadej aspoň jednu platnou adresu, která se neodhlásila.")
+        if (recipients.length === 0) throw new Error(t("mailing.noValidManualRecipient"))
     } else {
         const resolved = await resolveRecipients(input.segment)
         recipients = resolved
         if (input.recipients) {
             const wanted = new Set(input.recipients.map(e => String(e).trim().toLowerCase()).filter(Boolean))
             recipients = resolved.filter(e => wanted.has(e))
-            if (recipients.length === 0) throw new Error("Žádný z vybraných příjemců není v segmentu.")
+            if (recipients.length === 0) throw new Error(t("mailing.noneInSegment"))
         }
     }
     const total = recipients.length
@@ -297,7 +301,6 @@ export async function sendBroadcast(input: {
         await new Promise(r => setTimeout(r, THROTTLE_MS))
     }
 
-    const withAttachments = attachments.length ? ` +${attachments.length} příloh` : ""
-    console.log(`✉️ Broadcast "${subject}"${withAttachments} → ${input.segment}: ${sent} sent, ${failed} failed, ${remaining} remaining`)
+    console.log(`✉️ Broadcast "${subject}"${attachments.length ? ` +${attachments.length} příloh` : ""} → ${input.segment}: ${sent} sent, ${failed} failed, ${remaining} remaining`)
     return { sent, failed, skipped: 0, remaining, total }
 }

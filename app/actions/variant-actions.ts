@@ -3,6 +3,7 @@
 import { isReelMedium } from "@/lib/reel-media"
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { creditGuard } from "./credit-guard"
 import { isMediumType, type MediumType } from "@/lib/credits"
 
@@ -23,6 +24,7 @@ export async function revisePost(
     feedback: string,
     projectSlug: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     // Full generation: Pro copywriter + design brief + render + QA + up to 3 corrective
     // attempts. It ran uncharged and unguarded until v8.6 — a straight billing leak, and
     // the only free path to an unlimited image render in the product.
@@ -45,7 +47,7 @@ export async function revisePost(
             .eq("client_id", clientId)
             .single()
 
-        if (fetchErr || !original) throw new Error("Post nenalezen")
+        if (fetchErr || !original) throw new Error(t("common.postNotFound"))
 
         // 2. Validated config + engine revision (shared brand-voice logic)
         const { loadConfig } = await import("@/instagram/configs")
@@ -66,7 +68,7 @@ export async function revisePost(
         const parsed = await reviseCaption(fullConfig, {
             originalCaption: original.caption || "",
             originalHashtags: original.hashtags || [],
-            postTypeDisplayName: original.ig_post_types?.display_name || "Instagram příspěvek",
+            postTypeDisplayName: original.ig_post_types?.display_name || "Instagram příspěvek", // i18n-ignore: prompt
             feedback,
             product,
             postTypeName: postTypeSlug,
@@ -149,7 +151,7 @@ export async function revisePost(
 
         if (insertErr) throw insertErr
 
-        await guard.commit(`Přegenerování: ${feedback.slice(0, 60)}`, newPost.id)
+        await guard.commit(`Přegenerování: ${feedback.slice(0, 60)}`, newPost.id) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
         console.log(`✅ Post revised: ${postId} → ${newPost.id}`)
 
         // ─── REJECTION LEARNING ───────────────────────────
@@ -191,6 +193,7 @@ export async function generatePostVariant(
     postId: string,
     projectSlug: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -202,7 +205,7 @@ export async function generatePostVariant(
             .eq("client_id", clientId)
             .single()
 
-        if (fetchErr || !original) throw new Error("Post nenalezen")
+        if (fetchErr || !original) throw new Error(t("common.postNotFound"))
 
         // Credit gate — variants run the full pipeline (Pro copy + render) and were
         // previously generated for FREE (billing leak). Weighted by the original's
@@ -217,7 +220,7 @@ export async function generatePostVariant(
         const { creditGuard } = await import("./credit-guard")
         const guard = await creditGuard(projectSlug, "post_variant", undefined, variantMedium)
         if (!guard.ok) {
-            return { success: false, error: guard.error || "Nedostatek kreditů na variantu." }
+            return { success: false, error: guard.error || t("variant.generate.noCredits") }
         }
 
         // 2. Extract topic from caption (hook + first paragraph)
@@ -227,6 +230,7 @@ export async function generatePostVariant(
         const topicSummary = body ? `${hook} — ${body}` : hook
 
         // 3. Build a topic instruction that tells AI "same topic, different everything else"
+        // i18n-ignore-start: prompt pro model — jazyk výstupu řídí contentLanguage(config)
         const variantTopic = `VARIANTA existujícího příspěvku. Stejné TÉMA ale ÚPLNĚ jiný úhel, hook a vizuál.
 
 PŮVODNÍ PŘÍSPĚVEK (NEOPAKUJ!):
@@ -238,6 +242,7 @@ PRAVIDLA PRO VARIANTU:
 - Jiný vizuální styl pro obrázek
 - Jiné CTA
 - Můžeš rozvinout jiný aspekt toho samého tématu`
+        // i18n-ignore-end
 
         const postTypeName = original.ig_post_types?.name || undefined
 
@@ -264,7 +269,7 @@ PRAVIDLA PRO VARIANTU:
 
         // Deduct only after the variant actually generated (sync server action —
         // a failure above skips the charge entirely).
-        await guard.commit(`Varianta příspěvku (${variantMedium})`, result.id)
+        await guard.commit(`Varianta příspěvku (${variantMedium})`, result.id) // i18n-ignore: popis v deníku kreditů (záznam, ne UI)
 
         console.log(`✅ Varianta vygenerována: ${postId} → ${result.id}`)
         return { success: true, newPostId: result.id }
@@ -285,6 +290,7 @@ export async function generateMultipleVariants(
     projectSlug: string,
     count: number = 2
 ): Promise<{ success: boolean; variantIds: string[]; error?: string }> {
+    const t = await actionTranslator("actionsContent")
     try {
         const clampedCount = Math.min(Math.max(count, 2), 3)
         const variantIds: string[] = []
@@ -306,7 +312,7 @@ export async function generateMultipleVariants(
         }
 
         if (variantIds.length === 0) {
-            return { success: false, variantIds: [], error: "Nepodařilo se vygenerovat žádnou variantu" }
+            return { success: false, variantIds: [], error: t("variant.multiple.none") }
         }
 
         console.log(`✅ ${variantIds.length}/${clampedCount} variant vygenerováno`)

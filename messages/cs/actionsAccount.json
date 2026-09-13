@@ -1,3 +1,134 @@
 {
-  "actionsAccount": {}
+  "actionsAccount": {
+    "common": {
+      "saveFailed": "Uložení selhalo."
+    },
+    "config": {
+      "suggestPostFormat": {
+        "keywordRequired": "Napiš, jaký formát chceš (např. soutěž)",
+        "pillarRequired": "Nejdřív vytvoř aspoň jedno téma (pilíř).",
+        "aiFailed": "AI návrh se nepovedl — zkus jiné slovo nebo vyplň ručně.",
+        "failed": "Nepodařilo se navrhnout formát"
+      },
+      "upsertPostFormat": {
+        "invalidName": "Neplatný název formátu",
+        "nameAndDescriptionRequired": "Název a popis formátu jsou povinné",
+        "pillarMissing": "Téma \"{pillar}\" v konfiguraci neexistuje"
+      },
+      "removePostFormat": {
+        "notFound": "Formát neexistuje",
+        "lastFormat": "Poslední formát nelze smazat"
+      },
+      "uploadClientLogo": {
+        "invalidFile": "Neplatný soubor — nahraj PNG nebo JPG",
+        "tooLarge": "Logo je příliš velké (max 5 MB)"
+      },
+      "recommendFeedPattern": {
+        "noInstagram": "Klient nemá vyplněný Instagram účet — doplňte ho v Základních údajích.",
+        "profileUnavailable": "Účet @{handle} se nepodařilo načíst (soukromý účet, překlep, nebo je scraper dočasně nedostupný).",
+        "noPosts": "Na účtu @{handle} nejsou žádné příspěvky k analýze.",
+        "analysisFailed": "Vizuální analýza feedu selhala — zkuste to prosím znovu."
+      },
+      "rescanClientWebsite": {
+        "noWebsite": "Klient nemá nastavenou URL webu",
+        "siteStatus": "Web vrátil {status}"
+      },
+      "suggestBrandFacts": {
+        "noWebsite": "Klient nemá nastavenou adresu webu"
+      },
+      "confirmBrandFact": {
+        "emptyClaim": "Prázdné tvrzení"
+      },
+      "previewVoice": {
+        "notInLibrary": "Hlas „{voiceId}\" v knihovně není"
+      }
+    },
+    "settings": {
+      "activateFreePlan": {
+        "planNotFound": "Plán nenalezen.",
+        "requiresPayment": "Tento plán vyžaduje platbu.",
+        "failed": "Aktivace plánu selhala."
+      },
+      "updateClientConfig": {
+        "invalidFormat": "Neplatný formát konfigurace (musí být JSON objekt)."
+      }
+    },
+    "billing": {
+      "saveBillingDetails": {
+        "nameRequired": "Vyplňte jméno nebo název firmy.",
+        "streetRequired": "Vyplňte ulici a číslo popisné.",
+        "cityRequired": "Vyplňte město.",
+        "zipInvalid": "PSČ musí mít 5 číslic.",
+        "icoRequired": "U firmy je IČO povinné.",
+        "icoInvalid": "IČO není platné — zkontrolujte číslice."
+      },
+      "recordInstantAccessConsent": {
+        "detailsFirst": "Nejdřív vyplňte fakturační údaje.",
+        "failed": "Uložení souhlasu selhalo."
+      },
+      "billingPortalUrl": {
+        "failed": "Správu předplatného se teď nepodařilo otevřít. Zkuste to prosím znovu."
+      },
+      "syncCancelToGateway": {
+        "failed": "Změnu se nepodařilo propsat platební bráně."
+      },
+      "cancelSubscription": {
+        "noSubscription": "Nemáte aktivní předplatné, které by šlo zrušit."
+      },
+      "resumeSubscription": {
+        "noSubscription": "Nemáte předplatné, které by šlo obnovit.",
+        "gift": "Tarif zdarma se neobnovuje. Když chcete pokračovat, vyberte si plán."
+      }
+    },
+    "creditGuard": {
+      "notAllowed": "Akce není povolena.",
+      "batchNotAllowed": "Nedostatek kreditů pro batch.",
+      "batchReserveFailed": "Nedostatek kreditů pro dávku. Potřebujete {required}, zbývá {remaining}.",
+      "verifyFailed": "Nepodařilo se ověřit kredity. Zkuste to znovu.",
+      "verifyFailedShort": "Nepodařilo se ověřit kredity.",
+      "reasons": {
+        "noSubscription": "Nemáte aktivní předplatné. Vyberte si plán pro pokračování.",
+        "trialExpired": "Váš trial vypršel. Vyberte si plán pro pokračování.",
+        "subscriptionExpired": "Vaše předplatné vypršelo. Obnovte ho pro pokračování.",
+        "featureBlocked": "Funkce \"{action}\" vyžaduje předplatné Chrlit.",
+        "insufficient": "Nedostatek kreditů. Potřebujete {required}, zbývá {remaining}. Dobijte si kredity za {price}/ks.",
+        "insufficientBatch": "Nedostatek kreditů pro {count}× {action}. Potřebujete {required}, zbývá {remaining}. Dobijte si kredity za {price}/ks.",
+        "burst": "Příliš mnoho požadavků za sebou ({count}/min). Počkejte chvíli a zkuste to znovu.",
+        "daily": "Vyčerpán denní limit generování ({limit}/den). Ozvěte se nám, pokud potřebujete víc."
+      },
+      "actions": {
+        "post": "Příspěvek",
+        "post_edit": "Úprava příspěvku",
+        "post_variant": "Varianta příspěvku",
+        "idea_generate": "Generování nápadů",
+        "product_ideas": "Produktové nápady",
+        "product_visual": "Vizualizace produktu",
+        "product_design": "Design pro tisk",
+        "product_mockup": "Produktový mockup",
+        "product_brief": "Business Brief",
+        "product_line": "Produktová řada"
+      }
+    },
+    "contact": {
+      "leaveContact": {
+        "emailRequired": "Vyplňte prosím e-mail.",
+        "emailInvalid": "Zadejte platnou e-mailovou adresu.",
+        "failed": "Něco se pokazilo. Zkuste to prosím znovu."
+      }
+    },
+    "locale": {
+      "setUiLocale": {
+        "unsupported": "Nepodporovaný jazyk: {locale}"
+      }
+    },
+    "onboarding": {
+      "dailyCap": {
+        "closed": "Dnes už máme plno — nové značky bereme po dávkách, aby první příspěvky za něco stály. Zapsali jsme si vás a ozveme se zítra."
+      },
+      "ensureImageBrief": {
+        "clientNotFound": "Klient nenalezen",
+        "emptyBrief": "Model vrátil prázdný shot list."
+      }
+    }
+  }
 }

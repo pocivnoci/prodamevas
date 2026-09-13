@@ -1,3 +1,101 @@
 {
-  "actionsAdmin": {}
+  "actionsAdmin": {
+    "common": {
+      "missingProject": "Chybí identifikace projektu.",
+      "projectNotFound": "Projekt „{slug}\" neexistuje.",
+      "unknownError": "neznámá chyba"
+    },
+    "admin": {
+      "dashboardStats": {
+        "weekdays": {
+          "mon": "Po",
+          "tue": "Út",
+          "wed": "St",
+          "thu": "Čt",
+          "fri": "Pá",
+          "sat": "So",
+          "sun": "Ne"
+        }
+      },
+      "syncMetrics": {
+        "failed": "Synchronizace metrik selhala"
+      },
+      "refund": {
+        "adminOnly": "Vrácení peněz smí zadat jen správce.",
+        "notRefundable": "Platba neexistuje, není zaplacená, nebo už byla vrácena.",
+        "steps": {
+          "creditsRevertFailed": "⚠️ Odečíst {count, plural, one {# kredit} few {# kredity} other {# kreditů}} ručně — storno v ledgeru selhalo: {error}",
+          "creditsReverted": "Kredity ({count}) z tohoto dobití byly odečteny automaticky.",
+          "consultationCancelled": "Schůzka k této platbě byla zrušena automaticky.",
+          "stripeCancelFailed": "⚠️ Zrušit předplatné {ref} ručně v portálu brány (automaticky selhalo: {error})",
+          "stripeRefundFailed": "⚠️ Vrátit {amount} {currency} ručně v portálu Stripu (ref {ref}) — automaticky selhalo: {error}",
+          "refundManually": "Vrátit {amount} {currency} v portálu brány ({provider}, ref {ref})",
+          "creditNote": "Vystavit dobropis ve Fakturoidu k dokladu č. {number}",
+          "creditNoteWithLink": "Vystavit dobropis ve Fakturoidu k dokladu č. {number} ({url})",
+          "creditNoteUnnumbered": "Vystavit dobropis ve Fakturoidu k dokladu za „{label}\"",
+          "defaultLabel": "předplatné"
+        }
+      },
+      "gift": {
+        "adminOnly": "Tarif zdarma smí dát jen správce.",
+        "termNotFound": "Takové období v ceníku není.",
+        "planNotFound": "Takový placený tarif nenabízíme.",
+        "alreadyGifted": "{name} už tarif zdarma má.",
+        "alreadyGiftedUntil": "{name} už tarif zdarma má do {until, date, medium}.",
+        "hasPaidPlan": "{name} má zaplacený tarif. Zdarma jde dát až po jeho skončení.",
+        "hasPaidPlanUntil": "{name} má zaplacený tarif do {until, date, medium}. Zdarma jde dát až po jeho skončení.",
+        "insertFailed": "Tarif zdarma se nepodařilo založit: {error}",
+        "activateFailed": "Tarif se nepodařilo aktivovat. Nic se nezměnilo — zkus to prosím znovu.",
+        "done": "{name} má {plan} zdarma do {until, date, medium}. Pak sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat."
+      },
+      "access": {
+        "adminOnly": "Přístupy vidí jen správce.",
+        "accountMissing": "(účet neexistuje)"
+      },
+      "transfer": {
+        "adminOnly": "Předat klienta smí jen správce.",
+        "invalidEmail": "To nevypadá jako e-mailová adresa.",
+        "stageFailed": "Slib předání selhal: {error}",
+        "invited": "{email} zatím nemá účet, tak jsme mu poslali pozvánku. {name} mu přiletí do dashboardu, jakmile se poprvé přihlásí.",
+        "inviteNotSent": "{email} zatím nemá účet a pozvánku se nepodařilo odeslat — pošli mu odkaz níž sám. {name} mu přiletí do dashboardu při prvním přihlášení.",
+        "ownAccount": "To je tvůj vlastní účet — předat jde jen na někoho jiného.",
+        "linkFailed": "Předání selhalo: {error}",
+        "done": "{name} je teď pod {email}.{released, select, owners { Dosavadní vlastníci byli odpojení.} admin { Ty už v seznamu projektů nejsi — jako správce se tam ale dostaneš dál.} other {}}"
+      },
+      "cancelHandoff": {
+        "adminOnly": "Rušit předání smí jen správce.",
+        "missingId": "Chybí identifikace předání.",
+        "projectNotFound": "Projekt neexistuje.",
+        "alreadySettled": "Předání už bylo vyzvednuté nebo zrušené."
+      }
+    },
+    "lead": {
+      "create": {
+        "nameRequired": "Firma potřebuje název.",
+        "duplicate": "Tenhle kontakt už v evidenci je."
+      },
+      "update": {
+        "nothingToSave": "Není co uložit."
+      },
+      "status": {
+        "agentOnly": "Tenhle stav nastavuje agent, ne člověk."
+      },
+      "contact": {
+        "noteRequired": "Napiš, jak to dopadlo.",
+        "unknownKind": "Neznámý typ kontaktu.",
+        "notFound": "Lead nenalezen."
+      }
+    },
+    "mailing": {
+      "templateNotFound": "Šablona „{id}\" neexistuje.",
+      "noSubject": "(bez předmětu)",
+      "subjectAndBodyRequired": "Předmět i text jsou povinné.",
+      "subjectRequired": "Předmět je povinný.",
+      "noValidManualRecipient": "Zadej aspoň jednu platnou adresu, která se neodhlásila.",
+      "noneInSegment": "Žádný z vybraných příjemců není v segmentu."
+    },
+    "growth": {
+      "loadFailed": "Data o růstu se nepodařilo načíst."
+    }
+  }
 }

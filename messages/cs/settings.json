@@ -629,6 +629,26 @@
       "replaceNote": "Platí jen pro účet, který už existuje; u pozvánky se nikdo neodpojuje.",
       "transfer": "Předat značku",
       "transferring": "Předávám…"
+    },
+    "adminEditor": {
+      "title": "Nastavení Profilu",
+      "subtitle": "Komplexní editor profilových dat a SaaS logiky",
+      "editorTitle": "Pokročilý JSON Editor",
+      "editorHint": "Zde jsou kompletní informace o profilu (Tone of Voice, Produkty, Barvy). Opatrně s přepisy!",
+      "save": "Uložit změny",
+      "saving": "Ukládám...",
+      "loadFailed": "Nepodařilo se načíst konfiguraci pro projekt {project}",
+      "jsonError": "Chyba formátu JSON: {message}",
+      "cannotSave": "Nelze uložit: {message}",
+      "saved": "Konfigurace úspěšně uložena a aktualizována! Můžeš pokračovat v používání Studia.",
+      "unknownError": "Při ukládání došlo k neznámé chybě.",
+      "manualTitle": "Uživatelský manuál k nastavení profilu",
+      "manual": {
+        "pick": "Vyber projekt nahoře vpravo.",
+        "products": "V JSONu můžeš ručně upravit sekci <strong>\"products\"</strong> a přidat / smazat libovolné produkty nebo služby pro tento model.",
+        "colors": "Upravené barvy (<strong>overlayGradient</strong>) nebo font se ihned promítnou do generování nových postů.",
+        "syntax": "Pokud provedeš neplatnou změnu v syntaxi (chybějící uvozovky), editor ti nedovolí uložit kód, dokud chybu neopravíš."
+      }
     }
   }
 }

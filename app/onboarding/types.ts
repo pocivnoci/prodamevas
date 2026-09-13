@@ -14,6 +14,7 @@
  * to i worker, který běží bez requestu.
  */
 
+import csOnboarding from "@/messages/cs/onboarding.json"
 import type { IgProfileData } from '@/lib/ig-scraper'
 
 export interface IgInsights {
@@ -126,38 +127,68 @@ export interface ManualBusinessInfo {
 // ERROR HELPERS
 // ============================================
 
-/** Přeloží technické selhání do věty, které zákazník rozumí. Sdílené: stejnou chybu
- *  musí umět ukázat synchronní action i poll route, která ji čte z `agent_tasks.error`. */
-export function humanizeError(error: unknown): string {
+/** Klíče lidských hlášek (`onboarding.humanized.*` v messages). */
+export type HumanizedErrorKey =
+    | "siteNotFound" | "siteRefused" | "siteFetchFailed"
+    | "aiOverloaded" | "rateLimited" | "siteTimeout" | "invalidJson"
+
+/**
+ * Rozpozná technické selhání a vrátí klíč lidské hlášky (+ proměnné), nebo `null`,
+ * když se nedá říct nic chytřejšího než původní zpráva. Sdílené: stejnou chybu
+ * musí umět ukázat synchronní action i poll route, která ji čte z `agent_tasks.error`.
+ */
+export function humanizeErrorKey(error: unknown): { key: HumanizedErrorKey; values: Record<string, string> } | null {
     // Node.js wraps network errors: TypeError("fetch failed") with error.cause
     const cause = (error as any)?.cause
-    const causeMsg = cause?.message || cause?.code || ''
+    const causeMsg: string = cause?.message || cause?.code || ''
     const msg = (error as Error)?.message || String(error)
     const full = `${msg} ${causeMsg}`.toLowerCase()
+    const hit = (key: HumanizedErrorKey, values: Record<string, string> = {}) => ({ key, values })
 
     if (full.includes('fetch failed') && (causeMsg.includes('ENOTFOUND') || causeMsg.includes('getaddrinfo') || causeMsg.includes('dns'))) {
-        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
+        return hit('siteNotFound')
     }
     if (full.includes('fetch failed') && causeMsg.includes('ECONNREFUSED')) {
-        return 'Web odmítl připojení. Zkontroluj URL.'
+        return hit('siteRefused')
     }
     if (full.includes('fetch failed')) {
-        return `Nepodařilo se načíst web${causeMsg ? ': ' + causeMsg : ''}. Zkontroluj URL a zkus to znovu.`
+        return hit('siteFetchFailed', { cause: causeMsg ? ': ' + causeMsg : '' })
     }
     if (full.includes('503') || full.includes('overloaded') || full.includes('unavailable') || full.includes('high demand')) {
-        return 'AI server je momentálně přetížený. Zkus to za chvíli znovu.'
+        return hit('aiOverloaded')
     }
     if (full.includes('429') || full.includes('rate limit') || full.includes('quota')) {
-        return 'Překročen limit API požadavků. Zkus to za minutu.'
+        return hit('rateLimited')
     }
     if (full.includes('timeout') || full.includes('abort') || full.includes('etimedout')) {
-        return 'Připojení k webu vypršelo. Zkontroluj URL a zkus to znovu.'
+        return hit('siteTimeout')
     }
     if (full.includes('enotfound') || full.includes('dns') || full.includes('getaddrinfo')) {
-        return 'Web nebyl nalezen. Zkontroluj, jestli je URL správná.'
+        return hit('siteNotFound')
     }
     if (full.includes('json')) {
-        return 'AI vygenerovalo neplatnou odpověď. Zkus to znovu.'
+        return hit('invalidJson')
     }
-    return msg
+    return null
+}
+
+/** Překladač namespace `onboarding` (server action: `actionTranslator("onboarding")`). */
+type OnboardingTranslator = (key: string, values?: Record<string, string | number | Date>) => string
+
+/** Lidská věta v jazyce uživatele; nerozpoznaná chyba se vrací tak, jak přišla. */
+export function humanizeErrorWith(error: unknown, t: OnboardingTranslator): string {
+    const found = humanizeErrorKey(error)
+    if (!found) return (error as Error)?.message || String(error)
+    return t(`humanized.${found.key}`, found.values)
+}
+
+/**
+ * Česká varianta (zdrojový jazyk) pro volající bez překladače — kde je request,
+ * použij `humanizeErrorWith(error, await actionTranslator("onboarding"))`.
+ */
+export function humanizeError(error: unknown): string {
+    return humanizeErrorWith(error, (key, values) => {
+        const template = (csOnboarding.onboarding.humanized as Record<string, string>)[key.replace(/^humanized\./, '')] || key
+        return template.replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? ''))
+    })
 }

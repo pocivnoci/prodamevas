@@ -34,10 +34,12 @@ import {
     getClientSubscription,
     extraCreditPriceLabel,
     type ActionType,
+    type CanPerformResult,
     ACTION_CREDITS,
     ACTION_LABELS,
 } from "@/lib/subscription"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator, type ActionTranslator } from "@/lib/i18n/actions"
 
 export interface CreditGuardResult {
     ok: boolean
@@ -59,6 +61,69 @@ export interface CreditGuardBatchResult {
     commitCount: (successCount: number, description?: string) => Promise<void>
 }
 
+/** Název akce pro hlášku v jazyce uživatele; `ACTION_LABELS` zůstává pro účetní knihu kreditů. */
+function actionLabel(t: ActionTranslator, action: ActionType): string {
+    const key = `creditGuard.actions.${action}`
+    return t.has(key) ? t(key) : ACTION_LABELS[action]
+}
+
+/**
+ * Začátky vět, kterými `canPerformAction` (lib/subscription.ts) zamítá — sentinel
+ * v datech, ne text pro UI. Podle nich se níž vybírá klíč hlášky.
+ */
+const REASON_PREFIXES: ReadonlyArray<readonly [prefix: string, key: string]> = [
+    ["Nemáte aktivní předplatné", "noSubscription"], // i18n-ignore: sentinel z lib/subscription.ts
+    ["Váš trial vypršel", "trialExpired"], // i18n-ignore: sentinel z lib/subscription.ts
+    ["Vaše předplatné vypršelo", "subscriptionExpired"], // i18n-ignore: sentinel z lib/subscription.ts
+    ["Nedostatek kreditů", "insufficient"], // i18n-ignore: sentinel z lib/subscription.ts
+    ["Příliš mnoho požadavků", "burst"], // i18n-ignore: sentinel z lib/subscription.ts
+    ["Vyčerpán denní limit", "daily"], // i18n-ignore: sentinel z lib/subscription.ts
+]
+
+/**
+ * Důvod zamítnutí v jazyce uživatele.
+ *
+ * `canPerformAction` vrací důvod jako český text: čtou ho i crony a agenti bez
+ * UI a next-intl do lib/ nepatří. Do UI ale jde hláška v jazyce toho, kdo klikl,
+ * takže se tady důvod pozná (příznak `featureBlocked`, jinak začátek věty) a
+ * vysloví znovu z klíče. Důvod, který tu klíč nemá, projde beze změny — česky,
+ * ne mlčky jako jiná hláška.
+ */
+async function localizeReason(
+    t: ActionTranslator,
+    action: ActionType,
+    check: CanPerformResult,
+    clientId: string,
+    /** Velikost dávky u dávkové kontroly — ta má vlastní znění („pro N× …"). */
+    batchCount?: number,
+): Promise<string | undefined> {
+    if (check.featureBlocked) return t("creditGuard.reasons.featureBlocked", { action: actionLabel(t, action) })
+    const reason = check.reason
+    if (!reason) return undefined
+    const key = REASON_PREFIXES.find(([prefix]) => reason.startsWith(prefix))?.[1]
+    if (!key) return reason
+    if (key === "insufficient") {
+        const sub = await getClientSubscription(clientId)
+        const values = {
+            required: check.creditsRequired,
+            remaining: check.creditsRemaining,
+            price: extraCreditPriceLabel(sub?.features),
+        }
+        return batchCount === undefined
+            ? t("creditGuard.reasons.insufficient", values)
+            : t("creditGuard.reasons.insufficientBatch", { ...values, count: batchCount, action: actionLabel(t, action) })
+    }
+    if (key === "burst" || key === "daily") {
+        // Číslo v závorce je jediná proměnná věty; bez něj zůstane věta, jak přišla.
+        const n = reason.match(/\((\d+)\//)?.[1]
+        if (!n) return reason
+        return key === "burst"
+            ? t("creditGuard.reasons.burst", { count: Number(n) })
+            : t("creditGuard.reasons.daily", { limit: Number(n) })
+    }
+    return t(`creditGuard.reasons.${key}`)
+}
+
 /**
  * Check if a project can perform a single action and return a commit function.
  */
@@ -70,6 +135,7 @@ export async function creditGuard(
     /** Post medium (image/carousel/reel) — weights the credit cost for post actions */
     medium?: string | null,
 ): Promise<CreditGuardResult> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectId)
         const check = await canPerformAction(clientId, action, isExtraPost, medium)
@@ -77,7 +143,7 @@ export async function creditGuard(
         if (!check.allowed) {
             return {
                 ok: false,
-                error: check.reason || "Akce není povolena.",
+                error: (await localizeReason(t, action, check, clientId)) || t("creditGuard.notAllowed"),
                 clientId,
                 isPlanPost: false,
                 creditsRequired: check.creditsRequired,
@@ -121,9 +187,11 @@ export async function creditGuard(
             if (!reservation.reserved) {
                 return {
                     ok: false,
-                    error:
-                        `Nedostatek kreditů. Potřebujete ${creditsRequired}, zbývá ${Math.max(0, reservation.remaining)}. ` +
-                        `Dobijte si kredity za ${extraCreditPriceLabel(sub?.features)}/ks.`,
+                    error: t("creditGuard.reasons.insufficient", {
+                        required: creditsRequired,
+                        remaining: Math.max(0, reservation.remaining),
+                        price: extraCreditPriceLabel(sub?.features),
+                    }),
                     clientId,
                     isPlanPost: false,
                     creditsRequired,
@@ -176,9 +244,9 @@ export async function creditGuard(
         console.error("Credit guard error (blocking action):", err?.message)
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný')
+            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
                 ? err.message
-                : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
+                : t("creditGuard.verifyFailed"),
             clientId: projectId,
             isPlanPost: false,
             creditsRequired: 0,
@@ -196,6 +264,7 @@ export async function creditGuardBatch(
     action: ActionType,
     count: number,
 ): Promise<CreditGuardBatchResult> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectId)
         const check = await canPerformBatchAction(clientId, action, count)
@@ -203,7 +272,7 @@ export async function creditGuardBatch(
         if (!check.allowed) {
             return {
                 ok: false,
-                error: check.reason || "Nedostatek kreditů pro batch.",
+                error: (await localizeReason(t, action, check, clientId, count)) || t("creditGuard.batchNotAllowed"),
                 clientId,
                 commitCount: async () => {},
             }
@@ -232,9 +301,10 @@ export async function creditGuardBatch(
             if (!reservation.reserved) {
                 return {
                     ok: false,
-                    error:
-                        `Nedostatek kreditů pro dávku. Potřebujete ${totalCredits}, ` +
-                        `zbývá ${Math.max(0, reservation.remaining)}.`,
+                    error: t("creditGuard.batchReserveFailed", {
+                        required: totalCredits,
+                        remaining: Math.max(0, reservation.remaining),
+                    }),
                     clientId,
                     commitCount: async () => {},
                 }
@@ -273,9 +343,9 @@ export async function creditGuardBatch(
         console.error("Credit guard batch error (blocking action):", err?.message)
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný')
+            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
                 ? err.message
-                : "Nepodařilo se ověřit kredity. Zkuste to znovu.",
+                : t("creditGuard.verifyFailed"),
             clientId: projectId,
             commitCount: async () => {},
         }
@@ -296,12 +366,13 @@ export async function canGenerate(
      *  start and die on credits halfway through). Omitted = flat image cost (legacy). */
     mediums?: (string | null | undefined)[],
 ): Promise<{ ok: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectId)
 
         if (count <= 1) {
             const check = await canPerformAction(clientId, "post", undefined, mediums?.[0] || undefined)
-            return { ok: check.allowed, error: check.reason }
+            return { ok: check.allowed, error: await localizeReason(t, "post", check, clientId) }
         } else {
             // Same media-weighted total the campaign path uses (startCampaign / worker)
             const { creditsForMedia } = await import("@/lib/credits")
@@ -309,14 +380,14 @@ export async function canGenerate(
                 ? Array.from({ length: count }, (_, i) => creditsForMedia(mediums[i % mediums.length])).reduce((a, b) => a + b, 0)
                 : undefined
             const check = await canPerformBatchAction(clientId, "post", count, totalCredits)
-            return { ok: check.allowed, error: check.reason }
+            return { ok: check.allowed, error: await localizeReason(t, "post", check, clientId, count) }
         }
     } catch (err: any) {
         return {
             ok: false,
-            error: err?.message?.includes('Neautorizovaný')
+            error: err?.message?.includes('Neautorizovaný') // i18n-ignore: sentinel z lib/auth-guard.ts
                 ? err.message
-                : "Nepodařilo se ověřit kredity.",
+                : t("creditGuard.verifyFailedShort"),
         }
     }
 }

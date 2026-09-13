@@ -9,6 +9,7 @@ import { MAX_POSTS_PER_WEEK } from "@/lib/schedule-planner"
 import type { CatalogProduct } from "@/instagram/service"
 import type { ClientConfig } from "@/instagram/configs/types"
 import { contentLanguage, writeRuleCs } from "@/instagram/language"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 // ─── Content Plan Preview (cheap text-only plan before expensive generation) ──
 
@@ -137,6 +138,7 @@ export type CampaignGoal = "reach" | "engagement" | "sales" | "launch"
 export type CarouselShare = "low" | "auto" | "high"
 
 /** What each goal asks the planner to optimise for, and which CTA strategy it favours. */
+// i18n-ignore-start: prompt (brief cíle kampaně pro plánovač)
 const GOAL_BRIEFS: Record<CampaignGoal, { label: string; instruction: string; favours: string[] }> = {
     reach: {
         label: "Dosah",
@@ -159,6 +161,7 @@ const GOAL_BRIEFS: Record<CampaignGoal, { label: string; instruction: string; fa
         favours: ["medium", "hard"],
     },
 }
+// i18n-ignore-end
 
 /**
  * Tilt pillar ratios toward the pillars whose CTA strategy serves the campaign goal.
@@ -231,6 +234,7 @@ async function generateContentPlanInner(
         try { await supabaseAdmin.from("ig_jobs").update(update).eq("id", planJobId) }
         catch (e: any) { console.warn(`📋 [content-plan] breadcrumb update failed: ${e?.message}`) }
     }
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { getModel } = await import("@/instagram/models")
@@ -247,7 +251,7 @@ async function generateContentPlanInner(
                     config: { kind: "content_plan", count, topic: userTopic || null, goal: goal || null, carouselShare: carouselShare || null, model: planModel, runId: planRunId || null },
                     status: "pending",
                     progress: 0,
-                    agent_message: "📋 Plánuji obsah…",
+                    agent_message: t("contentPlan.generate.planning"),
                 })
                 .select("id")
                 .single()
@@ -441,6 +445,7 @@ async function generateContentPlanInner(
         // Build context for Gemini — include the EFFECTIVE medium per post (reel kill-switch
         // applied) so the planner writes copy that matches the format and never promises a
         // "video"/"Reel" for something that will actually render as a carousel or single image.
+        // i18n-ignore-start: prompt (kontext pro plánovač — formáty, hooky, zásobník)
         const typeList = typeSequence.map((typeName, i) => {
             const pt = ptMap.get(typeName)
             const pillar = getPillarForType(config, typeName)
@@ -491,12 +496,14 @@ ${Object.entries(config.contentPillars)
     .join("\n")}
 PRAVIDLA: Nápad použij JEN u postu ze STEJNÉHO pilíře. Každý nápad použij MAXIMÁLNĚ jednou. Když se žádný nehodí, vymysli vlastní téma a "ideaIndex" vynech. Nápad s [kategorie: …] převezme i tu kategorii jako "categoryId".\n`
             : ""
+        // i18n-ignore-end
 
         // ─── Kategorie pilířů: jediný způsob, jak uživatel řídí, O ČEM se generuje.
         // Plán je dostane celé (id, štítek, prompt, váha) a ke každému postu vrátí
         // categoryId; kód ho pak ověří proti pilíři slotu. ──
         const { categoryLine } = await import("@/instagram/idea-rules")
         const plannedPillars = [...new Set(typeSequence.map(t => getPillarForType(config, t)))]
+        // i18n-ignore-start: prompt (katalog kategorií pilířů)
         const categoryCatalog = plannedPillars
             .map(key => ({ key, p: config.contentPillars[key] }))
             .filter(x => x.p?.categories?.length)
@@ -506,6 +513,7 @@ PRAVIDLA: Nápad použij JEN u postu ze STEJNÉHO pilíře. Každý nápad použ
 Rozlož posty každého pilíře mezi jeho kategorie podle vah (bez vah rovnoměrně); prompt kategorie je úhel, který má post držet.
 ${categoryCatalog.join("\n")}\n`
             : ""
+        // i18n-ignore-end
 
         // ─── Brand grounding: pipe in what onboarding learned from the client's REAL Instagram.
         // Crucial at cold start — a brand-new client has no posts of OURS yet (topHooks empty),
@@ -519,6 +527,7 @@ ${categoryCatalog.join("\n")}\n`
             const memorySection = formatMemoriesForPrompt(brandMemories)
 
             const baseline = config.igBaseline
+            // i18n-ignore-start: prompt (baseline z IG účtu značky)
             const baselineSection = baseline
                 ? `\n## 📲 BASELINE Z REÁLNÉHO IG ÚČTU ZNAČKY (co už publikovali — stav na tom)\n${
                     baseline.contentMix && Object.keys(baseline.contentMix).length
@@ -528,6 +537,7 @@ ${categoryCatalog.join("\n")}\n`
                     baseline.topHashtags?.length ? `Top hashtagy: ${baseline.topHashtags.slice(0, 10).join(" ")}\n` : ""
                 }`
                 : ""
+            // i18n-ignore-end
 
             brandGroundingSection = `${memorySection}${baselineSection}`
         } catch (e: any) {
@@ -580,6 +590,7 @@ ${categoryCatalog.join("\n")}\n`
             ...focusProducts.filter(f => !catalogProducts.some(c => c.id === f.id)),
             ...[...catalogProducts].sort((a, b) => Number(focusIds.has(b.id || "")) - Number(focusIds.has(a.id || ""))),
         ].slice(0, 10)
+        // i18n-ignore-start: prompt (produkty, cíl kampaně, brand voice → contextBlock)
         const productNumbering = plannerProducts.length > 0
             ? `## PRODUKTY ZNAČKY (${plannerProducts.length})\n${plannerProducts.map((p, i) => `${i + 1}. **${p.name}**${p.type ? ` (${p.type})` : ""}${p.price ? ` — ${p.price}` : ""}${p.description ? `: ${p.description.substring(0, 60)}` : ""}`).join("\n")}\n⚠️ Pro posty typu product_drop/produkt MUSÍŠ zmínit KONKRÉTNÍ produkt z tohoto seznamu v hooku!\n⚠️ Když post staví na některém z těchto produktů, vrať jeho ČÍSLO z tohoto seznamu v poli "productIndex" (jinak pole vynech). Podle tohoto čísla se k postu připojí správná produktová fotka — musí to být ten produkt, o kterém hook doopravdy mluví.\n`
             : ""
@@ -607,6 +618,7 @@ ${config.audiencePersonas?.length ? `## CÍLOVÉ PERSONY\n${config.audiencePerso
 ${buildFactsSection(config)}
 ${brandGroundingSection}${ideaBankSection}${categoryCatalogSection}${topHooksSection}${deduplicationSection}${goalSection}${productFocusSection}${topicInstruction}
 ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastní mini-téma.\n" : ""}`
+        // i18n-ignore-end
 
         const { runPlanPipeline } = await import("@/instagram/plan-pipeline")
         const pipelineResult = await runPlanPipeline({
@@ -622,7 +634,7 @@ ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
         })
         const concepts: { hookPreview: string; angle: string; topic: string; qualityScore?: number; ideaIndex?: number; productIndex?: number; categoryId?: string }[] = pipelineResult.concepts
         const strategySummary = pipelineResult.strategySummary || undefined
-        await planBreadcrumb({ progress: 92, agent_message: `📝 Plán: ${concepts.length}/${count}${pipelineResult.judged ? " · oponentura ✓" : ""}` })
+        await planBreadcrumb({ progress: 92, agent_message: t("contentPlan.generate.concepts", { done: concepts.length, total: count, judged: pipelineResult.judged ? "yes" : "no" }) })
 
         // Ensure we have exactly `count` concepts — AI sometimes returns fewer
         let retries = 0
@@ -634,6 +646,7 @@ ${spansWeeks ? "\n## STRUKTURA\nRozděl do týdnů — každý týden má vlastn
             const missingTypes = typeSequence.slice(concepts.length, count)
             const existingHooks = concepts.map(c => c.hookPreview)
 
+            // i18n-ignore-start: prompt (dopsání chybějících konceptů)
             const fillPrompt = `Jsi content planner pro "${config.name}". Potřebuji přesně ${missing} dalších postů do obsahového plánu.
 
 ${topHooksSection}${categoryCatalogSection}
@@ -648,6 +661,7 @@ ${missingTypes.map((t, i) => {
 }).join("\n")}
 
 Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klíči: hookPreview, angle, topic, qualityScore${categoryCatalog.length ? ", categoryId" : ""}.`
+            // i18n-ignore-end
 
             try {
                 // Same Pro ladder as the pipeline — a fill item is a real plan item, no flash.
@@ -694,7 +708,7 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
                 const pt = ptMap.get(typeName)
                 concepts.push({
                     hookPreview: pt?.display_name || typeName,
-                    angle: "Automaticky doplněný post",
+                    angle: t("contentPlan.generate.autoFilledAngle"),
                     topic: typeName,
                     qualityScore: 5,
                 })
@@ -719,7 +733,7 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             const gate = await checkDisplayStrings(
                 config,
                 concepts.map(c => c.hookPreview || ""),
-                { postTypeName: "plán" },
+                { postTypeName: "plán" }, // i18n-ignore: kontext promptu faktické brány, ne UI
             )
             if (gate.judged) {
                 gate.strings.forEach((h, i) => { if (concepts[i]) concepts[i].hookPreview = h })
@@ -860,12 +874,12 @@ Vrať POUZE validní JSON pole obsahující PŘESNĚ ${missing} položek s klí�
             console.warn(`📋 [content-plan] draft persist failed: ${e?.message}`)
         }
 
-        await planBreadcrumb({ status: "done", progress: 100, agent_message: "✅ Plán hotový", result: { planLength: plan.length, judged: pipelineResult.judged } })
+        await planBreadcrumb({ status: "done", progress: 100, agent_message: t("contentPlan.generate.done"), result: { planLength: plan.length, judged: pipelineResult.judged } })
         return { success: true, plan, strategySummary, draftId, feedPattern: { id: feedPattern, seqBase } }
     } catch (err: any) {
         const msg = (err?.message || String(err)).substring(0, 500)
         console.error("generateContentPlan error:", msg)
-        await planBreadcrumb({ status: "failed", agent_message: "❌ Plánování selhalo", error: msg })
+        await planBreadcrumb({ status: "failed", agent_message: t("contentPlan.generate.failed"), error: msg })
         try {
             const Sentry = await import("@sentry/nextjs")
             Sentry.captureException(err, { tags: { route: "content-plan", planJobId: planJobId || "none" } })
@@ -1081,6 +1095,7 @@ async function generateCategoryPromptInner(
         const config = await loadConfig(projectSlug)
 
         const L = contentLanguage(config)
+        // i18n-ignore-start: prompt (hint kategorie pilíře)
         const raw = await generateText(`Jsi content stratég pro značku "${config.name}" (${config.website}).
 
 ## KONTEXT
@@ -1099,6 +1114,7 @@ Prompt hint říká AI generátoru obsahu JAKÝ typ příspěvků a Z JAKÉHO Ú
 
 Příklad pro kategorii "Tipy" v pilíři "Edukace":
 "Praktické tipy a návody krok za krokem. Používej čísla v hooku, konkrétní příklady a řešení reálných problémů zákazníků."`)
+        // i18n-ignore-end
 
         return { success: true, prompt: raw.trim().replace(/^["']|["']$/g, "") }
     } catch (err: any) {
@@ -1147,6 +1163,7 @@ async function regeneratePlanItemInner(
     userTopic?: string,
     medium?: PlanMedium
 ): Promise<{ success: boolean; item?: RegeneratedPlanItem; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { loadConfig } = await import("@/instagram/configs")
@@ -1156,6 +1173,7 @@ async function regeneratePlanItemInner(
         // Build pillar context for this post type
         const pillar = getPillarForType(config, postType)
         const pillarCfg = config.contentPillars[pillar]
+        // i18n-ignore-start: prompt (pilíř a kategorie pro regeneraci konceptu)
         const pillarSection = pillarCfg
             ? `## PILÍŘ: ${pillarCfg.emoji} ${pillarCfg.label}\n${pillarCfg.description || ""}\nCíl: ${pillarCfg.ctaStrategy === "hard" ? "PRODEJ" : pillarCfg.ctaStrategy === "medium" ? "HODNOTA" : pillarCfg.ctaStrategy === "soft" ? "DOSAH" : "KOMUNITA"}\n`
             : ""
@@ -1165,6 +1183,7 @@ async function regeneratePlanItemInner(
         const categorySection = regenCategories.length
             ? `## KATEGORIE PILÍŘE (vrať id jedné z nich jako "categoryId")\n${regenCategories.map(categoryLine).join("\n")}\n`
             : ""
+        // i18n-ignore-end
 
         // Live catalog, not the frozen config.products snapshot (see generateContentPlan)
         const catalogProducts: CatalogProduct[] = await getCatalogProducts(clientId, config.products)
@@ -1172,6 +1191,7 @@ async function regeneratePlanItemInner(
         // Numbered for the same reason as the full plan: a regenerated hook is about a
         // DIFFERENT product than the one it replaces, so the item has to be re-linked.
         const regenProducts = catalogProducts.slice(0, 6)
+        // i18n-ignore-start: prompt (produkty + zadání regenerace konceptu)
         const productsSection = regenProducts.length
             ? `## PRODUKTY (${regenProducts.length})\n${regenProducts.map((p, i) => `${i + 1}. ${p.name} (${p.type})${p.price ? ` — ${p.price}` : ""}`).join("\n")}\n⚠️ Když post staví na některém z nich, vrať jeho ČÍSLO v poli "productIndex" (jinak pole vynech).\n`
             : ""
@@ -1208,6 +1228,7 @@ ${medium && !isReelMedium(medium) ? `- ⚠️ Tohle je ${medium === "carousel" ?
 
 Vrať POUZE validní JSON:
 { "hookPreview": "hook ${L.adverbCs} max 8 slov BEZ emoji", "angle": "1 věta o přístupu", "topic": "3-5 slov"${regenCategories.length ? `, "categoryId": "id kategorie pilíře"` : ""}${regenProducts.length ? `, "productIndex": číslo produktu nebo vynech` : ""} }`
+        // i18n-ignore-end
 
         // Single-item regen goes through the same Pro ladder as the plan itself —
         // a regenerated hook must not be weaker than the plan it replaces an item of.
@@ -1220,7 +1241,7 @@ Vrať POUZE validní JSON:
             temperature: getTemperature("copywriter"),
         })
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) throw new Error("Invalid JSON response")
+        if (!jsonMatch) throw new Error(t("contentPlan.regenerate.invalidJson"))
         const parsed = JSON.parse(jsonMatch[0])
 
         // Same evidence order as generateContentPlan: what the copy names beats what the
@@ -1242,7 +1263,7 @@ Vrať POUZE validní JSON:
         let factSources: RegeneratedPlanItem["factSources"]
         try {
             const { checkDisplayStrings } = await import("@/instagram/fact-check")
-            const gate = await checkDisplayStrings(config, [hook], { postTypeName: "plán" })
+            const gate = await checkDisplayStrings(config, [hook], { postTypeName: "plán" }) // i18n-ignore: kontext promptu faktické brány, ne UI
             if (gate.judged) {
                 hook = gate.strings[0] || hook
                 factFlag = gate.flagsByIndex[0]?.[0]

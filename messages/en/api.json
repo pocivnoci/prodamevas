@@ -1,0 +1,69 @@
+{
+  "api": {
+    "common": {
+      "unauthorized": "Unauthorized",
+      "missingId": "Missing id parameter",
+      "unknownError": "Unknown error"
+    },
+    "job": {
+      "rateLimit": "You have reached the limit of {limit} generations per hour. Try again later.",
+      "ideaNotFound": "Idea not found",
+      "reelBlocked": "{medium}: reels are available from the {plan} plan.",
+      "storiesBlocked": "Stories are not available on this plan.",
+      "noCredits": "Not enough credits",
+      "chargeFailed": "Could not deduct the credit. Please try again.",
+      "researcherStart": "🔍 Researcher is picking sources...",
+      "subtitlesDone": "✅ Subtitles re-rendered",
+      "subtitlesFailed": "❌ Subtitle re-rendering failed",
+      "done": "✅ Done!",
+      "videoPending": "🎬 The video is still rendering — we will finish the post automatically within a few minutes; you will find it under Posts.",
+      "busy": "⏸️ Heavy traffic — please try again in a moment",
+      "busyError": "Traffic is heavy right now and a quality post could not be finished. Please try again in a few minutes — quality comes before speed.",
+      "failed": "❌ Generation failed",
+      "timeout": "⏱️ Timeout",
+      "stuck": "Generation timed out — we refunded the credit, please try again."
+    },
+    "media": {
+      "reel": "Reel",
+      "reel_long": "Long reel"
+    },
+    "task": {
+      "missingTaskId": "Missing taskId",
+      "notFound": "Task not found",
+      "forbidden": "You do not have access to this task",
+      "expired": "Preparation timed out. Please try again.",
+      "expiredShort": "⏱️ Timed out"
+    },
+    "payments": {
+      "alreadyOwned": "You already have the brand setup — just pick a date.",
+      "stripeNotConfigured": "Stripe is not configured",
+      "missingParams": "Missing clientSlug/clientId or planId",
+      "planNotFound": "Plan not found",
+      "createFailed": "Creating the payment failed"
+    },
+    "igConnect": {
+      "missingSlug": "Missing project slug.",
+      "oauthNotConfigured": "Instagram OAuth is not configured (META_APP_ID).",
+      "label": "Instagram connection",
+      "bridge": {
+        "title": "Open the last step in your browser",
+        "text": "Instagram refuses to sign in inside an app added to the home screen. The button below opens the sign-in in Safari.",
+        "button": "Open sign-in",
+        "hintIphoneLead": "On iPhone:",
+        "hintIphone": "if the Instagram app pops up instead of Safari and says \"something went wrong\", press and hold the button and pick \"Open in New Tab\" — iOS does not open the app on a long press. If that does not help, finish the connection on a computer; once is enough.",
+        "hintBack": "Once the connection is done, switch back to Chrlit — the account verifies itself here."
+      },
+      "return": {
+        "title": "Done",
+        "doneHeading": "Done — switch back to Chrlit",
+        "doneBody": "You can close this tab. The app verifies the connection status by itself; if it does not, tap \"Verify\" in Settings.",
+        "failedHeading": "The connection did not finish",
+        "failedBody": "Instagram did not complete the authorisation. Go back to Chrlit and try Connect again; the account must be professional (Business or Creator)."
+      },
+      "expired": {
+        "title": "Link expired",
+        "body": "It is valid for fifteen minutes. Go back to Chrlit ({siteUrl}) and tap Connect again."
+      }
+    }
+  }
+}

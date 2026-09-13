@@ -4,6 +4,7 @@ import supabaseAdmin from '@/supabase/admin'
 import { requireProjectAccess } from '@/lib/auth-guard'
 import { getConfigBrandImages, isValidBrandTag, BRAND_DESCRIPTION_MAX, type BrandImage } from '@/instagram/configs/types'
 import { languagePack } from '@/instagram/language'
+import { actionTranslator } from '@/lib/i18n/actions'
 
 /**
  * Upload a brand/reference image from the dashboard.
@@ -14,12 +15,13 @@ export async function uploadBrandImage(formData: FormData): Promise<{
     imageUrl?: string
     error?: string
 }> {
+    const t = await actionTranslator('actionsContent')
     try {
         const file = formData.get('file') as File
-        if (!file) return { success: false, error: 'Nebyl vybrán žádný soubor' }
+        if (!file) return { success: false, error: t('common.noFile') }
 
         const clientSlug = formData.get('clientSlug') as string
-        if (!clientSlug) return { success: false, error: 'Chybí identifikace klienta' }
+        if (!clientSlug) return { success: false, error: t('brandImages.upload.missingClient') }
 
         const { clientId } = await requireProjectAccess(clientSlug)
 
@@ -27,7 +29,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         // Validate file
         if (!file.type.startsWith('image/')) {
-            return { success: false, error: 'Podporovány jsou pouze obrázky (JPG, PNG, WebP, HEIC z iPhonu).' }
+            return { success: false, error: t('brandImages.upload.imagesOnly') }
         }
         // Strop musí sedět s `serverActions.bodySizeLimit` v next.config.ts.
         // Do 9/2026 tu stálo 25 MB, zatímco platforma pouští 10 — fotka mezi tím
@@ -36,7 +38,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         // zmenšuje ještě před odesláním (`shrinkForUpload` v BrandTabu), takže sem
         // dorazí pár set kilobajtů; tohle je pojistka pro jiné cesty a starý kód.
         if (file.size > 9_000_000) {
-            return { success: false, error: 'Obrázek je příliš velký (max 9 MB). Zkus ho zmenšit nebo poslat z počítače.' }
+            return { success: false, error: t('brandImages.upload.tooLarge') }
         }
 
         // Normalize EVERY upload (PC or phone): auto-rotate from EXIF, downscale,
@@ -54,7 +56,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         } catch {
             // Unsupported codec — almost always a raw iPhone HEIC the browser
             // didn't auto-convert. sharp's prebuilt libvips can't decode HEVC.
-            return { success: false, error: 'Tuhle fotku nejde zpracovat (nejspíš HEIC z iPhonu). Pošli ji jako JPG, nebo na iPhonu zapni Nastavení → Fotoaparát → Formáty → „Nejkompatibilnější".' }
+            return { success: false, error: t('brandImages.upload.unreadable') }
         }
 
         // Název souboru z OBSAHU, ne z času.
@@ -80,7 +82,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
 
         if (uploadError) {
             console.error('Upload error:', uploadError)
-            return { success: false, error: `Upload selhal: ${uploadError.message}` }
+            return { success: false, error: t('common.uploadFailedDetail', { detail: uploadError.message }) }
         }
 
         // Get public URL
@@ -121,7 +123,8 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         // zmizela, nebo se objevila dvakrát. Detail v hlavičce migrace.
         const added = await appendBrandImage(clientId, brandImageObj)
         if (added === null) {
-            return { success: true, imageUrl } // nahráno, ale konfigurace se nedopsala
+            // nahráno, ale konfigurace se nedopsala
+            return { success: true, imageUrl }
         }
 
         // Engine drží konfiguraci v paměti 60 s. Bez tohohle by se čerstvě nahraná
@@ -132,7 +135,7 @@ export async function uploadBrandImage(formData: FormData): Promise<{
         return { success: true, imageUrl }
     } catch (error) {
         console.error('Upload error:', error)
-        return { success: false, error: `Upload selhal: ${(error as Error).message}` }
+        return { success: false, error: t('common.uploadFailedDetail', { detail: (error as Error).message }) }
     }
 }
 
@@ -160,9 +163,7 @@ async function appendBrandImage(clientId: string, image: unknown): Promise<numbe
             // je chyba volajícího, tak ji přiznej — mlčky vrácené null vypadá jako
             // problém databáze a poslalo by hledání špatným směrem.
             const url = (image as { url?: string })?.url
-            console.error(url
-                ? `🚨 append_brand_image: klient ${clientId} nenalezen`
-                : `🚨 append_brand_image: obrázek pro ${clientId} nemá url — nezapsáno`)
+            console.error(url ? `🚨 append_brand_image: klient ${clientId} nenalezen` : `🚨 append_brand_image: obrázek pro ${clientId} nemá url — nezapsáno`)
             return null
         }
         if (row?.added === false) console.log(`↩️ Fotka už u klienta ${clientId} je — nepřidávám podruhé`)
@@ -174,10 +175,7 @@ async function appendBrandImage(clientId: string, image: unknown): Promise<numbe
         console.error(`🚨 append_brand_image selhalo (${error.code}): ${error.message}`)
         return null
     }
-    console.warn(
-        '⚠️ Funkce append_brand_image v databázi není — fotky se zapisují bez zámku a souběžné ' +
-        'nahrání se může přepsat. Spusť migraci 20260910_fotky_znacky_atomicky.sql.',
-    )
+    console.warn('⚠️ Funkce append_brand_image v databázi není — fotky se zapisují bez zámku a souběžné nahrání se může přepsat. Spusť migraci 20260910_fotky_znacky_atomicky.sql.')
 
     const { data: client } = await supabaseAdmin
         .from('clients').select('config').eq('id', clientId).maybeSingle()
@@ -202,6 +200,7 @@ export async function deleteBrandImage(
     clientSlug: string,
     imageUrl: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator('actionsContent')
     try {
         await requireProjectAccess(clientSlug)
 
@@ -241,7 +240,7 @@ export async function deleteBrandImage(
 
         return { success: true }
     } catch (error) {
-        return { success: false, error: `Smazání selhalo: ${(error as Error).message}` }
+        return { success: false, error: t('brandImages.delete.failed', { detail: (error as Error).message }) }
     }
 }
 
@@ -311,6 +310,7 @@ export async function setBrandImageTags(
     /** `undefined` = nesahat na popis; `""` = smazat vlastní a nechat AI popis. */
     description?: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator('actionsContent')
     try {
         const { clientId } = await requireProjectAccess(clientSlug)
 
@@ -318,12 +318,12 @@ export async function setBrandImageTags(
             tags.map(t => t.trim().toLowerCase()).filter(t => t && isValidBrandTag(t))
         )).slice(0, 4)
         if (clean.length === 0) {
-            return { success: false, error: 'Vyber aspoň jeden štítek — bez štítku se fotka v příspěvcích nepoužije.' }
+            return { success: false, error: t('brandImages.tags.empty') }
         }
 
         const { data: client } = await supabaseAdmin
             .from('clients').select('config').eq('id', clientId).single()
-        if (!client) return { success: false, error: 'Klient nenalezen.' }
+        if (!client) return { success: false, error: t('common.clientNotFound') }
 
         const config = client.config as any
         const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')
@@ -344,7 +344,7 @@ export async function setBrandImageTags(
                 userTagged: true,
             }
         })
-        if (!found) return { success: false, error: 'Fotka nenalezena.' }
+        if (!found) return { success: false, error: t('brandImages.tags.notFound') }
 
         await supabaseAdmin
             .from('clients')
@@ -368,11 +368,12 @@ export async function setBrandImageTags(
 export async function retagBrandImages(
     clientSlug: string
 ): Promise<{ success: boolean; count: number; error?: string }> {
+    const t = await actionTranslator('actionsContent')
     try {
         const { clientId } = await requireProjectAccess(clientSlug)
         const { data: client } = await supabaseAdmin
             .from('clients').select('config, name').eq('id', clientId).single()
-        if (!client) return { success: false, count: 0, error: 'Klient nenalezen.' }
+        if (!client) return { success: false, count: 0, error: t('common.clientNotFound') }
 
         const config = client.config as any
         const { getConfigBrandImageObjects } = await import('@/instagram/configs/types')

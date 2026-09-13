@@ -7,6 +7,7 @@
  * Body: { clientSlug, planId, email, termMonths }
  */
 
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextRequest, NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
 import { createPayment, generateRefId, isMockPaymentMode, isRecurringEnabled } from "@/lib/comgate"
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
             const existing = await pendingConsultation(client.id)
             if (existing) {
                 return NextResponse.json(
-                    { error: "Nastavení značky už máte — stačí si vybrat termín.", alreadyOwned: true },
+                    { error: (await actionTranslator("api"))("payments.alreadyOwned"), alreadyOwned: true },
                     { status: 409 },
                 )
             }

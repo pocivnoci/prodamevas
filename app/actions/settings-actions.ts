@@ -4,6 +4,7 @@ import supabaseAdmin from "@/supabase/admin"
 import { revalidatePath } from "next/cache"
 import type { ClientConfig } from "@/instagram/configs/types"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 /**
  * Activate a FREE plan (e.g. Beta Trial) directly — no payment gateway.
@@ -14,6 +15,7 @@ export async function activateFreePlan(
     projectSlug: string,
     planId: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -23,8 +25,8 @@ export async function activateFreePlan(
             .eq("id", planId)
             .single()
 
-        if (!plan || !plan.is_active) return { success: false, error: "Plán nenalezen." }
-        if (plan.price_czk !== 0) return { success: false, error: "Tento plán vyžaduje platbu." }
+        if (!plan || !plan.is_active) return { success: false, error: t("settings.activateFreePlan.planNotFound") }
+        if (plan.price_czk !== 0) return { success: false, error: t("settings.activateFreePlan.requiresPayment") }
 
         const { activatePaidPlan } = await import("@/lib/subscription")
         await activatePaidPlan(clientId, planId)
@@ -32,7 +34,7 @@ export async function activateFreePlan(
         return { success: true }
     } catch (err: any) {
         console.error("activateFreePlan error:", err?.message || err)
-        return { success: false, error: err?.message || "Aktivace plánu selhala." }
+        return { success: false, error: err?.message || t("settings.activateFreePlan.failed") }
     }
 }
 
@@ -51,11 +53,12 @@ export async function getClientConfig(projectId: string): Promise<ClientConfig |
 }
 
 export async function updateClientConfig(projectId: string, newConfig: any): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectId)
         // Validation - verify the config is valid JSON and has minimum required fields
         if (!newConfig || typeof newConfig !== "object") {
-            return { success: false, error: "Neplatný formát konfigurace (musí být JSON objekt)." }
+            return { success: false, error: t("settings.updateClientConfig.invalidFormat") }
         }
 
         // Staré kategorie pilířů — po uložení se porovnají s novými (fronta na zařazení nápadů).

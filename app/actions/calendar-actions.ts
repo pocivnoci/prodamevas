@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 /**
  * Resolve a post's tenant and verify the caller may touch it. Throws on missing
@@ -13,7 +14,10 @@ async function gatePostAccess(postId: string): Promise<string> {
         .select("client_id")
         .eq("id", postId)
         .single()
-    if (error || !data?.client_id) throw new Error("Příspěvek nenalezen.")
+    if (error || !data?.client_id) {
+        const t = await actionTranslator("actionsPlan")
+        throw new Error(t("common.postNotFound"))
+    }
     await requireClientAccess(data.client_id)
     return data.client_id
 }
@@ -135,12 +139,13 @@ export async function retryPublishAction(
     projectSlug: string,
     postId: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const clientId = await gatePostAccess(postId)
         const { getConnectionMeta } = await import("@/instagram/ig-connection")
         const conn = await getConnectionMeta(clientId)
         if (!conn || conn.status !== "connected") {
-            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+            return { success: false, error: t("common.connectInstagramFirst") }
         }
         const { error } = await supabaseAdmin
             .from("ig_posts")
@@ -155,7 +160,7 @@ export async function retryPublishAction(
         if (error) return { success: false, error: error.message }
         return { success: true }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Akce selhala" }
+        return { success: false, error: (err as Error)?.message || t("calendar.retryPublish.failed") }
     }
 }
 
@@ -174,12 +179,13 @@ export async function retryPublishAction(
 export async function publishNowAction(
     postId: string,
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const clientId = await gatePostAccess(postId)
         const { getConnectionMeta } = await import("@/instagram/ig-connection")
         const conn = await getConnectionMeta(clientId)
         if (!conn || conn.status !== "connected") {
-            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+            return { success: false, error: t("common.connectInstagramFirst") }
         }
 
         const { data: post } = await supabaseAdmin
@@ -198,10 +204,10 @@ export async function publishNowAction(
         // and letting the cron fail it four times into a silent 'failed'.
         // `parsePostMedia` has no bare 'video' kind — a reel IS the engine's only video.
         if (media.kind === "reel" && !media.videoUrl) {
-            return { success: false, error: "Tenhle reel nemá video — přegeneruj ho, publikovat zatím nejde." }
+            return { success: false, error: t("calendar.publishNow.reelWithoutVideo") }
         }
         if (media.urls.length === 0) {
-            return { success: false, error: "Příspěvek nemá žádné médium k publikování." }
+            return { success: false, error: t("calendar.publishNow.noMedia") }
         }
 
         const { error } = await supabaseAdmin
@@ -217,7 +223,7 @@ export async function publishNowAction(
         if (error) return { success: false, error: error.message }
         return { success: true }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Publikace selhala" }
+        return { success: false, error: (err as Error)?.message || t("calendar.publishNow.failed") }
     }
 }
 
@@ -256,13 +262,14 @@ export async function confirmPlanAction(
     fromDate: string, // "2026-09-01" včetně
     toDate: string,   // "2026-09-07" včetně
 ): Promise<{ success: boolean; confirmed?: number; shifted?: number; skipped?: number; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
         const { getConnectionMeta } = await import("@/instagram/ig-connection")
         const conn = await getConnectionMeta(clientId)
         if (!conn || conn.status !== "connected") {
-            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+            return { success: false, error: t("common.connectInstagramFirst") }
         }
 
         // Konec dne u `toDate` — jinak by poslední den v rozsahu vypadl.
@@ -364,7 +371,7 @@ export async function confirmPlanAction(
 
         return { success: true, confirmed, shifted, skipped }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Potvrzení plánu selhalo" }
+        return { success: false, error: (err as Error)?.message || t("calendar.confirmPlan.failed") }
     }
 }
 
@@ -378,6 +385,7 @@ export async function schedulePostAction(
     date: string,    // "2026-06-20"
     time: string,    // "17:00"
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         // Confirm the post belongs to this tenant before mutating.
@@ -387,7 +395,7 @@ export async function schedulePostAction(
             .eq("id", postId)
             .single()
         if (!post || post.client_id !== clientId) {
-            return { success: false, error: "Příspěvek nepatří tomuto projektu." }
+            return { success: false, error: t("calendar.schedule.foreignPost") }
         }
 
         // Arming a post for auto-publish requires a live Instagram connection — the
@@ -395,7 +403,7 @@ export async function schedulePostAction(
         const { getConnectionMeta } = await import("@/instagram/ig-connection")
         const conn = await getConnectionMeta(clientId)
         if (!conn || conn.status !== "connected") {
-            return { success: false, error: "Nejdřív připojte Instagram účet v Nastavení." }
+            return { success: false, error: t("common.connectInstagramFirst") }
         }
 
         const { toScheduledFor } = await import("@/lib/schedule-planner")
@@ -421,7 +429,7 @@ export async function schedulePostAction(
 
         return { success: true }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Plánování selhalo" }
+        return { success: false, error: (err as Error)?.message || t("calendar.schedule.failed") }
     }
 }
 
@@ -502,12 +510,13 @@ export async function getPublishOutlook(projectSlug: string): Promise<PublishOut
 export async function armAutoPublishNow(
     projectSlug: string,
 ): Promise<{ success: boolean; armed?: number; skipped?: string; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { armClientNow } = await import("@/lib/agents/auto-publish")
         const res = await armClientNow(clientId)
         return { success: true, armed: res.armed, skipped: res.skipped }
     } catch (err) {
-        return { success: false, error: (err as Error)?.message || "Naostření selhalo" }
+        return { success: false, error: (err as Error)?.message || t("calendar.armAutoPublish.failed") }
     }
 }

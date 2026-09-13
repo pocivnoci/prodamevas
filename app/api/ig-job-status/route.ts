@@ -1,6 +1,7 @@
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import supabaseAdmin from "@/supabase/admin"
-import { isStuck, isCampaignJob, reapStuckJob, STUCK_MESSAGE } from "@/lib/job-reaper"
+import { isStuck, isCampaignJob, reapStuckJob } from "@/lib/job-reaper"
 
 export const maxDuration = 5 // Ultra-lightweight polling
 
@@ -42,9 +43,10 @@ export async function GET(req: Request) {
     if (isStuck(job) && !isCampaignJob(job)) {
         await reapStuckJob(job)
         // Whether this call or a concurrent sweep claimed it, the job is failed now.
+        const t = await actionTranslator("api")
         job.status = "failed"
-        job.error = STUCK_MESSAGE
-        job.agent_message = "⏱️ Timeout"
+        job.error = t("job.stuck")
+        job.agent_message = t("job.timeout")
     }
 
     return NextResponse.json({

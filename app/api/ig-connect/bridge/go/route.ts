@@ -1,3 +1,5 @@
+import { resolveUiLocale } from "@/lib/i18n/server"
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import { verifyHandoff } from "@/lib/ig-connect-handoff"
 
@@ -25,7 +27,7 @@ export async function GET(request: Request) {
         // v cizím prohlížeči nemá smysl ho posílat do dashboardu (nemá session),
         // tak mu rovnou řekni, co má udělat.
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
-        return new NextResponse(expiredHtml(siteUrl), {
+        return new NextResponse(await expiredHtml(siteUrl), {
             status: 400,
             headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, max-age=0" },
         })
@@ -38,13 +40,19 @@ export async function GET(request: Request) {
     return res
 }
 
-function expiredHtml(siteUrl: string): string {
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+}
+
+async function expiredHtml(siteUrl: string): Promise<string> {
+    const t = await actionTranslator("api")
+    const locale = await resolveUiLocale()
     return `<!doctype html>
-<html lang="cs">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Odkaz vypršel</title>
+<title>${escapeHtml(t("igConnect.expired.title"))}</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -57,9 +65,9 @@ function expiredHtml(siteUrl: string): string {
 </head>
 <body>
 <main>
-  <p class="label">Připojení Instagramu</p>
-  <h1>Odkaz vypršel</h1>
-  <p>Platí patnáct minut. Vrať se do Chrlitu (${siteUrl}) a klepni na Připojit znovu.</p>
+  <p class="label">${escapeHtml(t("igConnect.label"))}</p>
+  <h1>${escapeHtml(t("igConnect.expired.title"))}</h1>
+  <p>${escapeHtml(t("igConnect.expired.body", { siteUrl }))}</p>
 </main>
 </body>
 </html>`

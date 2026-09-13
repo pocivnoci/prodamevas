@@ -38,6 +38,12 @@ export const MESSAGE_FILES = [
     "actionsContent",
     "actionsAccount",
     "actionsAdmin",
+    // hlášky z API rout, které čte prohlížeč (joby, onboarding, platby, most IG)
+    "api",
+    // oznámení zákazníkům z agentů (lib/agents) — jazyk příjemce, ne request
+    "notices",
+    // workery bez requestu: digest kampaně, průběh onboardingových úloh
+    "worker",
 ] as const
 
 export type Messages = Record<string, unknown>

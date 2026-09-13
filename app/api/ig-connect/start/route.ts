@@ -1,3 +1,4 @@
+import { actionTranslator } from "@/lib/i18n/actions"
 import { NextResponse } from "next/server"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { signState } from "@/lib/ig-oauth-state"
@@ -19,8 +20,9 @@ import { signState } from "@/lib/ig-oauth-state"
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const slug = searchParams.get("slug")
+    const t = await actionTranslator("api")
     if (!slug) {
-        return NextResponse.json({ error: "Chybí slug projektu." }, { status: 400 })
+        return NextResponse.json({ error: t("igConnect.missingSlug") }, { status: 400 })
     }
 
     let clientId: string
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
 
     const appId = process.env.META_APP_ID
     if (!appId) {
-        return NextResponse.json({ error: "Instagram OAuth není nakonfigurován (META_APP_ID)." }, { status: 503 })
+        return NextResponse.json({ error: t("igConnect.oauthNotConfigured") }, { status: 503 })
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin

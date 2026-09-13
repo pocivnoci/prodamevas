@@ -2,10 +2,11 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { getPlanForMedium } from "@/lib/pricing"
-import { isReelMedium, REEL_LABELS } from "@/lib/reel-media"
+import { isReelMedium } from "@/lib/reel-media"
 import { requireProjectAccess } from "@/lib/auth-guard"
 import { DEFAULT_IDEA_COOLDOWN_DAYS } from "@/instagram/service"
 import type { ContentPlanItem } from "./content-plan-actions"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 // ─── Durable content-plan campaigns ──────────────────────────────────────────
 // The old batch path ran a sequential loop in the BROWSER: each post is its own
@@ -52,12 +53,13 @@ export async function startCampaign(
     plan: ContentPlanItem[],
     options: CampaignOptions = {},
 ): Promise<{ success: boolean; campaignId?: string; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId, isSuperAdmin } = await requireProjectAccess(projectSlug)
 
         const items = (plan || []).filter(Boolean)
         if (items.length === 0) {
-            return { success: false, error: "Plán je prázdný." }
+            return { success: false, error: t("campaign.start.emptyPlan") }
         }
 
         // Reel gating once, up-front (same rule as ig-create-job) — campaign-wide
@@ -68,7 +70,7 @@ export async function startCampaign(
             const sub = await getClientSubscription(clientId)
             for (const m of wantedReels) {
                 if (!canUseMedium(sub?.features, m)) {
-                    return { success: false, error: `${REEL_LABELS[m]}: reels jsou dostupné od balíčku ${getPlanForMedium(m)}.` }
+                    return { success: false, error: t("campaign.start.reelsRequirePlan", { label: t(`campaign.start.reelLabel.${m}`), plan: getPlanForMedium(m) }) }
                 }
             }
         }
@@ -79,7 +81,7 @@ export async function startCampaign(
         const totalCredits = items.reduce((sum, it) => sum + creditsForMedia(it.medium || options.medium), 0)
         const check = await canPerformBatchAction(clientId, "post", items.length, totalCredits)
         if (!check.allowed) {
-            return { success: false, error: check.reason || "Nedostatek kreditů pro celou kampaň." }
+            return { success: false, error: check.reason || t("campaign.start.notEnoughCredits") }
         }
 
         // ─── Idea-bank linkage (Zásobník témat ↔ plán) ───
@@ -111,7 +113,7 @@ export async function startCampaign(
         //    each post is actually created.
         try {
             const invented = items.filter(it =>
-                !it.ideaId && it.topic && it.hookPreview && !it.hookPreview.startsWith("Nový post")
+                !it.ideaId && it.topic && it.hookPreview && !it.hookPreview.startsWith("Nový post") // i18n-ignore: sentinel v datech plánu (NEW_ITEM_HOOK v GenerateTab)
             )
             if (invented.length > 0) {
                 // Idempotency: a double-submit / network retry of plan approval must not
@@ -237,8 +239,8 @@ export async function startCampaign(
                 .eq("status", "draft")
                 .select("id")
                 .maybeSingle()
-            if (claimErr) throw new Error(`Failed to start campaign: ${claimErr.message}`)
-            if (!claimed) return { success: false, error: "Tento plán už byl spuštěn." }
+            if (claimErr) throw new Error(t("campaign.start.claimFailed", { message: claimErr.message }))
+            if (!claimed) return { success: false, error: t("campaign.start.alreadyStarted") }
             campaignId = claimed.id
         } else {
             const { data: campaign, error } = await supabaseAdmin
@@ -254,7 +256,7 @@ export async function startCampaign(
                 .select("id")
                 .single()
             if (error || !campaign) {
-                throw new Error(`Failed to create campaign: ${error?.message}`)
+                throw new Error(t("campaign.start.createFailed", { message: error?.message || "" }))
             }
             campaignId = campaign.id
         }
@@ -275,6 +277,7 @@ export async function getCampaignStatus(
     projectSlug: string,
     campaignId: string,
 ): Promise<{ success: boolean; campaign?: CampaignStatus; error?: string }> {
+    const t = await actionTranslator("actionsPlan")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { data, error } = await supabaseAdmin
@@ -283,8 +286,8 @@ export async function getCampaignStatus(
             .eq("id", campaignId)
             .single()
 
-        if (error || !data) return { success: false, error: "Kampaň nenalezena." }
-        if (data.client_id !== clientId) return { success: false, error: "Neautorizovaný přístup ke kampani." }
+        if (error || !data) return { success: false, error: t("campaign.status.notFound") }
+        if (data.client_id !== clientId) return { success: false, error: t("campaign.status.unauthorized") }
 
         return {
             success: true,

@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 
 /**
  * Fakturační údaje zákazníka + přehled vystavených dokladů.
@@ -90,6 +91,7 @@ export async function saveBillingDetails(
     projectSlug: string,
     input: BillingDetailsInput
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -98,16 +100,16 @@ export async function saveBillingDetails(
         const city = input.city?.trim()
         const zip = input.zip?.trim()
 
-        if (!name) return { success: false, error: "Vyplňte jméno nebo název firmy." }
-        if (!street) return { success: false, error: "Vyplňte ulici a číslo popisné." }
-        if (!city) return { success: false, error: "Vyplňte město." }
-        if (!zip || !isValidZip(zip)) return { success: false, error: "PSČ musí mít 5 číslic." }
+        if (!name) return { success: false, error: t("billing.saveBillingDetails.nameRequired") }
+        if (!street) return { success: false, error: t("billing.saveBillingDetails.streetRequired") }
+        if (!city) return { success: false, error: t("billing.saveBillingDetails.cityRequired") }
+        if (!zip || !isValidZip(zip)) return { success: false, error: t("billing.saveBillingDetails.zipInvalid") }
 
         const ico = input.ico?.replace(/\s/g, "") || ""
         // IČO je povinné jen u firmy — spotřebitel žádné nemá.
         if (input.customerType === "company") {
-            if (!ico) return { success: false, error: "U firmy je IČO povinné." }
-            if (!isValidIco(ico)) return { success: false, error: "IČO není platné — zkontrolujte číslice." }
+            if (!ico) return { success: false, error: t("billing.saveBillingDetails.icoRequired") }
+            if (!isValidIco(ico)) return { success: false, error: t("billing.saveBillingDetails.icoInvalid") }
         }
 
         const { error } = await supabaseAdmin
@@ -129,7 +131,7 @@ export async function saveBillingDetails(
         if (error) return { success: false, error: error.message }
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Uložení selhalo." }
+        return { success: false, error: err?.message || t("common.saveFailed") }
     }
 }
 
@@ -148,6 +150,7 @@ export async function recordInstantAccessConsent(
     projectSlug: string,
     consentText: string
 ): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
 
@@ -158,7 +161,7 @@ export async function recordInstantAccessConsent(
             .maybeSingle()
 
         if (!existing) {
-            return { success: false, error: "Nejdřív vyplňte fakturační údaje." }
+            return { success: false, error: t("billing.recordInstantAccessConsent.detailsFirst") }
         }
         if (existing.instant_access_consent_at) {
             return { success: true } // už udělen — původní čas se nepřepisuje
@@ -177,7 +180,7 @@ export async function recordInstantAccessConsent(
         if (error) return { success: false, error: error.message }
         return { success: true }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Uložení souhlasu selhalo." }
+        return { success: false, error: err?.message || t("billing.recordInstantAccessConsent.failed") }
     }
 }
 
@@ -251,6 +254,7 @@ export interface CancelResult {
 export async function billingPortalUrl(
     projectSlug: string,
 ): Promise<{ url?: string; error?: string }> {
+    const t = await actionTranslator("actionsAccount")
     try {
         const { requireProjectAccess } = await import("@/lib/auth-guard")
         const { clientId } = await requireProjectAccess(projectSlug)
@@ -270,7 +274,7 @@ export async function billingPortalUrl(
         return { url }
     } catch (err: any) {
         console.error(`billingPortalUrl: ${err?.message}`)
-        return { error: "Správu předplatného se teď nepodařilo otevřít. Zkuste to prosím znovu." }
+        return { error: t("billing.billingPortalUrl.failed") }
     }
 }
 
@@ -305,15 +309,17 @@ async function syncCancelToGateway(
         return null
     } catch (err: any) {
         console.error(`🚨 Výpověď se nepropsala do brány (${sub.provider_ref}): ${err?.message}`)
-        return err?.message || "Změnu se nepodařilo propsat platební bráně."
+        const t = await actionTranslator("actionsAccount")
+        return err?.message || t("billing.syncCancelToGateway.failed")
     }
 }
 
 export async function cancelSubscription(projectSlug: string, reason?: string): Promise<CancelResult> {
+    const t = await actionTranslator("actionsAccount")
     const { clientId } = await requireProjectAccess(projectSlug)
 
     const sub = await liveSubscription(clientId)
-    if (!sub) return { success: false, error: "Nemáte aktivní předplatné, které by šlo zrušit." }
+    if (!sub) return { success: false, error: t("billing.cancelSubscription.noSubscription") }
     if (sub.cancel_at_period_end) {
         return { success: true, activeUntil: sub.current_period_end }
     }
@@ -352,15 +358,16 @@ export async function cancelSubscription(projectSlug: string, reason?: string): 
 
 /** Vzít výpověď zpět, dokud období ještě běží. */
 export async function resumeSubscription(projectSlug: string): Promise<CancelResult> {
+    const t = await actionTranslator("actionsAccount")
     const { clientId } = await requireProjectAccess(projectSlug)
 
     const sub = await liveSubscription(clientId)
-    if (!sub) return { success: false, error: "Nemáte předplatné, které by šlo obnovit." }
+    if (!sub) return { success: false, error: t("billing.resumeSubscription.noSubscription") }
     // Tarif zdarma nemá výpověď, kterou by šlo vzít zpět. Kdyby tenhle klik shodil
     // příznak konce období, billing-worker by klienta po měsíci začal upomínat
     // k platbě, kterou nikdy nesjednal.
     if (sub.provider === "gift") {
-        return { success: false, error: "Tarif zdarma se neobnovuje. Když chcete pokračovat, vyberte si plán." }
+        return { success: false, error: t("billing.resumeSubscription.gift") }
     }
 
     const gatewayError = await syncCancelToGateway(sub, false)

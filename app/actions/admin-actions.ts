@@ -3,6 +3,7 @@
 import { REEL_MEDIA } from "@/lib/reel-media"
 import supabaseAdmin from "@/supabase/admin"
 import { requireProjectAccess, requireClientAccess } from "@/lib/auth-guard"
+import { actionTranslator } from "@/lib/i18n/actions"
 import type { IGPost, IGIdea, IGReview, IGPostType, IGGenerationLog } from "@/lib/types/database"
 
 // ─── Instagram Actions ───────────────────────────────────────────────
@@ -98,7 +99,8 @@ export async function getDashboardStats(projectSlug: string) {
         monday.setUTCDate(todayLocal.getUTCDate() + mondayOffset)
 
         const weekDays: { date: string; dayName: string; isToday: boolean; posts: { id: string; caption: string; image_url: string | null; media_type?: string | null; status: string; type_emoji: string }[] }[] = []
-        const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
+        const t = await actionTranslator("actionsAdmin")
+        const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(d => t(`admin.dashboardStats.weekdays.${d}`))
         for (let i = 0; i < 7; i++) {
             const d = new Date(monday)
             d.setUTCDate(monday.getUTCDate() + i)
@@ -627,13 +629,14 @@ export async function updateIGPostMetrics(
 export async function syncMetricsAction(
     projectSlug: string,
 ): Promise<{ success: boolean; synced?: number; matched?: number; error?: string }> {
+    const t = await actionTranslator("actionsAdmin")
     try {
         const { clientId } = await requireProjectAccess(projectSlug)
         const { syncPostMetrics } = await import("@/instagram/metrics-sync")
         const r = await syncPostMetrics(clientId)
         return { success: true, synced: r.synced, matched: r.matched }
     } catch (err: any) {
-        return { success: false, error: err?.message || "Synchronizace metrik selhala" }
+        return { success: false, error: err?.message || t("admin.syncMetrics.failed") }
     }
 }
 
@@ -748,12 +751,13 @@ export interface RefundResult {
  * bez toho by reconciler nebo opakovaný webhook platbu vzkřísil zpátky.
  */
 export async function refundPayment(paymentId: string, reason?: string): Promise<RefundResult> {
+    const t = await actionTranslator("actionsAdmin")
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     let adminEmail: string
     try {
         adminEmail = (await requireSuperAdmin()).email
     } catch {
-        return { success: false, error: "Vrácení peněz smí zadat jen správce." }
+        return { success: false, error: t("admin.refund.adminOnly") }
     }
 
     const now = new Date().toISOString()
@@ -764,7 +768,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         .update({
             status: "REFUNDED",
             refunded_at: now,
-            refund_reason: reason?.slice(0, 500) || "Garance vrácení peněz do 30 dnů",
+            refund_reason: reason?.slice(0, 500) || "Garance vrácení peněz do 30 dnů", // i18n-ignore: záznam v DB (důvod refundace), ne UI
             updated_at: now,
         })
         .eq("id", paymentId)
@@ -773,7 +777,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         .maybeSingle()
 
     if (!payment) {
-        return { success: false, error: "Platba neexistuje, není zaplacená, nebo už byla vrácena." }
+        return { success: false, error: t("admin.refund.notRefundable") }
     }
 
     const steps: string[] = []
@@ -788,13 +792,13 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
             client_id: payment.client_id,
             action: "credit_topup_refund",
             credits: Number(payment.credits_granted),
-            description: `Storno dobití — platba ${payment.id} vrácena`,
+            description: `Storno dobití — platba ${payment.id} vrácena`, // i18n-ignore: popis řádku v kreditovém ledgeru (data)
             reference_id: payment.id,
         })
         if (error && error.code !== "23505") {
-            steps.push(`⚠️ Odečíst ${payment.credits_granted} kreditů ručně — storno v ledgeru selhalo: ${error.message}`)
+            steps.push(t("admin.refund.steps.creditsRevertFailed", { count: Number(payment.credits_granted), error: error.message }))
         } else {
-            steps.push(`Kredity (${payment.credits_granted}) z tohoto dobití byly odečteny automaticky.`)
+            steps.push(t("admin.refund.steps.creditsReverted", { count: Number(payment.credits_granted) }))
         }
     }
 
@@ -808,7 +812,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
             .eq("payment_id", payment.id)
             .in("status", ["entitled", "paid", "booked"])
             .select("id")
-        if (cancelled?.length) steps.push("Schůzka k této platbě byla zrušena automaticky.")
+        if (cancelled?.length) steps.push(t("admin.refund.steps.consultationCancelled"))
     }
 
     // 2. Předplatné končí OKAMŽITĚ — peníze se vrací celé, ne poměrnou částí.
@@ -831,7 +835,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
             await getStripe().subscriptions.cancel(stripeRef)
         } catch (err: any) {
             // Stav u nás je správný, ale brána o tom neví — musí to vidět člověk.
-            steps.push(`⚠️ Zrušit předplatné ${stripeRef} ručně v portálu brány (automaticky selhalo: ${err?.message})`)
+            steps.push(t("admin.refund.steps.stripeCancelFailed", { ref: stripeRef, error: String(err?.message) }))
         }
     }
 
@@ -854,15 +858,14 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
             refunded = true
             console.log(`💸 Stripe refundace ${refundId} k platbě ${paymentId} (${amountCzk} Kč)`)
         } catch (err: any) {
-            steps.push(
-                `⚠️ Vrátit ${amountCzk} ${payment.currency || "CZK"} ručně v portálu Stripu ` +
-                `(ref ${payment.provider_ref}) — automaticky selhalo: ${err?.message}`,
-            )
+            steps.push(t("admin.refund.steps.stripeRefundFailed", {
+                amount: amountCzk, currency: payment.currency || "CZK", ref: payment.provider_ref, error: String(err?.message),
+            }))
         }
     } else {
-        steps.push(
-            `Vrátit ${amountCzk} ${payment.currency || "CZK"} v portálu brány (${payment.provider}, ref ${payment.provider_ref || paymentId})`,
-        )
+        steps.push(t("admin.refund.steps.refundManually", {
+            amount: amountCzk, currency: payment.currency || "CZK", provider: String(payment.provider), ref: payment.provider_ref || paymentId,
+        }))
     }
 
     // Dobropis zůstává ruční záměrně: je to nevratný účetní doklad v číselné řadě
@@ -876,8 +879,10 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         .maybeSingle()
     steps.push(
         doklad?.number
-            ? `Vystavit dobropis ve Fakturoidu k dokladu č. ${doklad.number}${doklad.public_url ? ` (${doklad.public_url})` : ""}`
-            : `Vystavit dobropis ve Fakturoidu k dokladu za „${payment.label || "předplatné"}"`,
+            ? (doklad.public_url
+                ? t("admin.refund.steps.creditNoteWithLink", { number: doklad.number, url: doklad.public_url })
+                : t("admin.refund.steps.creditNote", { number: doklad.number }))
+            : t("admin.refund.steps.creditNoteUnnumbered", { label: payment.label || t("admin.refund.steps.defaultLabel") }),
     )
 
     // 4. Připomínka s konkrétními kroky. Bez ní se na dobropis zapomene a
@@ -886,6 +891,7 @@ export async function refundPayment(paymentId: string, reason?: string): Promise
         const { sendNotification, siteUrl } = await import("@/lib/notifications")
         // Píše se tomu, kdo vrácení zadal — ten ty kroky taky dodělá.
         if (adminEmail) {
+            // i18n-ignore-start: e-mail správci — jiná jazyková osa (lib/mail/i18n.ts), tady se nepřekládá
             await sendNotification({
                 to: adminEmail,
                 kind: "transactional",
@@ -901,15 +907,13 @@ Důvod: ${reason || "garance vrácení peněz do 30 dnů"}
 
 <a href="${siteUrl()}/dashboard/instagram">Otevřít studio →</a>`,
             })
+            // i18n-ignore-end
         }
     } catch (err: any) {
         console.warn(`refundPayment: připomínka se neodeslala: ${err?.message}`)
     }
 
-    console.log(
-        `💸 Platba ${paymentId} vrácena (${amountCzk} Kč) — ` +
-        `${refunded ? "peníze odeslány automaticky, zbývá dobropis" : "zbývají ruční kroky v bráně a ve Fakturoidu"}`,
-    )
+    console.log(`💸 Platba ${paymentId} vrácena (${amountCzk} Kč) — ${refunded ? "peníze odeslány automaticky, zbývá dobropis" : "zbývají ruční kroky v bráně a ve Fakturoidu"}`)
     return { success: true, manualSteps: steps }
 }
 
@@ -943,31 +947,30 @@ export interface GiftPlanResult {
  * koupil, a druhý dárek by potichu smazal zbytek toho běžícího.
  */
 export async function giftPlan(projectSlug: string, planId: string, termMonths: number): Promise<GiftPlanResult> {
+    const t = await actionTranslator("actionsAdmin")
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     let adminEmail: string
     try {
         adminEmail = (await requireSuperAdmin()).email
     } catch {
-        return { success: false, error: "Tarif zdarma smí dát jen správce." }
+        return { success: false, error: t("admin.gift.adminOnly") }
     }
 
     const slug = projectSlug?.trim()
-    if (!slug) return { success: false, error: "Chybí identifikace projektu." }
+    if (!slug) return { success: false, error: t("common.missingProject") }
 
     // Období z ceníku, ne z vlastního výčtu: `term_months` má v DB CHECK na tytéž
     // hodnoty a cokoli jiného by spadlo až při zápisu.
     const { BILLING_TERMS } = await import("@/lib/pricing")
-    const term = BILLING_TERMS.find(t => t.months === termMonths)
-    if (!term) return { success: false, error: "Takové období v ceníku není." }
-
-    const czDate = (iso: string) => new Date(iso).toLocaleDateString("cs-CZ", { timeZone: "Europe/Prague" })
+    const term = BILLING_TERMS.find(b => b.months === termMonths)
+    if (!term) return { success: false, error: t("admin.gift.termNotFound") }
 
     const { data: client } = await supabaseAdmin
         .from("clients")
         .select("id, name")
         .eq("slug", slug)
         .maybeSingle()
-    if (!client) return { success: false, error: `Projekt „${slug}" neexistuje.` }
+    if (!client) return { success: false, error: t("common.projectNotFound", { slug }) }
 
     const { data: plan } = await supabaseAdmin
         .from("subscription_plans")
@@ -976,7 +979,7 @@ export async function giftPlan(projectSlug: string, planId: string, termMonths: 
         .eq("is_active", true)
         .maybeSingle()
     // Jen placený tarif — trial se rozdává sám a dar z něj by nic neodemkl.
-    if (!plan || !(plan.price_czk > 0)) return { success: false, error: "Takový placený tarif nenabízíme." }
+    if (!plan || !(plan.price_czk > 0)) return { success: false, error: t("admin.gift.planNotFound") }
 
     const { data: live } = await supabaseAdmin
         .from("subscriptions")
@@ -986,12 +989,12 @@ export async function giftPlan(projectSlug: string, planId: string, termMonths: 
         .limit(1)
         .maybeSingle()
     if (live) {
-        const until = live.current_period_end ? ` do ${czDate(live.current_period_end)}` : ""
+        const until = live.current_period_end ? new Date(live.current_period_end) : null
         return {
             success: false,
             error: live.provider === "gift"
-                ? `${client.name} už tarif zdarma má${until}.`
-                : `${client.name} má zaplacený tarif${until}. Zdarma jde dát až po jeho skončení.`,
+                ? (until ? t("admin.gift.alreadyGiftedUntil", { name: client.name, until }) : t("admin.gift.alreadyGifted", { name: client.name }))
+                : (until ? t("admin.gift.hasPaidPlanUntil", { name: client.name, until }) : t("admin.gift.hasPaidPlan", { name: client.name })),
         }
     }
 
@@ -1011,7 +1014,7 @@ export async function giftPlan(projectSlug: string, planId: string, termMonths: 
         .select("id")
         .single()
     if (insertError || !gift) {
-        return { success: false, error: `Tarif zdarma se nepodařilo založit: ${insertError?.message || "neznámá chyba"}` }
+        return { success: false, error: t("admin.gift.insertFailed", { error: insertError?.message || t("common.unknownError") }) }
     }
 
     try {
@@ -1035,7 +1038,7 @@ export async function giftPlan(projectSlug: string, planId: string, termMonths: 
             .update({ status: "cancelled", cancelled_at: now, updated_at: now })
             .eq("id", gift.id)
             .eq("status", "pending")
-        return { success: false, error: "Tarif se nepodařilo aktivovat. Nic se nezměnilo — zkus to prosím znovu." }
+        return { success: false, error: t("admin.gift.activateFailed") }
     }
 
     // Stopa, kdo co komu dal: dárek jsou peníze, které nepřišly.
@@ -1055,7 +1058,7 @@ export async function giftPlan(projectSlug: string, planId: string, termMonths: 
     return {
         success: true,
         activeUntil: activated.current_period_end,
-        message: `${client.name} má ${plan.name} zdarma do ${czDate(activated.current_period_end)}. Pak sám skončí — nic se nestrhne a klient si vybere, jestli pokračovat.`,
+        message: t("admin.gift.done", { name: client.name, plan: plan.name, until: new Date(activated.current_period_end) }),
     }
 }
 
@@ -1116,23 +1119,24 @@ export async function getClientAccess(projectSlug: string): Promise<{
     pending: ClientPendingHandoff[]
     error?: string
 }> {
+    const t = await actionTranslator("actionsAdmin")
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     let adminUserId: string
     try {
         adminUserId = (await requireSuperAdmin()).userId
     } catch {
-        return { owners: [], pending: [], error: "Přístupy vidí jen správce." }
+        return { owners: [], pending: [], error: t("admin.access.adminOnly") }
     }
 
     const slug = projectSlug?.trim()
-    if (!slug) return { owners: [], pending: [], error: "Chybí identifikace projektu." }
+    if (!slug) return { owners: [], pending: [], error: t("common.missingProject") }
 
     const { data: client } = await supabaseAdmin
         .from("clients")
         .select("id")
         .eq("slug", slug)
         .maybeSingle()
-    if (!client) return { owners: [], pending: [], error: `Projekt „${slug}" neexistuje.` }
+    if (!client) return { owners: [], pending: [], error: t("common.projectNotFound", { slug }) }
 
     const { data: links } = await supabaseAdmin
         .from("user_clients")
@@ -1146,7 +1150,7 @@ export async function getClientAccess(projectSlug: string): Promise<{
             userId: link.user_id,
             // Účet mohl být mezitím smazaný — vazba na osiřelé UUID je informace,
             // ne důvod řádek zamlčet.
-            email: data?.user?.email || "(účet neexistuje)",
+            email: data?.user?.email || t("admin.access.accountMissing"),
             role: link.role || "member",
             isYou: link.user_id === adminUserId,
         })
@@ -1199,26 +1203,27 @@ export async function transferClientToUser(
     email: string,
     opts?: { releaseAdminAccess?: boolean; replaceOwners?: boolean },
 ): Promise<{ success: boolean; error?: string; message?: string; pending?: boolean; inviteUrl?: string | null }> {
+    const t = await actionTranslator("actionsAdmin")
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     let adminUserId: string
     try {
         adminUserId = (await requireSuperAdmin()).userId
     } catch {
-        return { success: false, error: "Předat klienta smí jen správce." }
+        return { success: false, error: t("admin.transfer.adminOnly") }
     }
 
     const slug = clientSlug?.trim()
-    if (!slug) return { success: false, error: "Chybí identifikace projektu." }
+    if (!slug) return { success: false, error: t("common.missingProject") }
 
     const targetEmail = (email || "").trim().toLowerCase()
-    if (!looksLikeEmail(targetEmail)) return { success: false, error: "To nevypadá jako e-mailová adresa." }
+    if (!looksLikeEmail(targetEmail)) return { success: false, error: t("admin.transfer.invalidEmail") }
 
     const { data: client } = await supabaseAdmin
         .from("clients")
         .select("id, name")
         .eq("slug", slug)
         .maybeSingle()
-    if (!client) return { success: false, error: `Projekt „${slug}" neexistuje.` }
+    if (!client) return { success: false, error: t("common.projectNotFound", { slug }) }
 
     const userId = await findUserIdByEmail(targetEmail)
 
@@ -1226,7 +1231,7 @@ export async function transferClientToUser(
     if (!userId) {
         const { stageHandoff } = await import("@/lib/handoff")
         const staged = await stageHandoff({ clientId: client.id, email: targetEmail, invitedBy: adminUserId })
-        if (!staged.handoff) return { success: false, error: `Slib předání selhal: ${staged.error}` }
+        if (!staged.handoff) return { success: false, error: t("admin.transfer.stageFailed", { error: staged.error }) }
 
         const { siteUrl } = await import("@/lib/mail/links")
         const inviteUrl = handoffInviteUrl(siteUrl(), targetEmail, staged.handoff.invite_code)
@@ -1243,20 +1248,20 @@ export async function transferClientToUser(
             pending: true,
             inviteUrl,
             message: sent
-                ? `${targetEmail} zatím nemá účet, tak jsme mu poslali pozvánku. ${client.name} mu přiletí do dashboardu, jakmile se poprvé přihlásí.`
-                : `${targetEmail} zatím nemá účet a pozvánku se nepodařilo odeslat — pošli mu odkaz níž sám. ${client.name} mu přiletí do dashboardu při prvním přihlášení.`,
+                ? t("admin.transfer.invited", { email: targetEmail, name: client.name })
+                : t("admin.transfer.inviteNotSent", { email: targetEmail, name: client.name }),
         }
     }
 
     if (userId === adminUserId) {
-        return { success: false, error: "To je tvůj vlastní účet — předat jde jen na někoho jiného." }
+        return { success: false, error: t("admin.transfer.ownAccount") }
     }
 
     const { error: linkError } = await supabaseAdmin
         .from("user_clients")
         .upsert({ user_id: userId, client_id: client.id, role: "owner" }, { onConflict: "user_id,client_id" })
     if (linkError) {
-        return { success: false, error: `Předání selhalo: ${linkError.message}` }
+        return { success: false, error: t("admin.transfer.linkFailed", { error: linkError.message }) }
     }
 
     // Staré sliby na tentýž projekt už nemají co plnit — jinak by se značka
@@ -1271,7 +1276,7 @@ export async function transferClientToUser(
 
     // Odpojení AŽ POTOM a jen na výslovné přání. Kdyby se mazalo dřív a upsert
     // selhal, zůstal by klient bez jediného vlastníka.
-    let releasedNote = ""
+    let released: "owners" | "admin" | "none" = "none"
     if (opts?.replaceOwners) {
         const { error } = await supabaseAdmin
             .from("user_clients")
@@ -1279,7 +1284,7 @@ export async function transferClientToUser(
             .eq("client_id", client.id)
             .neq("user_id", userId)
         if (error) console.warn(`transferClientToUser: dosavadní vlastníky se nepodařilo odpojit: ${error.message}`)
-        else releasedNote = " Dosavadní vlastníci byli odpojení."
+        else released = "owners"
     } else if (opts?.releaseAdminAccess) {
         const { error } = await supabaseAdmin
             .from("user_clients")
@@ -1287,15 +1292,15 @@ export async function transferClientToUser(
             .eq("user_id", adminUserId)
             .eq("client_id", client.id)
         if (error) console.warn(`transferClientToUser: vazbu správce se nepodařilo zrušit: ${error.message}`)
-        else releasedNote = " Ty už v seznamu projektů nejsi — jako správce se tam ale dostaneš dál."
+        else released = "admin"
     }
 
     await sendHandoffDone({ to: targetEmail, brandName: client.name })
 
-    console.log(`🤝 Projekt ${slug} předán uživateli ${targetEmail}${releasedNote}`)
+    console.log(`🤝 Projekt ${slug} předán uživateli ${targetEmail} (odpojeno: ${released})`)
     return {
         success: true,
-        message: `${client.name} je teď pod ${targetEmail}.${releasedNote}`,
+        message: t("admin.transfer.done", { name: client.name, email: targetEmail, released }),
     }
 }
 
@@ -1304,20 +1309,21 @@ export async function transferClientToUser(
  * pozvánka, kterou správce vzal zpátky, nesmí dál otevírat betu.
  */
 export async function cancelClientHandoff(projectSlug: string, handoffId: string): Promise<{ success: boolean; error?: string }> {
+    const t = await actionTranslator("actionsAdmin")
     const { requireSuperAdmin } = await import("@/lib/auth-guard")
     try {
         await requireSuperAdmin()
     } catch {
-        return { success: false, error: "Rušit předání smí jen správce." }
+        return { success: false, error: t("admin.cancelHandoff.adminOnly") }
     }
-    if (!projectSlug?.trim() || !handoffId) return { success: false, error: "Chybí identifikace předání." }
+    if (!projectSlug?.trim() || !handoffId) return { success: false, error: t("admin.cancelHandoff.missingId") }
 
     const { data: client } = await supabaseAdmin
         .from("clients")
         .select("id")
         .eq("slug", projectSlug.trim())
         .maybeSingle()
-    if (!client) return { success: false, error: "Projekt neexistuje." }
+    if (!client) return { success: false, error: t("admin.cancelHandoff.projectNotFound") }
 
     // Podmíněný claim i tady: mezi načtením seznamu a kliknutím se slib mohl
     // vyzvednout. Zrušit vyzvednuté předání by znamenalo tvrdit něco, co už neplatí.
@@ -1330,7 +1336,7 @@ export async function cancelClientHandoff(projectSlug: string, handoffId: string
         .is("cancelled_at", null)
         .select("invite_code")
 
-    if (!cancelled?.length) return { success: false, error: "Předání už bylo vyzvednuté nebo zrušené." }
+    if (!cancelled?.length) return { success: false, error: t("admin.cancelHandoff.alreadySettled") }
 
     const code = cancelled[0].invite_code
     if (code) await supabaseAdmin.from("invite_codes").update({ is_active: false }).eq("code", code)
@@ -1356,7 +1362,7 @@ async function sendHandoffInvite(opts: {
         const { getTemplate } = await import("@/lib/mail/registry")
         const { siteUrl } = await import("@/lib/mail/links")
         const template = getTemplate("client_handoff")
-        if (!template) throw new Error("šablona client_handoff chybí v registru")
+        if (!template) throw new Error("šablona client_handoff chybí v registru") // i18n-ignore: interní chyba, končí jen v logu
 
         const { subject, html, text } = template.render({
             brandName: opts.brandName,
@@ -1378,7 +1384,7 @@ async function sendHandoffDone(opts: { to: string; brandName: string }): Promise
         const { getTemplate } = await import("@/lib/mail/registry")
         const { siteUrl } = await import("@/lib/mail/links")
         const template = getTemplate("client_handoff_done")
-        if (!template) throw new Error("šablona client_handoff_done chybí v registru")
+        if (!template) throw new Error("šablona client_handoff_done chybí v registru") // i18n-ignore: interní chyba, končí jen v logu
 
         const { subject, html, text } = template.render({
             brandName: opts.brandName,

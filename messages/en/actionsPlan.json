@@ -1,3 +1,114 @@
 {
-  "actionsPlan": {}
+  "actionsPlan": {
+    "common": {
+      "postNotFound": "Post not found.",
+      "connectInstagramFirst": "Connect your Instagram account in Settings first."
+    },
+    "contentPlan": {
+      "generate": {
+        "planning": "📋 Planning content…",
+        "concepts": "📝 Plan: {done}/{total}{judged, select, yes { · reviewed ✓} other {}}",
+        "autoFilledAngle": "Auto-filled post",
+        "done": "✅ Plan ready",
+        "failed": "❌ Planning failed"
+      },
+      "regenerate": {
+        "invalidJson": "The model returned invalid JSON."
+      }
+    },
+    "calendar": {
+      "retryPublish": {
+        "failed": "Action failed"
+      },
+      "publishNow": {
+        "reelWithoutVideo": "This reel has no video — regenerate it, it can't be published yet.",
+        "noMedia": "The post has no media to publish.",
+        "failed": "Publishing failed"
+      },
+      "confirmPlan": {
+        "failed": "Plan confirmation failed"
+      },
+      "schedule": {
+        "foreignPost": "This post doesn't belong to this project.",
+        "failed": "Scheduling failed"
+      },
+      "armAutoPublish": {
+        "failed": "Arming failed"
+      }
+    },
+    "campaign": {
+      "start": {
+        "emptyPlan": "The plan is empty.",
+        "reelLabel": {
+          "reel": "Reel",
+          "reel_long": "Long reel"
+        },
+        "reelsRequirePlan": "{label}: reels are available from the {plan} plan.",
+        "notEnoughCredits": "Not enough credits for the whole campaign.",
+        "claimFailed": "Failed to start the campaign: {message}",
+        "alreadyStarted": "This plan has already been started.",
+        "createFailed": "Failed to create the campaign: {message}"
+      },
+      "status": {
+        "notFound": "Campaign not found.",
+        "unauthorized": "Unauthorized access to the campaign."
+      }
+    },
+    "task": {
+      "common": {
+        "titleRequired": "A task needs a title."
+      },
+      "team": {
+        "emailAndNameRequired": "A team member needs both an e-mail and a name."
+      },
+      "answer": {
+        "empty": "The answer can't be empty."
+      },
+      "note": {
+        "empty": "The note can't be empty."
+      },
+      "runAgent": {
+        "failed": "Start failed."
+      }
+    },
+    "approval": {
+      "approveAlways": {
+        "noPolicyKind": "This action has no kind that a standing consent could be saved for.",
+        "grantFailed": "Action approved, but enabling it permanently failed: {error}"
+      }
+    },
+    "line": {
+      "common": {
+        "notFoundOrApproved": "Line not found or already approved."
+      },
+      "generate": {
+        "placeholderName": "{category} (generating…)",
+        "starting": "Starting…",
+        "createFailed": "Failed to create the line: {message}",
+        "failed": "Generation failed",
+        "lineFailed": "Line generation failed"
+      },
+      "revise": {
+        "failed": "Revision failed"
+      },
+      "update": {
+        "skuMissing": "That product isn't in the line.",
+        "failed": "Save failed"
+      },
+      "approve": {
+        "approvedOrMissing": "This line has already been approved or doesn't exist.",
+        "noneSelected": "You haven't selected any product.",
+        "alreadyApproved": "This line has already been approved.",
+        "productsFailed": "Line approved, but the products couldn't be saved: {message}",
+        "failed": "Approval failed"
+      },
+      "discard": {
+        "alreadyApproved": "This line can no longer be discarded (it's approved).",
+        "failed": "Discard failed"
+      },
+      "archive": {
+        "failed": "Archiving failed"
+      }
+    }
+  }
 }
