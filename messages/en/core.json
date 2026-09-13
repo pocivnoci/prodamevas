@@ -155,7 +155,13 @@
       "body": "An unexpected error occurred. Try reloading the page. If the problem persists, contact support.",
       "reload": "Reload page",
       "retry": "Try again",
-      "details": "Technical details"
+      "details": "Technical details",
+      "page": {
+        "title": "Loading error",
+        "fallback": "The Instagram page could not be loaded.",
+        "digest": "Digest: {digest}",
+        "retry": "Try again"
+      }
     },
     "billing": {
       "dunning": "We could not charge your subscription{attempt, plural, =0 {} other { (attempt # of 3)}}. Please check your card — after the third failure, generation stops.",

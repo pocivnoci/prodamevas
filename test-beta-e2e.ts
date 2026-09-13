@@ -4495,9 +4495,11 @@ test("29.16 cena bez DPH to musí říct tam, kde se ukazuje", () => {
     // aspoň říct „bez DPH" — a odvodit to z identity, ne natvrdo. U tabu
     // migrovaného na messages žije text v messages/cs/<ns>.json; v kódu zůstává
     // jen podmínka na identitě.
+    const billingCopy = (key: string) => () => JSON.stringify(JSON.parse(fileContent("messages/cs/billing.json")).billing?.[key] ?? {})
     const COPY_IN_MESSAGES: Record<string, () => string> = {
-        "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx":
-            () => JSON.stringify(JSON.parse(fileContent("messages/cs/billing.json")).billing?.consultation ?? {}),
+        "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx": billingCopy("consultation"),
+        "app/(dashboard)/CreditPacks.tsx": billingCopy("creditPacks"),
+        "app/(dashboard)/PaywallProvider.tsx": billingCopy("paywall"),
     }
     for (const f of ["app/(dashboard)/CreditPacks.tsx", "app/(dashboard)/PaywallProvider.tsx",
                      "app/(dashboard)/dashboard/instagram/tabs/ConsultationSection.tsx"]) {

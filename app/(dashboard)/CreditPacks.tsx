@@ -18,15 +18,17 @@
  */
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { openCheckoutWindow } from "@/lib/open-checkout"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { CREDIT_PACKS, CREDIT_PACK_PREFIX, EXTRA_CREDIT_HALERU, creditPackPrice, formatCzk } from "@/lib/pricing"
 import { LEGAL } from "@/lib/legal"
 
 /** U plátce DPH nesmí cena vypadat jako konečná. */
-const vatSuffix = LEGAL.vatStatus === "payer" ? " bez DPH" : ""
 
 export function CreditPacks({ compact = false }: { compact?: boolean }) {
+    const t = useTranslations("billing")
+    const vatSuffix = LEGAL.vatStatus === "payer" ? t("creditPacks.exVat") : ""
     const { projectId, subscription } = useStudio()
     const [busy, setBusy] = useState<number | null>(null)
     const [error, setError] = useState<string | null>(null)
@@ -53,11 +55,11 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
                 checkout.go(data.redirectUrl)
             } else {
                 checkout.abort()
-                setError(data.error || "Platbu se nepodařilo založit.")
+                setError(data.error || t("creditPacks.createFailed"))
             }
         } catch {
             checkout.abort()
-            setError("Platbu se nepodařilo založit.")
+            setError(t("creditPacks.createFailed"))
         } finally {
             setBusy(null)
         }
@@ -74,7 +76,7 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
                         className={`rounded-sm border border-white/10 bg-[#080808] hover:border-white/25 hover:bg-white/5 transition-all disabled:opacity-50 ${compact ? "px-2 py-3" : "px-3 py-4"}`}
                     >
                         <span className="block text-xl font-black text-white leading-none">{credits}</span>
-                        <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mt-1">kreditů</span>
+                        <span className="block text-[8px] font-bold uppercase tracking-widest text-white/30 mt-1">{t("creditPacks.credits", { count: credits })}</span>
                         <span className="block text-[10px] font-bold text-white/60 mt-2">
                             {busy === credits ? "…" : formatCzk(creditPackPrice(credits, unit))}
                         </span>
@@ -84,7 +86,7 @@ export function CreditPacks({ compact = false }: { compact?: boolean }) {
             {/* Cena za kus je stejná u všech balíčků — schválně. Množstevní sleva
                 by dokupování udělala výhodnější než přechod o tarif výš. */}
             <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-2 text-center">
-                {formatCzk(unit)} za kredit{vatSuffix} · platí do konce měsíčního období
+                {t("creditPacks.perCredit", { price: formatCzk(unit), vat: vatSuffix })}
             </p>
             {error && <p className="text-[10px] text-red-400 mt-2 text-center">{error}</p>}
         </div>

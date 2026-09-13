@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, createContext, useContext, useCallback, type ReactNode } from "react"
+import { useTranslations } from "next-intl"
 import { useStudio } from "@/app/(dashboard)/StudioContext"
 import { AlertTriangle, ChartColumn, CheckCircle2, ClipboardList, CreditCard, Lock, X, Zap } from "lucide-react"
 import { formatCzk, LOWEST_MONTHLY_HALERU } from "@/lib/pricing"
 import { LEGAL } from "@/lib/legal"
-import { countLabel, POSTS } from "@/lib/plural"
 import { CreditPacks } from "@/app/(dashboard)/CreditPacks"
 
 // ─── Toast System ────────────────────────────────────────────
@@ -34,6 +34,7 @@ export function usePaywall() {
 }
 
 export function PaywallProvider({ children }: { children: ReactNode }) {
+    const t = useTranslations("billing")
     const [toasts, setToasts] = useState<Toast[]>([])
     const [modal, setModal] = useState<{ show: boolean; reason: string; requiredPlan?: string }>({
         show: false,
@@ -69,20 +70,20 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
 
             switch (payment) {
                 case "success":
-                    showToast("success", "Platba úspěšná! Váš plán byl aktivován. 🎉")
+                    showToast("success", t("paywall.toast.success"))
                     break
                 case "cancelled":
-                    showToast("warning", "Platba byla zrušena.")
+                    showToast("warning", t("paywall.toast.cancelled"))
                     break
                 case "pending":
-                    showToast("info", "Platba se zpracovává. Plán bude aktivován po potvrzení.")
+                    showToast("info", t("paywall.toast.pending"))
                     break
                 case "error":
-                    showToast("error", "Při platbě došlo k chybě. Zkuste to znovu.")
+                    showToast("error", t("paywall.toast.error"))
                     break
             }
         }
-    }, [showToast])
+    }, [showToast, t])
 
     return (
         <PaywallContext.Provider value={{ showUpgradeModal, showPlanUnlockModal, showToast }}>
@@ -146,6 +147,7 @@ function UpgradeModal({
     requiredPlan?: string
     onClose: () => void
 }) {
+    const t = useTranslations("billing")
     const { setActiveSection } = useStudio()
 
     return (
@@ -168,7 +170,7 @@ function UpgradeModal({
                     </div>
 
                     <h2 className="text-xl font-black uppercase tracking-tight text-white mb-3">
-                        Dobijte kredity
+                        {t("paywall.topUp.title")}
                     </h2>
 
                     <p className="text-white/50 text-sm mb-6 max-w-xs mx-auto">
@@ -190,13 +192,13 @@ function UpgradeModal({
                             }}
                             className="flex-1 py-3 border border-white/10 text-white/50 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 transition-all"
                         >
-                            Nebo přejít na vyšší tarif
+                            {t("paywall.topUp.upgrade")}
                         </button>
                         <button
                             onClick={onClose}
                             className="px-6 py-3 border border-white/10 text-white/40 rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
                         >
-                            Zavřít
+                            {t("paywall.topUp.close")}
                         </button>
                     </div>
                 </div>
@@ -208,6 +210,7 @@ function UpgradeModal({
 // ─── Plan Unlock Modal (trial → paid) ────────────────────────
 
 function PlanUnlockModal({ onClose }: { onClose: () => void }) {
+    const t = useTranslations("billing")
     const { subscription, setActiveSection } = useStudio()
     const planPostsTotal = subscription?.planPostsTotal || 0
 
@@ -239,7 +242,7 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <h2 className="text-xl font-black uppercase tracking-tight text-white mb-2 text-center">
-                        Odemkněte svůj plán
+                        {t("paywall.unlock.title")}
                     </h2>
 
                     {/* Počet příspěvků říká jen předplatné. Natvrdo psané číslo
@@ -247,10 +250,7 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         dní a kadence bývá nižší, takže slibovalo víc, než klient
                         dostal. Když ho neznáme, věta ho radši neuvede vůbec. */}
                     <p className="text-white/40 text-sm mb-6 text-center max-w-sm mx-auto">
-                        {planPostsTotal
-                            ? `Váš měsíční plán obsahuje ${countLabel(planPostsTotal, POSTS)}.`
-                            : "Váš měsíční plán je připravený."}{" "}
-                        Aktivujte předplatné a odemkněte je všechny.
+                        {t("paywall.unlock.intro", { count: planPostsTotal })}
                     </p>
 
                     {/* What you get */}
@@ -259,23 +259,23 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                             <ClipboardList className="w-4 h-4" />
                             <div>
                                 <p className="text-[10px] text-white/70 font-bold">
-                                    Měsíční plán{planPostsTotal ? ` (${countLabel(planPostsTotal, POSTS)})` : ""}
+                                    {t("paywall.unlock.planTitle", { count: planPostsTotal })}
                                 </p>
-                                <p className="text-[9px] text-white/30">Caption, hashtags, obrázek — vše vygenerováno</p>
+                                <p className="text-[9px] text-white/30">{t("paywall.unlock.planSub")}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <Zap className="w-4 h-4" />
                             <div>
-                                <p className="text-[10px] text-white/70 font-bold">Kredity na tvorbu navíc každý měsíc</p>
-                                <p className="text-[9px] text-white/30">Extra posty, varianty, nápady, produkty</p>
+                                <p className="text-[10px] text-white/70 font-bold">{t("paywall.unlock.creditsTitle")}</p>
+                                <p className="text-[9px] text-white/30">{t("paywall.unlock.creditsSub")}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <ChartColumn className="w-4 h-4" />
                             <div>
-                                <p className="text-[10px] text-white/70 font-bold">Plná analytika</p>
-                                <p className="text-[9px] text-white/30">Výkon příspěvků, doporučení, trendy</p>
+                                <p className="text-[10px] text-white/70 font-bold">{t("paywall.unlock.analyticsTitle")}</p>
+                                <p className="text-[9px] text-white/30">{t("paywall.unlock.analyticsSub")}</p>
                             </div>
                         </div>
                     </div>
@@ -283,10 +283,10 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                     {/* Cena z ceníku, ne z ruky — a rovnou ta nejnižší dosažitelná,
                         protože o tarifu i období se rozhoduje na ceníku vedle. */}
                     <div className="text-center mb-6">
-                        <span className="text-3xl font-black text-white">od {formatCzk(LOWEST_MONTHLY_HALERU)}</span>
-                        <span className="text-white/30 text-sm font-bold ml-1">/ měsíc</span>
+                        <span className="text-3xl font-black text-white">{t("paywall.unlock.from", { price: formatCzk(LOWEST_MONTHLY_HALERU) })}</span>
+                        <span className="text-white/30 text-sm font-bold ml-1">{t("paywall.unlock.perMonth")}</span>
                         <p className="text-[9px] text-white/25 font-bold uppercase tracking-widest mt-1">
-                            při roční platbě · 2 měsíce zdarma{LEGAL.vatStatus === "payer" ? " · ceny bez DPH" : ""}
+                            {t("paywall.unlock.yearlyNote")}{LEGAL.vatStatus === "payer" ? t("paywall.unlock.exVat") : ""}
                         </p>
                     </div>
 
@@ -295,12 +295,12 @@ function PlanUnlockModal({ onClose }: { onClose: () => void }) {
                         <button
                             onClick={goToPricing}
                             className="flex-1 py-3.5 bg-gradient-to-r from-aisummit-cinnabar to-orange-600 text-white rounded-sm font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-[0_0_30px_rgba(229,83,63,0.3)]"
-                        ><CreditCard className="w-3.5 h-3.5 shrink-0" />Vybrat tarif</button>
+                        ><CreditCard className="w-3.5 h-3.5 shrink-0" />{t("paywall.unlock.choosePlan")}</button>
                         <button
                             onClick={onClose}
                             className="px-6 py-3.5 border border-white/10 text-white/40 rounded-sm font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
                         >
-                            Později
+                            {t("paywall.unlock.later")}
                         </button>
                     </div>
                 </div>

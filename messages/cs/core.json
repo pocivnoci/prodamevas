@@ -155,7 +155,13 @@
       "body": "Došlo k neočekávané chybě. Zkuste obnovit stránku. Pokud problém přetrvává, kontaktujte podporu.",
       "reload": "Obnovit stránku",
       "retry": "Zkusit znovu",
-      "details": "Technické detaily"
+      "details": "Technické detaily",
+      "page": {
+        "title": "Chyba při načítání",
+        "fallback": "Nepodařilo se načíst Instagram stránku.",
+        "digest": "Digest: {digest}",
+        "retry": "Zkusit znovu"
+      }
     },
     "billing": {
       "dunning": "Platbu za předplatné se nepodařilo strhnout{attempt, plural, =0 {} other { (pokus # ze 3)}}. Zkontrolujte prosím kartu — po třetím neúspěchu se generování zastaví.",

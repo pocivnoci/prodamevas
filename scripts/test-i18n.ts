@@ -175,6 +175,10 @@ const MIGRATED = [
     "lib/auth-guard.ts",
     "app/api/plans/route.ts",
     "components/CookieConsent.tsx",
+    "app/(dashboard)/PaywallProvider.tsx",
+    "app/(dashboard)/CreditPacks.tsx",
+    "app/(dashboard)/EmbeddedCheckoutModal.tsx",
+    "app/(dashboard)/dashboard/instagram/error.tsx",
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
 // `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel

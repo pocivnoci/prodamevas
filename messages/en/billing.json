@@ -219,6 +219,45 @@
         "processing": "Processing…",
         "order": "Order"
       }
+    },
+    "paywall": {
+      "toast": {
+        "success": "Payment successful! Your plan is active. 🎉",
+        "cancelled": "The payment was cancelled.",
+        "pending": "The payment is being processed. The plan activates once it is confirmed.",
+        "error": "Something went wrong with the payment. Please try again."
+      },
+      "topUp": {
+        "title": "Top up credits",
+        "upgrade": "Or move to a higher plan",
+        "close": "Close"
+      },
+      "unlock": {
+        "title": "Unlock your plan",
+        "intro": "{count, plural, =0 {Your monthly plan is ready.} one {Your monthly plan contains # post.} other {Your monthly plan contains # posts.}} Activate a subscription and unlock all of them.",
+        "planTitle": "{count, plural, =0 {Monthly plan} one {Monthly plan (# post)} other {Monthly plan (# posts)}}",
+        "planSub": "Caption, hashtags, image — everything generated",
+        "creditsTitle": "Extra creation credits every month",
+        "creditsSub": "Extra posts, variants, ideas, products",
+        "analyticsTitle": "Full analytics",
+        "analyticsSub": "Post performance, recommendations, trends",
+        "from": "from {price}",
+        "perMonth": "/ month",
+        "yearlyNote": "billed yearly · 2 months free",
+        "exVat": " · prices ex. VAT",
+        "choosePlan": "Choose a plan",
+        "later": "Later"
+      }
+    },
+    "creditPacks": {
+      "createFailed": "Could not create the payment.",
+      "credits": "{count, plural, one {credit} other {credits}}",
+      "perCredit": "{price} per credit{vat} · valid until the end of the monthly period",
+      "exVat": " ex. VAT"
+    },
+    "checkout": {
+      "title": "Payment",
+      "close": "Close"
     }
   }
 }

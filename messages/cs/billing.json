@@ -219,6 +219,45 @@
         "processing": "Zpracování…",
         "order": "Objednat"
       }
+    },
+    "paywall": {
+      "toast": {
+        "success": "Platba úspěšná! Váš plán byl aktivován. 🎉",
+        "cancelled": "Platba byla zrušena.",
+        "pending": "Platba se zpracovává. Plán bude aktivován po potvrzení.",
+        "error": "Při platbě došlo k chybě. Zkuste to znovu."
+      },
+      "topUp": {
+        "title": "Dobijte kredity",
+        "upgrade": "Nebo přejít na vyšší tarif",
+        "close": "Zavřít"
+      },
+      "unlock": {
+        "title": "Odemkněte svůj plán",
+        "intro": "{count, plural, =0 {Váš měsíční plán je připravený.} one {Váš měsíční plán obsahuje # příspěvek.} few {Váš měsíční plán obsahuje # příspěvky.} other {Váš měsíční plán obsahuje # příspěvků.}} Aktivujte předplatné a odemkněte je všechny.",
+        "planTitle": "{count, plural, =0 {Měsíční plán} one {Měsíční plán (# příspěvek)} few {Měsíční plán (# příspěvky)} other {Měsíční plán (# příspěvků)}}",
+        "planSub": "Caption, hashtags, obrázek — vše vygenerováno",
+        "creditsTitle": "Kredity na tvorbu navíc každý měsíc",
+        "creditsSub": "Extra posty, varianty, nápady, produkty",
+        "analyticsTitle": "Plná analytika",
+        "analyticsSub": "Výkon příspěvků, doporučení, trendy",
+        "from": "od {price}",
+        "perMonth": "/ měsíc",
+        "yearlyNote": "při roční platbě · 2 měsíce zdarma",
+        "exVat": " · ceny bez DPH",
+        "choosePlan": "Vybrat tarif",
+        "later": "Později"
+      }
+    },
+    "creditPacks": {
+      "createFailed": "Platbu se nepodařilo založit.",
+      "credits": "{count, plural, one {kredit} few {kredity} other {kreditů}}",
+      "perCredit": "{price} za kredit{vat} · platí do konce měsíčního období",
+      "exVat": " bez DPH"
+    },
+    "checkout": {
+      "title": "Platba",
+      "close": "Zavřít"
     }
   }
 }

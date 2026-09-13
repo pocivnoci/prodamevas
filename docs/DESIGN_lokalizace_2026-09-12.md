@@ -99,19 +99,46 @@ v jakém pořadí jde zbytek. Pravidla, která z toho plynou, jsou ve skillu
 
 - `next-intl` bez routování: `lib/i18n/request.ts` (registrovaný v `next.config.ts`),
   `lib/i18n/locales.ts` (cs, en; cookie `NEXT_LOCALE`; `Accept-Language`),
-  `lib/i18n/server.ts` (`resolveUiLocale`, `syncLocaleCookieFromUser`),
-  `app/actions/locale-actions.ts` (`setUiLocale` = cookie + `user_metadata.locale`).
+  `lib/i18n/server.ts` (`resolveUiLocale`, `syncLocaleCookieFromUser`,
+  `paymentPageLanguage`), `lib/i18n/messages.ts` (`MESSAGE_FILES` — jeden JSON na
+  namespace, `loadMessages(locale)` je slévá), `lib/i18n/actions.ts`
+  (`actionTranslator(ns)` pro server actions a API routy; mimo request spadne na
+  češtinu, zóna Europe/Prague), `app/actions/locale-actions.ts` (`setUiLocale` =
+  cookie + `user_metadata.locale`).
 - `components/i18n/UiLocaleProvider` obaluje dashboard a auth stránky; kořenový
-  layout zůstává statický, `<html lang>` nastavuje `HtmlLang` v prohlížeči.
-- `messages/cs.json` (zdroj) + `messages/en.json`: `common`, `nav`, `sections`,
-  `shell` (horní lišta, chybová obrazovka, pruh předplatného, instalace), `auth`.
-- Migrováno: registr navigace (klíče), sidebar/sheet, spodní lišta, mobilní lišta,
-  nadpisy a popisky sekcí, chybová obrazovka, pruh předplatného, instalační pruh,
-  přihlášení / registrace / obnova hesla / nové heslo; přepínač jazyka v navigaci
-  studia i na auth stránkách; jazyk účtu se opisuje do cookie při přihlášení,
-  OAuth callbacku a registraci.
-- Guard: `scripts/test-i18n.ts` (parita klíčů cs/en vč. ICU proměnných, registr
-  nese klíče, každá sekce má text, migrované soubory bez češtiny natvrdo, zapojení).
+  layout zůstává statický, `<html lang>` nastavuje `HtmlLang` v prohlížeči;
+  cookie lišta (v kořenovém layoutu, bez provideru) bere texty z `core.json`
+  přímo podle cookie.
+- `messages/cs/*.json` (zdroj) + `messages/en/*.json`: core (common, nav, sections,
+  shell), auth, settings, generate, posts, dashboard, plan, inspiration, brand,
+  performance, help, shared, billing, products, adminOnboard, adminOps, adminGrowth,
+  onboarding, actionsPlan, actionsContent, actionsAccount, actionsAdmin, api, mail,
+  notices, worker.
+- Migrováno (UI): registr navigace, sidebar/sheet, spodní lišta, mobilní lišta,
+  chybová obrazovka, pruh předplatného, instalační pruh, přihlášení / registrace /
+  obnova hesla / nové heslo, přepínač jazyka; **všech 17 tabů studia** vč.
+  adminských a produktových sekcí, nápověda a tutoriál; průvodce onboardingem
+  (page, TaskProgress, task-client, layout; otázky se generují v jazyce UI);
+  adminský JSON editor (`dashboard/settings`); paywall, dokoupení kreditů,
+  vestavěná pokladna, chybová stránka studia.
+- Migrováno (server): **všechny server actions** v `app/actions/*` a backend
+  onboardingu — hlášky pro UI přes `actionTranslator(<namespace>)` uvnitř akce,
+  prompty pro modely česky v blocích `i18n-ignore-start: prompt`, sentinely
+  v datech s řádkovým `i18n-ignore`; API routy, které čte prohlížeč (`api`:
+  joby, stav/spuštění onboardingové úlohy, platby, most IG vč. HTML mezistránek
+  s `<html lang>`); `lib/auth-guard.ts` vyhazuje `AuthError` s `code` a zprávou
+  v jazyce uživatele (`isAuthError` místo hledání textu); `humanizeErrorWith`
+  (síťové/AI chyby onboardingu) v jazyce uživatele; důvody z `lib/subscription`
+  lokalizuje `credit-guard` (`localizeReason`).
+- Průběh generování: engine hlásí `agent_message` česky (zdroj); GenerateTab
+  v jiném jazyce UI ukazuje popisek fáze podle `status`
+  (`generate.progress.engine.*`). Hlášky zapsané cronem bez uživatele zůstávají
+  české.
+- Guard: `scripts/test-i18n.ts` (parita klíčů cs/en vč. ICU proměnných přes
+  skutečný parser, registr nese klíče, každá sekce má text, `MIGRATED` bez
+  češtiny natvrdo — komentáře, `console.*`, `i18n-ignore` řádky a bloky se
+  nepočítají, každý blok uzavřený — zapojení plateb/dokladů/e-mailů); e2e aserce,
+  které pinnovaly české texty UI, čtou `messages/cs/<ns>.json`.
 
 ### Platby, doklady, e-maily: hotovo v téhle větvi
 

@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { loadStripe } from "@stripe/stripe-js"
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js"
 
@@ -36,6 +37,7 @@ export function EmbeddedCheckoutModal({
     clientSecret: string
     onClose: () => void
 }) {
+    const t = useTranslations("billing")
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
 
@@ -63,14 +65,14 @@ export function EmbeddedCheckoutModal({
             <div className="relative w-full sm:max-w-[560px] max-h-[92dvh] flex flex-col bg-[#0a0a0a] border border-white/10 rounded-t-sm sm:rounded-sm shadow-2xl">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                        Platba
+                        {t("checkout.title")}
                     </span>
                     <button
                         onClick={onClose}
-                        aria-label="Zavřít"
+                        aria-label={t("checkout.close")}
                         className="text-white/40 hover:text-white text-xs font-bold uppercase tracking-widest cursor-pointer"
                     >
-                        Zavřít
+                        {t("checkout.close")}
                     </button>
                 </div>
 
