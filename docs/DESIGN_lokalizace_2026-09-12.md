@@ -154,24 +154,41 @@ v jakém pořadí jde zbytek. Pravidla, která z toho plynou, jsou ve skillu
 
 ## Osa 2 — jazyk UI: co zbývá
 
-Pořadí je dané tím, co vidí platící zákazník nejdřív a co se nejhůř přepisuje
-zpětně:
+Zbytek je buď rozhodnutí (obchodní, právní), nebo vědomý dluh s malým dopadem:
 
-1. **Taby dashboardu** — po jednom (Generate, Posts, Plan, Settings jsou největší),
-   každý tab vlastní namespace v messages, hlášky ze server actions přes
-   `getTranslations()`; guard aserce, které pinnují české labely (např. §9
-   „Instrukce pro obrázky"), se přesměrují na `messages/cs.json`.
-2. **E-maily uživateli** — obsah šablon (`lib/mail/templates/*`, zprávy agentů
-   v `lib/agents/*-templates.ts`) přes `mailTranslator(localeOfUser(...))`;
-   transakční (aktivace, obnova, faktura) nejdřív; jazyk příjemce se bere z účtu
-   (`user_clients` → `auth.admin.getUserById` → `user_metadata.locale`).
-   Marketingové broadcasty zůstávají česky, dokud není cizojazyčná báze zákazníků.
-3. **Měna** zůstává CZK, dokud se neotevře ceník v EUR (obchodní rozhodnutí, viz
-   `brain/GTM/Ceník.md`).
-4. **Marketing** — landing a `/aplikace` až s rozhodnutím o trhu (SK „téměř
-   zadarmo", PL „skutečná práce" — `docs/BUSINESS_PLAN.md`). `lib/plural.ts`
-   (české tvary počtů) zůstává pro nemigrované taby; migrovaný text používá ICU
-   plural v messages.
+1. **Marketing a právní stránky** — landing (`components/Landing.tsx`), `/aplikace`,
+   `/portfolio`, `/blog`, `/ukazka/<token>`, patička a hlavička webu, kontaktní
+   formulář zůstávají české až do rozhodnutí o trhu (SK „téměř zadarmo", PL
+   „skutečná práce" — `docs/BUSINESS_PLAN.md`); `app/terms`, `app/privacy`,
+   `lib/legal.ts` (věta o DPH, identita, souhlasy) jsou vázané na jurisdikci —
+   překlad je právní rozhodnutí. Anglický zákazník dnes vidí anglické UI a
+   e-maily, ale české podmínky a českou větu o DPH v patičce e-mailu s cenou.
+2. **Měna** zůstává CZK (ceník, kredity, doklady), dokud se neotevře ceník v EUR
+   (`brain/GTM/Ceník.md`). Fakturoid dostává jazyk dokladu podle země odběratele,
+   ale položka dokladu (`payments.label`, „Chrlit — dobití: …") je česká.
+3. **Průběh dlouhých úloh** — hlášky enginu (`instagram/autopilot.ts`,
+   orchestrátory, `plan-pipeline.ts`, `line-generator.ts`, `print-pipeline.ts`)
+   jsou české; UI v jiném jazyce ukazuje popisek fáze podle `status`, u plánu,
+   řad a tisku vidí smíšený text (hlášky akcí přeložené, hlášky pipeline české).
+   Plná věrnost = engine hlásí klíč + parametry místo věty (33 míst `report(...)`)
+   — udělat, až bude první cizojazyčný zákazník.
+4. **Cron bez uživatele** — `campaign-worker`, `job-resume`, reaper: `agent_message`
+   a `error` zapsané cronem jsou české (UI je v jiném jazyce nahradí popiskem fáze;
+   `error` kampaně se ukáže česky). Rozhodnutí: jazyk vlastníka značky by šel
+   dohledat (`localeOfClientOwner`), zatím to za tu cestu nestojí.
+5. **Label mapy v `lib/`** (`STATUS_LABELS`, `REEL_LABELS`, `feed-pattern`,
+   `subtitle-presets`, `fact-check-modes`, `photo-policy`, `credits`) zůstávají
+   české; migrované taby je překládají podle hodnoty. Zbytek, který ještě proteče
+   do UI česky: `recommendFeedPattern().label`, `describeRisks()` (zdraví klienta,
+   admin), chyby mostu z `lib/channels/*`, `lib/handoff.ts`.
+6. **Dokumenty pro zákazníka** — export produktového briefu (`lib/product-brief-docx.ts`)
+   má české nadpisy a AI obsah v češtině (interní laboratoř produktů).
+7. **Formát data v angličtině** — `useFormatter()` z next-intl dává pro `en`
+   americké pořadí (měsíc/den), `UI_LOCALE_TAGS` říká en-GB; při prvním britském
+   zákazníkovi předat `formats` do request configu.
+8. **Odhlašovací stránka, výmaz dat, potvrzení z e-mailu správci**
+   (`/api/email/unsubscribe`, `/api/data-deletion`, `/api/agent-approval`) —
+   veřejné stránky bez cookie; jazyk by musel nést podepsaný odkaz.
 
 Invariant pro každý krok: guard drží, `npm run build` zelený, čeština vypadá
 stejně jako před krokem (zdrojový jazyk se nemění, jen se přesouvá do messages).
