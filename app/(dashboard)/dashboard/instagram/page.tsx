@@ -27,6 +27,7 @@ import { CompanyTab } from "./tabs/CompanyTab"
 import { MailingTab } from "./tabs/MailingTab"
 import { TasksTab } from "./tabs/TasksTab"
 import { LeadsTab } from "./tabs/LeadsTab"
+import { FinanceTab } from "./tabs/FinanceTab"
 import { EmailsTab } from "./tabs/EmailsTab"
 import { TutorialOverlay, useTutorialState } from "./tabs/TutorialOverlay"
 
@@ -60,6 +61,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
     mailing: "Rozeslání e-mailu na segment (waitlist, klienti)",
     tasks: "Co je rozdělané, čí to je a co čeká",
     leads: "Evidence klientů — kontakty, schůzky, historie oslovení",
+    finance: "Náklady a vklady firmy — ruční evidence, ne účetnictví",
     emails: "Šablony transakčních e-mailů a jejich náhledy",
 }
 
@@ -138,6 +140,7 @@ export default function InstagramPage() {
                     {activeSection === "mailing" && isAdmin && <MailingTab />}
                     {activeSection === "tasks" && isAdmin && <TasksTab />}
                     {activeSection === "leads" && isAdmin && <LeadsTab />}
+                    {activeSection === "finance" && isAdmin && <FinanceTab />}
                     {activeSection === "emails" && isAdmin && <EmailsTab />}
                 </motion.div>
             </AnimatePresence>
