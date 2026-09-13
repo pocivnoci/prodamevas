@@ -271,21 +271,51 @@ podmínkách — dokud je to test, není to prodejní slib a aserce 13.16/13.17 
 netýkají. Až se začne prodávat, je to jeden krok: odrážka, pole a věta
 v podmínkách zároveň. `human_support` zůstává čistě o ČLOVĚKU (Impérium).
 
+## Agent
+
+**Luděk** — `agent_5501m2ct1vh6f9hb1n78h0y97782` (workspace Tomáš Pocar, štítky
+`podpora`, `chrlit`). Do env jako `ELEVENLABS_AGENT_ID`; id není tajemství (je
+v každém embedu), ale natvrdo do kódu nepatří — je to nasazovací konstanta.
+
+Jméno si vyžádalo pravidlo navíc: **Luděk je jméno, ne přetvářka.** V promptu
+stojí, že je AI, že to na dotaz přizná a že nepředstírá paměť z minulé
+konverzace. Pojmenovaný agent, který se nechá považovat za zaměstnance, je lež
+i tam, kde ji nikdo nevyslovil.
+
 ## Zbývá v konzoli ElevenLabs
 
-Kód a agent existují; tohle jde jen klikáním a bez toho se testovat nemá:
+Stav ověřený z konfigurace agenta 13. 9. 2026. Hotové odškrtnuté, zbytek jde jen
+klikáním — část z toho nemá API ani MCP cestu:
 
-1. **Znalostní bázi nahrát a připojit** — `npx tsx scripts/sync-support-kb.ts --push`
-   (lokálně, kde je `ELEVENLABS_API_KEY`), pak ji v Agents → Chrlit — podpora →
-   Knowledge base přidat agentovi. Bez báze agent nezná ceny ani nápovědu.
-2. **Zapnout `enable_auth`** (Security → require authentication). Bez toho je
-   agent dosažitelný pro každého, kdo si vezme `agent-id` z DOMu — brána
-   v aplikaci by hlídala dveře, u kterých chybí zeď.
-3. **Vypnout overrides promptu a první zprávy.** `override-prompt` chodí
-   atributem widgetu, takže dokud jsou povolené, přepíše si prompt podpory
-   kdokoli z konzole prohlížeče.
-4. **Vybrat český hlas.** Doporučený „Daniel" (`e36pGtHFyzkf4HTb9rQG`) — v katalogu
-   je popsaný přímo pro zákaznickou podporu a NENÍ v `lib/voice-library.ts`,
-   takže nemůže znít jako hlas cizí značky. Nejdřív ho přidat do workspace.
-5. **`ELEVENLABS_AGENT_ID` do env** (Vercel i `.env.local`) — bez něj se widget
-   nevykreslí a Nápověda zůstane statická.
+- [x] **Overrides promptu a první zprávy jsou vypnuté** už z výroby
+      (`overrides.agent.prompt.prompt: false`). Přepsat Luďkovi prompt
+      z prohlížeče tedy nejde. Přepnout se smí jen `text_only`, což je
+      neškodné — klient si vybere levnější režim.
+- [ ] **Znalostní bázi nahrát a připojit** — `npx tsx scripts/sync-support-kb.ts --push`
+      (lokálně, kde je `ELEVENLABS_API_KEY`), pak v Agents → Luděk → Knowledge
+      base. Dnes je `knowledge_base: []`, takže Luděk nezná ceny ani nápovědu.
+- [ ] **Zapnout RAG** (`rag.enabled` je dnes `false`). Báze má ~31 000 znaků;
+      bez RAG by jela v promptu při každém tahu a platila se pořád dokola.
+- [ ] **Zapnout `enable_auth`** (`auth.enable_auth: false`). Bez toho je agent
+      dosažitelný pro každého, kdo si vezme `agent-id` z DOMu — brána
+      v aplikaci by hlídala dveře, u kterých chybí zeď.
+- [ ] **Přidat hlas do workspace a vybrat ho.** Doporučený „Daniel"
+      (`e36pGtHFyzkf4HTb9rQG`) — v katalogu popsaný přímo pro zákaznickou
+      podporu a NENÍ v `lib/voice-library.ts`, takže nemůže znít jako hlas cizí
+      značky. **Hlas z Voice Library se nedá přiřadit, dokud není ve workspace**
+      (`voice_not_found`), a přidat ho jde jedině v konzoli. Dnes na agentovi
+      sedí výchozí hlas workspace (`cjVigY5qzO86Huf0OWal`), který není český.
+- [ ] **`ELEVENLABS_AGENT_ID` do env** (Vercel i `.env.local`) — bez něj se
+      widget nevykreslí a Nápověda zůstane statická.
+
+Tři věci k rozhodnutí, ne k odklikání:
+
+1. **LLM agenta je `gemini-2.5-flash`, temperature 0.** Pro odpovídání z báze to
+   obstojí, ale zbytek produktu má invariant „na flash se nepadá". Stojí za
+   poslech vedle Pro, než se Luděk pustí na platící klienty.
+2. **Nahrávky a přepisy se drží navždy** (`record_voice: true`,
+   `retention_days: -1`). U reelů odcházela vygenerovaná narace; tady jsou to
+   věty zákazníka. Retenci je potřeba zvolit vědomě — je to údaj do zásad
+   ochrany osobních údajů, ne detail.
+3. **Žádný strop hovorů** (`agent_concurrency_limit: -1`, denní 100 000).
+   Pro test je rozumné utáhnout to na číslo, u kterého se dá spát.
