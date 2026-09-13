@@ -145,6 +145,19 @@ function main() {
     check("server action překládá slug přes requireProjectAccess", action.includes("requireProjectAccess("))
     check("server action rozhoduje o nároku přes canUseSupportAgent", action.includes("canUseSupportAgent("))
     check("podepsanou URL razí server (xi-api-key jen tam)", action.includes("xi-api-key"))
+    // Id agenta je konstanta v gitu + env override — stejný režim jako identita
+    // podnikatele v `lib/legal.ts`. Není to tajemství (jde do prohlížeče v každém
+    // embedu) a bez výchozí hodnoty by podpora mlčela, dokud někdo nedoplní
+    // proměnnou na Vercelu. Env ale MUSÍ mít přednost, jinak nejde podstrčit
+    // testovací agent bez zásahu do kódu.
+    check("id agenta má výchozí hodnotu i env override", (() => {
+        const src = codeOnly("app/actions/support-actions.ts")
+        return /const DEFAULT_AGENT_ID = "agent_[A-Za-z0-9]+"/.test(src)
+            && /process\.env\.ELEVENLABS_AGENT_ID\?\.trim\(\)\s*\|\|\s*DEFAULT_AGENT_ID/.test(src)
+    })())
+    // Klíč je naopak tajemství a výchozí hodnotu mít NESMÍ.
+    check("klíč k ElevenLabs nemá v kódu žádnou výchozí hodnotu",
+        !/ELEVENLABS_API_KEY[^\n]*\|\|\s*["'`]/.test(codeOnly("app/actions/support-actions.ts")))
 
     const widget = read("components/support/SupportAgent.tsx")
     check("widget nezná klíč ani nerazí podpis sám",

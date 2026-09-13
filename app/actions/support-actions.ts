@@ -43,16 +43,38 @@ export type SupportSessionResult =
     | { ok: true; session: SupportSession }
     | { ok: false; reason: "not_entitled" | "not_configured" | "upstream" }
 
-function agentId(): string | null {
-    return process.env.ELEVENLABS_AGENT_ID?.trim() || null
+/**
+ * Id agenta „Luděk" ve workspace Chrlitu.
+ *
+ * Konstanta v gitu + env override, tedy stejný režim jako identita podnikatele
+ * v `lib/legal.ts` a ze stejných tří důvodů:
+ *  - **není to tajemství** — id jde do prohlížeče v každém embedu widgetu,
+ *    takže ho vidí každý klient, který si otevře Nápovědu;
+ *  - je **jedno na celé nasazení**, ne jedno na tenanta, takže `ClientConfig`
+ *    by pro něj byl špatný dům;
+ *  - bez výchozí hodnoty by podpora mlčela do chvíle, než někdo doplní
+ *    proměnnou v dashboardu Vercelu — a „funguje to, jen to nikdo nezapnul"
+ *    je přesně ta třída chyby, kterou pravidlo „nic nehardcoduj" řešit nemá.
+ *
+ * `ELEVENLABS_AGENT_ID` má přednost, takže testovací agent se dá podstrčit bez
+ * zásahu do kódu.
+ */
+const DEFAULT_AGENT_ID = "agent_5501m2ct1vh6f9hb1n78h0y97782"
+
+function agentId(): string {
+    return process.env.ELEVENLABS_AGENT_ID?.trim() || DEFAULT_AGENT_ID
 }
 
 /**
  * Je agent podpory vůbec zapnutý? Čte se v Nápovědě, aby se nemlčelo jinak při
  * „nemáš nárok" a jinak při „není nastavené" — první je stav účtu, druhé naše chyba.
+ *
+ * Agenta máme vždy (výchozí id), takže zbývá jedna podmínka: klíč. Ten je
+ * tajemství a v env být MUSÍ — je to tentýž `ELEVENLABS_API_KEY`, kterým mluví
+ * hlas značky v reelech, takže kde jedou reely, jede i podpora.
  */
 export async function isSupportAgentConfigured(): Promise<boolean> {
-    return Boolean(agentId() && process.env.ELEVENLABS_API_KEY)
+    return Boolean(process.env.ELEVENLABS_API_KEY?.trim())
 }
 
 /**
@@ -76,8 +98,8 @@ export async function startSupportConversation(slug: string): Promise<SupportSes
 
     const id = agentId()
     const apiKey = process.env.ELEVENLABS_API_KEY?.trim()
-    if (!id || !apiKey) {
-        console.warn("Podpora: ELEVENLABS_AGENT_ID nebo ELEVENLABS_API_KEY není nastavený")
+    if (!apiKey) {
+        console.warn("Podpora: ELEVENLABS_API_KEY není nastavený — podepsanou URL nejde vyrobit")
         return { ok: false, reason: "not_configured" }
     }
 

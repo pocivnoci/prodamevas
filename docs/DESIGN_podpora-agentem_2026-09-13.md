@@ -308,14 +308,20 @@ klikáním — část z toho nemá API ani MCP cestu:
       není, drží dokument režim `usage_mode: "prompt"`: celá báze jede v kontextu
       každého tahu (~17 000 znaků, u Flashe jednotky desetitisícin dolaru za tah).
       Po výpočtu indexu přepnout zpátky na `auto` a ušetřit.
-- [ ] **Přidat hlas do workspace a vybrat ho.** Doporučený „Daniel"
+- [ ] **Přidat hlas do workspace a vybrat ho** — jedině v konzoli; API ani MCP
+      na to nemá nástroj (ověřeno dotazem na `get_more_tools`, odpověď „No
+      additional tool exists for this yet“). Doporučený „Daniel"
       (`e36pGtHFyzkf4HTb9rQG`) — v katalogu popsaný přímo pro zákaznickou
       podporu a NENÍ v `lib/voice-library.ts`, takže nemůže znít jako hlas cizí
       značky. **Hlas z Voice Library se nedá přiřadit, dokud není ve workspace**
       (`voice_not_found`), a přidat ho jde jedině v konzoli. Dnes na agentovi
       sedí výchozí hlas workspace (`cjVigY5qzO86Huf0OWal`), který není český.
-- [ ] **`ELEVENLABS_AGENT_ID` do env** (Vercel i `.env.local`) — bez něj se
-      widget nevykreslí a Nápověda zůstane statická.
+- [x] **Id agenta nepotřebuje env.** Je to konstanta v `support-actions.ts`
+      s `ELEVENLABS_AGENT_ID` jako override — týž režim a týž důvod jako identita
+      podnikatele v `lib/legal.ts`: není to tajemství (jde do prohlížeče v každém
+      embedu) a „funguje to, jen to nikdo nezapnul" není chyba, kterou má pravidlo
+      „nic nehardcoduj" řešit. Podporu zapíná `ELEVENLABS_API_KEY`, tedy tentýž
+      klíč, kterým mluví hlas značky v reelech — **kde jedou reely, jede i Luděk.**
 
 ## Co v bázi ZÁMĚRNĚ není
 
