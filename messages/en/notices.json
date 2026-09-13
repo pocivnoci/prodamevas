@@ -1,3 +1,100 @@
 {
-  "notices": {}
+  "notices": {
+    "common": {
+      "greeting": "Hello,",
+      "signature": "The Chrlit team",
+      "yourAccount": "your account",
+      "amountPerPlan": "the amount of your plan",
+      "priceWithNet": "{gross} ({net} excl. VAT)",
+      "term": "{months, plural, one {for the next # month} other {for the next # months}}",
+      "cta": {
+        "manageSubscription": "Manage subscription →",
+        "renewSubscription": "Renew subscription →",
+        "checkSubscription": "Check subscription →",
+        "showSubscription": "View subscription →",
+        "showCalendar": "View calendar →",
+        "openCalendar": "Open calendar →",
+        "openStudio": "Open the studio →",
+        "generateContent": "Generate content →",
+        "connectInstagram": "Connect Instagram →"
+      }
+    },
+    "renewal_upcoming": {
+      "auto": {
+        "subjectDated": "Reminder: your subscription renews on {date}",
+        "subject": "Reminder: your subscription renews soon",
+        "body": "{when, select, dated {On <strong>{date}</strong>} other {Soon}} we will automatically charge <strong>{price}</strong> for the <strong>{name}</strong> subscription{term}. You do not need to do anything — we are writing only so the charge on your statement comes as no surprise.",
+        "change": "If you would like to change or cancel your plan, there is still time until then:"
+      },
+      "manual": {
+        "subjectDated": "Your subscription ends on {date}",
+        "subject": "Your subscription ends soon",
+        "body": "the subscription for <strong>{name}</strong> ends {when, select, dated {on <strong>{date}</strong>} other {soon}}. We have no card on file, so it will not renew automatically — to keep the posts coming, please renew your plan manually:"
+      }
+    },
+    "charge_failed": {
+      "subject": "Your Chrlit payment failed",
+      "body": "we could not charge the automatic payment{hasPrice, select, yes { of <strong>{price}</strong>} other {}} for the <strong>{name}</strong> subscription{attempt, plural, =0 {} other { (attempt # of {max})}}. We will try again tomorrow — please check your payment card, or renew the plan manually:"
+    },
+    "manual_renew": {
+      "subject": "Renew your Chrlit subscription",
+      "body": "the subscription for <strong>{name}</strong> has just ended. To keep the posts coming without interruption, please renew your plan with one click:"
+    },
+    "expired": {
+      "subject": "Your Chrlit subscription has expired",
+      "body": "the subscription for <strong>{name}</strong> has expired. Your data, brand and learned preferences are kept; generation resumes as soon as you renew the plan:"
+    },
+    "payment_recovered": {
+      "subject": "Payment received — everything is back in order",
+      "body": "the payment for <strong>{name}</strong> went through after all and your subscription continues without interruption. There is nothing else you need to do."
+    },
+    "generation_failed": {
+      "subject": "One post could not be generated",
+      "body": "{hasWhat, select, yes {<strong>{what}</strong> could} other {One of the scheduled posts for <strong>{name}</strong> could}} not be generated.{hasReason, select, yes { Reason: {reason}.} other {}}",
+      "retry": "We will retry automatically on the next run — you do not need to do anything. If it happens again, we will get in touch."
+    },
+    "facts_pending": {
+      "subject": "{count, plural, one {# post is} other {# posts are}} waiting for fact verification",
+      "body": "<strong>{name}</strong> has {count, plural, one {# post} other {# posts}} with a claim that is not backed by verified facts — a number, a year, a warranty or a technical parameter, for example. {count, plural, one {It} other {They}} will not go out automatically: this is exactly the kind of detail you are accountable for, not us.",
+      "howTo": "In the studio you will see which claim it is. Either confirm it with one click (it is saved among verified facts) or delete it from the text — {count, plural, one {the post} other {the posts}} will then go out at the next slot."
+    },
+    "publish_failed": {
+      "subject": "A scheduled post could not be published",
+      "body": "{hasWhat, select, yes {<strong>{what}</strong>} other {the scheduled post for <strong>{name}</strong>}} could not be published to Instagram even after repeated attempts.{hasReason, select, yes { Reason: {reason}.} other {}}",
+      "next": "The post is ready and waiting in the calendar — the most common cause is a disconnected or expired Instagram account. Just reconnect it and release the post:"
+    },
+    "lifecycle": {
+      "activation_nudge": {
+        "subject": "Your content is waiting — launch your first campaign",
+        "body": "you signed up for Chrlit{hasBrand, select, yes { with the brand <strong>{brand}</strong>} other {}}, but no campaign of your own has run yet. Sample posts are waiting for you in the studio.",
+        "next": "One click is all it takes and we will prepare a full week of content — copy, images, calendar."
+      },
+      "credit_low": {
+        "subject": "Credits almost used up",
+        "body": "the plan{hasBrand, select, yes { for <strong>{brand}</strong>} other {}} has {remaining} of {total, plural, one {# credit} other {# credits}} left. To keep the content coming, please upgrade your plan or top up credits."
+      },
+      "winback": {
+        "subject": "Your Instagram has gone quiet — come back to Chrlit",
+        "body": "the subscription{hasBrand, select, yes { for <strong>{brand}</strong>} other {}} has expired and the account has stopped receiving new content. Your settings, brand and learned preferences are saved — coming back is a single click."
+      },
+      "dormant": {
+        "subject": "Your Instagram is a few clicks away from another week of content",
+        "body": "no new post has been created{hasBrand, select, yes { for <strong>{brand}</strong>} other {}} in the last two weeks — and an account that stops publishing loses reach faster than it can win it back.",
+        "next": "Your brand and learned preferences are saved, so a weekly plan takes one click."
+      },
+      "ig_disconnected": {
+        "subject": "Your Instagram connection needs to be renewed",
+        "body": "the account{hasBrand, select, yes { of <strong>{brand}</strong>} other {}} has no working Instagram connection — access from Meta expires over time and needs to be confirmed every now and then.",
+        "next": "While it is disconnected, posts are still generated but have nowhere to be published. Reconnecting takes two clicks:"
+      },
+      "waitlist_drip": {
+        "subject": "We have not forgotten you",
+        "body": "you are on the Chrlit Studio waiting list. We let people in gradually so that every new account gets the full quality — the next wave of invitations is on its way.",
+        "next": "Thanks for your patience. We will be in touch as soon as it is your turn."
+      }
+    },
+    "waitlist": {
+      "headline": "You have access to Chrlit"
+    }
+  }
 }

@@ -1,3 +1,100 @@
 {
-  "notices": {}
+  "notices": {
+    "common": {
+      "greeting": "Dobrý den,",
+      "signature": "Tým Chrlit",
+      "yourAccount": "váš účet",
+      "amountPerPlan": "částku dle plánu",
+      "priceWithNet": "{gross} ({net} bez DPH)",
+      "term": "{months, plural, one {na # měsíc} few {na # měsíce} other {na # měsíců}}",
+      "cta": {
+        "manageSubscription": "Spravovat předplatné →",
+        "renewSubscription": "Obnovit předplatné →",
+        "checkSubscription": "Zkontrolovat předplatné →",
+        "showSubscription": "Zobrazit předplatné →",
+        "showCalendar": "Zobrazit kalendář →",
+        "openCalendar": "Otevřít kalendář →",
+        "openStudio": "Otevřít studio →",
+        "generateContent": "Vygenerovat obsah →",
+        "connectInstagram": "Připojit Instagram →"
+      }
+    },
+    "renewal_upcoming": {
+      "auto": {
+        "subjectDated": "Připomínka: předplatné se obnoví {date}",
+        "subject": "Připomínka: předplatné se brzy obnoví",
+        "body": "{when, select, dated {<strong>{date}</strong>} other {Brzy}} vám automaticky strhneme <strong>{price}</strong> za předplatné{term} pro <strong>{name}</strong>. Nemusíte nic dělat — píšeme jen proto, abyste to na výpisu čekali.",
+        "change": "Pokud si přejete plán změnit nebo zrušit, stihnete to do té doby:"
+      },
+      "manual": {
+        "subjectDated": "Předplatné končí {date}",
+        "subject": "Předplatné brzy končí",
+        "body": "předplatné pro <strong>{name}</strong> končí {when, select, dated {<strong>{date}</strong>} other {brzy}}. Nemáme uloženou kartu, takže se automaticky neobnoví — aby generování příspěvků nepřestalo, obnovte plán prosím ručně:"
+      }
+    },
+    "charge_failed": {
+      "subject": "Platba za Chrlit se nezdařila",
+      "body": "automatickou platbu{hasPrice, select, yes { <strong>{price}</strong>} other {}} za předplatné <strong>{name}</strong> se nepodařilo strhnout{attempt, plural, =0 {} other { (pokus # z {max})}}. Zkusíme to znovu zítra — zkontrolujte prosím platební kartu, případně obnovte plán ručně:"
+    },
+    "manual_renew": {
+      "subject": "Obnovte si předplatné Chrlit",
+      "body": "předplatné pro <strong>{name}</strong> právě doběhlo. Aby generování příspěvků pokračovalo bez přerušení, obnovte si prosím plán jedním kliknutím:"
+    },
+    "expired": {
+      "subject": "Vaše předplatné Chrlit vypršelo",
+      "body": "předplatné pro <strong>{name}</strong> vypršelo. Vaše data, značka i naučené preference zůstávají zachovány; generování se znovu spustí hned po obnovení plánu:"
+    },
+    "payment_recovered": {
+      "subject": "Platba prošla — vše je zase v pořádku",
+      "body": "platba za <strong>{name}</strong> se nakonec podařila a předplatné pokračuje bez přerušení. Nic dalšího dělat nemusíte."
+    },
+    "generation_failed": {
+      "subject": "Jeden příspěvek se nepodařilo vygenerovat",
+      "body": "{hasWhat, select, yes {<strong>{what}</strong> se} other {Jeden z naplánovaných příspěvků pro <strong>{name}</strong> se}} nepodařilo vygenerovat.{hasReason, select, yes { Důvod: {reason}.} other {}}",
+      "retry": "Zkusíme to automaticky znovu při dalším běhu — dělat nemusíte nic. Pokud se to zopakuje, ozveme se sami."
+    },
+    "facts_pending": {
+      "subject": "{count, plural, one {# příspěvek čeká} few {# příspěvky čekají} other {# příspěvků čeká}} na ověření faktů",
+      "body": "u <strong>{name}</strong> {count, plural, one {je # příspěvek} few {jsou # příspěvky} other {je # příspěvků}} s tvrzením, které nemá oporu v ověřených faktech — třeba číslo, letopočet, záruka nebo technický parametr. Automaticky {count, plural, one {nevyjde} few {nevyjdou} other {nevyjde}}: tohle je přesně ten typ údaje, za který se ručí vám, ne nám.",
+      "howTo": "Ve studiu u {count, plural, one {něj} other {nich}} uvidíte, o které tvrzení jde. Buď ho potvrďte jedním kliknutím (uloží se mezi ověřená fakta), nebo ho z textu smažte — pak {count, plural, one {příspěvek vyjde} other {příspěvky vyjdou}} v dalším termínu."
+    },
+    "publish_failed": {
+      "subject": "Naplánovaný příspěvek se nepodařilo publikovat",
+      "body": "{hasWhat, select, yes {<strong>{what}</strong>} other {naplánovaný příspěvek pro <strong>{name}</strong>}} se nepodařilo publikovat na Instagram ani po opakovaných pokusech.{hasReason, select, yes { Důvod: {reason}.} other {}}",
+      "next": "Příspěvek je hotový a čeká v kalendáři — nejčastější příčinou je odpojený nebo vypršelý účet Instagramu. Stačí ho znovu připojit a příspěvek pustit:"
+    },
+    "lifecycle": {
+      "activation_nudge": {
+        "subject": "Váš obsah čeká — spusťte první kampaň",
+        "body": "do Chrlitu jste se zaregistrovali{hasBrand, select, yes { se značkou <strong>{brand}</strong>} other {}}, ale vlastní kampaň zatím nejela. Ukázkové příspěvky na vás čekají ve studiu.",
+        "next": "Stačí jedno kliknutí a připravíme celý týdenní plán obsahu — texty, obrázky, kalendář."
+      },
+      "credit_low": {
+        "subject": "Kredity skoro vyčerpané",
+        "body": "v plánu{hasBrand, select, yes { pro značku <strong>{brand}</strong>} other {}} zbývá {remaining} z {total, plural, one {# kredit} few {# kredity} other {# kreditů}}. Aby obsah nepřestal vycházet, navyšte prosím plán nebo si dokupte kredity."
+      },
+      "winback": {
+        "subject": "Instagram mezitím spí — vraťte se do Chrlitu",
+        "body": "předplatné{hasBrand, select, yes { pro značku <strong>{brand}</strong>} other {}} vypršelo a účet přestal dostávat nový obsah. Nastavení, značku i naučené preference máme uložené — návrat je otázka jednoho kliknutí."
+      },
+      "dormant": {
+        "subject": "Váš Instagram je pár kliknutí od dalšího týdne obsahu",
+        "body": "za poslední dva týdny nevznikl{hasBrand, select, yes { pro značku <strong>{brand}</strong>} other {}} žádný nový příspěvek — a účet, který přestane publikovat, ztrácí dosah rychleji, než ho jde pak získat zpátky.",
+        "next": "Značku i naučené preference máme uložené, takže týdenní plán vznikne na jedno kliknutí."
+      },
+      "ig_disconnected": {
+        "subject": "Propojení s Instagramem je potřeba obnovit",
+        "body": "účet{hasBrand, select, yes { značky <strong>{brand}</strong>} other {}} nemá funkční propojení s Instagramem — přístup od Meta po čase vyprší a je potřeba ho jednou za čas potvrdit.",
+        "next": "Dokud je odpojený, příspěvky se sice vygenerují, ale nemají se kam publikovat. Obnovení je otázka dvou kliknutí:"
+      },
+      "waitlist_drip": {
+        "subject": "Nezapomněli jsme na vás",
+        "body": "máme vás na čekací listině Chrlit Studia. Pouštíme dovnitř postupně, aby každý nový účet dostal plnou kvalitu — další vlna pozvánek je na cestě.",
+        "next": "Díky za trpělivost. Ozveme se, jakmile na vás přijde řada."
+      }
+    },
+    "waitlist": {
+      "headline": "Máte přístup do Chrlitu"
+    }
+  }
 }

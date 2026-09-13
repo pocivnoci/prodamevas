@@ -179,6 +179,21 @@ const MIGRATED = [
     "app/(dashboard)/CreditPacks.tsx",
     "app/(dashboard)/EmbeddedCheckoutModal.tsx",
     "app/(dashboard)/dashboard/instagram/error.tsx",
+    // workery bez requestu (vlna 4): digest kampaně, průběh onboardingových úloh
+    "app/api/cron/campaign-worker/route.ts",
+    "lib/notifications.ts",
+    "lib/agents/handlers.ts",
+    // pošta zákazníkovi v jazyce příjemce (vlna 4); marketingové šablony
+    // (news, offer, promo) zůstávají české, proto v seznamu nejsou
+    ...[
+        "template", "registry", "layout", "plans", "render-html", "render-text",
+        "templates/transactional", "templates/subscription", "templates/waitlist",
+    ].map(f => `lib/mail/${f}.ts`),
+    ...[
+        "notice-templates", "lifecycle-templates", "customer-notices",
+        "lifecycle", "billing-watch", "waitlist-invite",
+    ].map(f => `lib/agents/${f}.ts`),
+    "lib/payments/on-paid.ts",
 ]
 const CZECH = /[ěščřžýáíéúůťďňĚŠČŘŽÝÁÍÉÚŮŤĎŇ]/
 // `console.*` jsou logy, ne UI; `i18n-ignore` na řádku = vědomá výjimka (sentinel
@@ -222,6 +237,41 @@ check("Stripe Checkout dostává locale kupujícího", codeOnly("lib/payments/ch
 check("jazyk dokladu Fakturoidu jde podle země odběratele, ne natvrdo", !/language: "cz"/.test(codeOnly("lib/fakturoid.ts")) && (codeOnly("lib/fakturoid.ts").match(/fakturoidLanguage\(/g) || []).length >= 3)
 check("layout e-mailu nese jazyk příjemce (lang + patička)", codeOnly("lib/mail/layout.ts").includes("doc.locale") && !codeOnly("lib/mail/layout.ts").includes('<html lang="cs">'))
 check("uvítací e-mail jde v jazyce účtu přes mailTranslator", codeOnly("app/auth/callback/route.ts").includes("mailTranslator(locale)") && cs.has("mail.welcome.subject"))
+
+// ── 6. Zpráva s tagem se musí volat přes `.markup()` / `.rich()` ──
+// `<strong>…</strong>` je pro next-intl ICU TAG, ne text: prosté `t("klíč")` na
+// takové zprávě vyhodí za běhu FORMATTING_ERROR (a e-mail neodejde nebo tab
+// spadne). Tag se skládá handlerem — v HTML e-mailu `t.markup(klíč, { strong })`,
+// v Reactu `t.rich(klíč, { strong: ch => <strong>{ch}</strong> })`.
+const TAGGED = new Set([...cs.entries()].filter(([, v]) => /<[a-zA-Z][a-zA-Z0-9]*>/.test(v)).map(([k]) => k))
+function sourceFiles(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue
+        if (e.isDirectory()) sourceFiles(`${dir}/${e.name}`, out)
+        else if (/\.tsx?$/.test(e.name)) out.push(`${dir}/${e.name}`)
+    }
+    return out
+}
+const plainTagCalls: string[] = []
+for (const f of ["app", "components", "lib", "instagram"].flatMap(d => sourceFiles(d))) {
+    const src = file(f)
+    // Namespace, ve kterých soubor překládá — klíč v kódu je relativní k nim.
+    const namespaces = [...src.matchAll(/(?:useTranslations|getTranslations|actionTranslator|mailTranslator|mailTranslatorSync)\s*\(\s*(?:[^,)]+,\s*)?["'`]([\w.]+)["'`]/g)].map(m => m[1])
+    if (namespaces.length === 0) continue
+    for (const m of src.matchAll(/([A-Za-z_$][\w$]*)(\.markup|\.rich)?\s*\(\s*["'`]([\w.]+)["'`]/g)) {
+        const [, , method, key] = m
+        for (const ns of namespaces) {
+            if (!TAGGED.has(`${ns}.${key}`)) continue
+            if (method) continue
+            plainTagCalls.push(`${f}: ${ns}.${key}`)
+        }
+    }
+}
+check("zpráva s tagem se nevolá prostým t() (jen .markup/.rich)", plainTagCalls.length === 0,
+    [...new Set(plainTagCalls)].slice(0, 3).join(" · "))
+const tagsOf = (v: string) => (v.match(/<[a-zA-Z][a-zA-Z0-9]*>/g) || []).sort().join(",")
+const tagMismatch = [...TAGGED].filter(k => en.has(k) && tagsOf(cs.get(k)!) !== tagsOf(en.get(k)!))
+check("tagy v překladu sedí se zdrojem", tagMismatch.length === 0, tagMismatch.slice(0, 3).join(", "))
 
 console.log("\n" + "─".repeat(60))
 console.log(`  ✅ ${passed} prošlo | ❌ ${failed} selhalo`)

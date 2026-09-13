@@ -15,12 +15,17 @@
  * modul měl vlastní kopii v jiném hlase („já", podpis „Tomáš, Chrlit"), takže
  * dva skoro stejné e-maily mluvily za dvě různé firmy a v náhledové galerii byl
  * vidět jen jeden z nich.
+ *
+ * Jazyk: čekatel účet nemá, takže jazyk příjemce neznáme — pozvánka jde česky.
+ * `renderInvite(row, code, locale)` ale jazyk umí, až bude odkud ho vzít.
  */
 
 import supabaseAdmin from "@/supabase/admin"
-import type { Block } from "@/lib/mail/blocks"
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
+import { mailTranslatorSync } from "@/lib/mail/i18n"
+import { siteUrl } from "@/lib/mail/links"
 import { getTemplate } from "@/lib/mail/registry"
-import { sendNotification, siteUrl } from "@/lib/notifications"
+import type { RenderedTemplate } from "@/lib/mail/template"
 
 export interface WaitlistRow {
     id: string
@@ -68,10 +73,11 @@ function daysWaiting(createdAt: string): number {
  * 17 dní" je přiznání, kterému se dá věřit. Pod týden se počet dní vynechává —
  * šablona pak pošle kratší variantu věty.
  */
-export function inviteVars(row: WaitlistRow, code: string): Record<string, string> {
+export function inviteVars(row: WaitlistRow, code: string, locale: UiLocale = DEFAULT_UI_LOCALE): Record<string, string> {
+    const t = mailTranslatorSync(locale, "notices")
     const days = daysWaiting(row.created_at)
     return {
-        headline: "Máte přístup do Chrlitu",
+        headline: t("waitlist.headline"),
         code,
         waitedDays: days >= 7 ? String(days) : "",
         expiresNote: "",
@@ -79,12 +85,15 @@ export function inviteVars(row: WaitlistRow, code: string): Record<string, strin
     }
 }
 
-/** Pozvánka vyrenderovaná z registru — jediné znění, jeden hlas, vidět v galerii. */
-export function renderInvite(row: WaitlistRow, code: string): { subject: string; blocks: Block[] } {
+/**
+ * Pozvánka vyrenderovaná z registru — jediné znění, jeden hlas, vidět v galerii.
+ * Odhlašovací patička je součástí renderu (šablona je `notification`); `locale`
+ * jde do registru, který si z něj postaví překladač šablony i chrome.
+ */
+export function renderInvite(row: WaitlistRow, code: string, locale: UiLocale = DEFAULT_UI_LOCALE): RenderedTemplate {
     const template = getTemplate("waitlist_invite")
-    if (!template) throw new Error("Šablona waitlist_invite chybí v registru")
-    const draft = template.build(inviteVars(row, code))
-    return { subject: draft.subject, blocks: draft.blocks }
+    if (!template) throw new Error("Šablona waitlist_invite chybí v registru") // i18n-ignore: interní chyba, končí jen v logu
+    return template.render(inviteVars(row, code, locale), row.email, locale)
 }
 
 export interface InviteResult {
@@ -99,6 +108,9 @@ export interface InviteResult {
  * Zápis `invited_at` je PŘED odesláním schválně: kdyby odeslání spadlo někde
  * uprostřed, druhý běh tomu člověku nenapíše podruhé. Nepřijatá pozvánka je
  * menší škoda než dvě pozvánky za sebou.
+ *
+ * Odhlášené adresy se ctí: kdo si vypnul poštu, pozvánku nedostane, ale z fronty
+ * odejde (jinak by se nabízel v každém dalším běhu).
  */
 export async function sendWaitlistInvites(opts: { code: string; limit?: number; dryRun?: boolean } ): Promise<InviteResult[]> {
     const rows = (await pendingInvites()).slice(0, opts.limit ?? 20)
@@ -112,9 +124,23 @@ export async function sendWaitlistInvites(opts: { code: string; limit?: number; 
         }
         await supabaseAdmin.from("waitlist")
             .update({ invited_at: new Date().toISOString() }).eq("id", row.id)
-        // kind "notification" → kontrola email_optouts + odhlašovací patička.
-        await sendNotification({ to: row.email, subject: msg.subject, blocks: msg.blocks, kind: "notification" })
-        out.push({ email: row.email, sent: true })
+        const { data: optedOut } = await supabaseAdmin
+            .from("email_optouts").select("email").eq("email", row.email.toLowerCase()).maybeSingle()
+        if (optedOut) {
+            out.push({ email: row.email, sent: false, reason: "opted-out" })
+            continue
+        }
+        // Přímo přes sendEmail (jako pozvánka k předání značky): vyhodí výjimku,
+        // takže se pozná, jestli e-mail opravdu odešel — `sendNotification` by
+        // hlásila „odesláno" i na mrtvý klíč.
+        try {
+            const { sendEmail } = await import("@/lib/email")
+            await sendEmail({ to: row.email, subject: msg.subject, html: msg.html, text: msg.text })
+            out.push({ email: row.email, sent: true })
+        } catch (err: any) {
+            console.warn(`waitlist-invite: pozvánku pro ${row.email} se nepodařilo odeslat: ${err?.message}`)
+            out.push({ email: row.email, sent: false, reason: err?.message || "send failed" })
+        }
     }
     return out
 }

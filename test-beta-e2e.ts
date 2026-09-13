@@ -4369,15 +4369,21 @@ test("29.11 přístupový kód se nevydává za slevu", () => {
     // zákazník se pak ptá, proč mu chodí sleva, kterou nikdo nesliboval.
     const blocks = codeOnly("lib/mail/blocks.ts")
     assert(/label\?: string/.test(blocks), "promoCode musí umět vlastní popisek")
+    // Znění popisku žije v messages (šablony jdou v jazyce příjemce): zdroj musí
+    // rámečku předat klíč vstupního kódu a ten klíč musí říkat „Přístupový kód".
+    const mailCs = JSON.parse(fileContent("messages/cs/mail.json"))
+    assert(mailCs.mail?.common?.accessCode === "Přístupový kód",
+        `messages/cs/mail.json: mail.common.accessCode musí znít „Přístupový kód"`)
+    const accessLabel = (src: string) => src.includes('t("common.accessCode"))') || src.includes('"Přístupový kód"')
     for (const f of ["lib/mail/templates/waitlist.ts", "app/actions/admin-actions.ts"]) {
         const src = codeOnly(f)
         if (!src.includes("promoCode(")) continue
-        assert(src.includes('"Přístupový kód"'),
+        assert(accessLabel(src),
             `${f}: kód pro vstup nesmí zůstat pod výchozím popiskem o slevě`)
     }
     const tmpl = codeOnly("lib/mail/templates/transactional.ts")
     if (tmpl.includes("promoCode(")) {
-        assert(tmpl.includes('"Přístupový kód"'),
+        assert(accessLabel(tmpl),
             "transakční šablony posílají vstupní kódy, ne slevy")
     }
 })
@@ -4709,9 +4715,14 @@ test("29.20 e-mail netipuje rod adresáta", () => {
         "pozvánka se musí renderovat z registru — vlastní kopie textu tuhle kontrolu obejde")
     // „před 1 dny" je stejný druh nedbalosti jako špatný rod: počítané dny se
     // skloňují přes lib/plural.ts, ne lepením „dny" za číslo.
+    // Skloňování žije v messages (ICU plural s tvary one/few/other) a šablona mu
+    // předává číslo — pevný tvar přilepený za proměnnou by byl táž nedbalost.
+    const inviteWaited = JSON.parse(fileContent("messages/cs/mail.json")).mail?.templates?.waitlist_invite?.introWaited ?? ""
+    assert(/\{days, plural, one \{[^}]+\} few \{[^}]+\} other \{[^}]+\}\}/.test(inviteWaited),
+        "počet dní čekání se musí skloňovat přes ICU plural {days, plural, one/few/other} v messages/cs/mail.json")
     const inviteTemplate = codeOnly("lib/mail/templates/waitlist.ts")
-    assert(inviteTemplate.includes("countLabel") && inviteTemplate.includes("DAYS"),
-        "počet dní čekání se musí skloňovat přes countLabel(…, DAYS)")
+    assert(inviteTemplate.includes('"templates.waitlist_invite.introWaited", { days }'),
+        `pozvánka musí počet dní předat do ICU plural v messages, ne lepit „dní" za číslo`)
 })
 
 test("29.25 v zákaznickém textu se počty skloňují, ne lepí", () => {
@@ -4729,13 +4740,37 @@ test("29.25 v zákaznickém textu se počty skloňují, ne lepí", () => {
     // Interpolace, za kterou hned následuje počítané jméno v pevném tvaru.
     // `${countLabel(n, POSTS)}` projde — tam už podstatné jméno vyrábí helper.
     const lepenyTvar = /\$\{[^}]*\}\s*(příspěv\w*|kredit\w*|dní|dny|dnem|měsíc\w*|obrázk\w*|karusel\w*)\b/g
+    // Digest kampaně a e-mail workera jdou ven v jazyce PŘÍJEMCE (messages/<locale>/
+    // worker.json): skloňuje ICU plural přímo ve zprávě a `lib/plural.ts` tam nemá co
+    // dělat. Invariant je tentýž — u počtu tři české tvary, ne pevný tvar za proměnnou —
+    // jen se hlídá ve zprávách místo ve zdrojáku.
+    const presMessages = new Set(["app/api/cron/campaign-worker/route.ts", "lib/notifications.ts"])
     for (const f of zakaznicke) {
         const src = codeOnly(f)
         const hits = [...new Set(src.match(lepenyTvar) ?? [])]
         assert(hits.length === 0,
             `${f}: pevný tvar za proměnnou „${hits.join(", ")}" — použij countLabel(…) z lib/plural.ts`)
         // A zároveň: když soubor počty vypisuje, musí helper skutečně importovat.
-        assert(/countLabel|\bplural\(/.test(src), `${f}: chybí import skloňování z lib/plural.ts`)
+        if (presMessages.has(f)) {
+            assert(!/countLabel|\bplural\(/.test(src), `${f}: počty skloňuje ICU plural v messages/cs/worker.json, ne lib/plural.ts`)
+        } else {
+            assert(/countLabel|\bplural\(/.test(src), `${f}: chybí import skloňování z lib/plural.ts`)
+        }
+    }
+    const workerTexts: string[] = []
+    const sber = (node: unknown) => {
+        if (typeof node === "string") workerTexts.push(node)
+        else if (node && typeof node === "object") Object.values(node).forEach(sber)
+    }
+    sber(JSON.parse(fileContent("messages/cs/worker.json")))
+    const lepenyTvarIcu = /\{\w+\}\s*(příspěv\w*|kredit\w*|dní|dny|dnem|měsíc\w*|obrázk\w*|karusel\w*)\b/
+    const lepene = workerTexts.filter(s => lepenyTvarIcu.test(s))
+    assert(lepene.length === 0, `worker.json: pevný tvar za proměnnou — „${lepene.join(" | ")}"`)
+    const skl = workerTexts.filter(s => /\{count, plural,/.test(s))
+    assert(skl.length >= 5, `worker.json: předmět, úvod, neúspěchy digestu i „ještě N příspěvků" musí skloňovat přes ICU plural`)
+    for (const s of skl) {
+        assert(/\{count, plural, one \{# [^}]+\} few \{# [^}]+\} other \{# [^}]+\}\}/.test(s),
+            `worker.json: český plural potřebuje tvary one/few/other — „${s.slice(0, 60)}"`)
     }
     // Jedna kopie skloňování, ne pět. lib/credits.ts i taby měly vlastní `plural()`
     // s vlastní představou o tom, co je „2–4"; sdílený modul je zdroj pravdy.

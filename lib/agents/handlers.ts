@@ -9,6 +9,35 @@
 import supabaseAdmin from "@/supabase/admin"
 import { registerHandler, reportProgress, type AgentTask } from "@/lib/agent-runner"
 import { getFounderEmail } from "@/lib/email"
+import { DEFAULT_UI_LOCALE, isUiLocale, type UiLocale } from "@/lib/i18n/locales"
+import type { MailTranslator } from "@/lib/mail/i18n"
+
+/**
+ * Jazyk toho, kdo úlohu zadal — čte průběh (`agent_message`) i chybu (`error`)
+ * přes /api/onboarding/task-status. Handler běží mimo request, cookie tu není:
+ * bere se `uiLocale` z payloadu (jazyk UI v okamžiku zadání, zapisuje ho
+ * `app/onboarding/actions.ts`), jinak jazyk účtu zadavatele (`requested_by`);
+ * systémová úloha bez zadavatele mluví česky. Zjišťuje se JEDNOU na začátku
+ * handleru, ne u každé hlášky.
+ */
+async function localeOfRequester(task: AgentTask): Promise<UiLocale> {
+    const fromPayload = (task.payload as { uiLocale?: unknown } | null)?.uiLocale
+    if (isUiLocale(fromPayload)) return fromPayload
+    if (!task.requested_by) return DEFAULT_UI_LOCALE
+    try {
+        const { localeOfUser } = await import("@/lib/mail/i18n")
+        const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(task.requested_by)
+        return localeOfUser(user)
+    } catch {
+        return DEFAULT_UI_LOCALE
+    }
+}
+
+/** Překladač `worker.onboarding.*` (messages/<locale>/worker.json) v jazyce zadavatele. */
+async function requesterTranslator(task: AgentTask): Promise<MailTranslator> {
+    const { mailTranslatorSync } = await import("@/lib/mail/i18n")
+    return mailTranslatorSync(await localeOfRequester(task), "worker")
+}
 
 // Health-check / smoke task: does nothing but confirm the runner executes it.
 registerHandler("noop", async (task: AgentTask) => {
@@ -20,7 +49,7 @@ registerHandler("weekly_report", async () => {
     const { buildWeeklyReport } = await import("@/lib/agents/weekly-report")
     const { sendEmail } = await import("@/lib/email")
     const to = getFounderEmail()
-    if (!to) throw new Error("weekly_report: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
+    if (!to) throw new Error("weekly_report: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno") // i18n-ignore: interní chyba pro operátora (log, brief)
     const report = await buildWeeklyReport()
     const sent = await sendEmail({ to, subject: report.subject, html: report.html, text: report.text })
     return { ok: true, to, emailId: sent.id, subject: report.subject }
@@ -40,14 +69,14 @@ registerHandler("daily_brief", async () => {
         .eq("type", "daily_brief")
         .eq("status", "done")
         .gte("created_at", midnight.toISOString())
-    if ((alreadySent || 0) > 0) return { ok: true, skipped: "brief už dnes odešel" }
+    if ((alreadySent || 0) > 0) return { ok: true, skipped: "brief už dnes odešel" } // i18n-ignore: interní chyba pro operátora (log, brief)
 
     const { buildDailyBrief, renderDailyBrief } = await import("@/lib/agents/daily-brief")
     const brief = await buildDailyBrief()
     if (brief.quiet) return { ok: true, quiet: true }
 
     const to = getFounderEmail()
-    if (!to) throw new Error("daily_brief: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno")
+    if (!to) throw new Error("daily_brief: REPORT_EMAIL/SUPER_ADMIN_EMAILS není nastaveno") // i18n-ignore: interní chyba pro operátora (log, brief)
     const { sendEmail } = await import("@/lib/email")
     const mail = renderDailyBrief(brief)
     const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text })
@@ -122,15 +151,15 @@ registerHandler("payment_reconcile", async (task: AgentTask) => {
 // activatePaidPlan, takže omylem dvakrát schválené nic nerozbije.
 registerHandler("repair_activation", async (task: AgentTask) => {
     const paymentId = String(task.payload?.paymentId || "")
-    if (!paymentId) throw new Error("repair_activation: chybí paymentId")
+    if (!paymentId) throw new Error("repair_activation: chybí paymentId") // i18n-ignore: interní chyba pro operátora (log, brief)
 
     const { data: payment } = await supabaseAdmin
         .from("payments")
         .select("id, subscription_id, client_id, ref_id, payer_email, amount, currency, label, status")
         .eq("id", paymentId)
         .maybeSingle()
-    if (!payment) throw new Error(`repair_activation: platba ${paymentId} nenalezena`)
-    if (payment.status !== "PAID") return { ok: false, skipped: `platba není PAID (${payment.status})` }
+    if (!payment) throw new Error(`repair_activation: platba ${paymentId} nenalezena`) // i18n-ignore: interní chyba pro operátora (log, brief)
+    if (payment.status !== "PAID") return { ok: false, skipped: `platba není PAID (${payment.status})` } // i18n-ignore: interní chyba pro operátora (log, brief)
 
     const { finalizePaidPayment, deliverPaidArtifacts } = await import("@/lib/payments/on-paid")
     const { isRenewalRefId } = await import("@/lib/payments/ref-id")
@@ -141,7 +170,7 @@ registerHandler("repair_activation", async (task: AgentTask) => {
         // Oprava ostré platby — doklad se vystavit MÁ, právě ten při selhání chybí.
         sandbox: false,
     })
-    if (!result.activated) throw new Error(`repair_activation: aktivace znovu selhala (${paymentId})`)
+    if (!result.activated) throw new Error(`repair_activation: aktivace znovu selhala (${paymentId})`) // i18n-ignore: interní chyba pro operátora (log, brief)
 
     await deliverPaidArtifacts(payment, result)
     return { ok: true, paymentId, planId: result.planId }
@@ -183,7 +212,7 @@ registerHandler("idea_replenish_client", async (task: AgentTask) => {
         .select("id, slug, config")
         .eq("id", task.client_id)
         .single()
-    if (error || !client) throw new Error(`klient ${task.client_id} nenalezen: ${error?.message}`)
+    if (error || !client) throw new Error(`klient ${task.client_id} nenalezen: ${error?.message}`) // i18n-ignore: interní chyba pro operátora (log, brief)
 
     const { replenishClient } = await import("@/lib/agents/idea-replenish")
     return replenishClient(client.id, client.slug, (client.config || {}) as Record<string, unknown>)
@@ -226,18 +255,18 @@ registerHandler("voice_examples_promote", async () => {
 // dávno pokračuje na dashboard. Tělo je v lib/product-scrape.ts (bez session).
 registerHandler("product_scrape", async (task: AgentTask) => {
     const clientId = task.client_id
-    if (!clientId) throw new Error("product_scrape: chybí client_id")
+    if (!clientId) throw new Error("product_scrape: chybí client_id") // i18n-ignore: interní chyba pro operátora (log, brief)
     const website = String((task.payload as { website?: string })?.website || "").trim()
     // Klient bez webu není chyba, jen není co skenovat.
-    if (!website) return { ok: true, skipped: "klient nemá web" }
+    if (!website) return { ok: true, skipped: "klient nemá web" } // i18n-ignore: interní chyba pro operátora (log, brief)
 
     const { scrapeProductsIntoCatalog } = await import("@/lib/product-scrape")
     const { trackSpend } = await import("@/instagram/spend-tracker")
     const result = await trackSpend("product_import", { clientId, refId: task.id }, () =>
         scrapeProductsIntoCatalog(clientId, website, (n, m) => reportProgress(task.id, n, m)))
-    if (!result.success) throw new Error(result.error || "sken webu se nepovedl")
+    if (!result.success) throw new Error(result.error || "sken webu se nepovedl") // i18n-ignore: interní chyba pro operátora (log, brief)
 
-    await reportProgress(task.id, 100, "Hotovo")
+    await reportProgress(task.id, 100, "Hotovo") // i18n-ignore: systémová úloha bez zadavatele, průběh nikdo v UI nečte
     return { ok: true, found: result.found, inserted: result.inserted, images: result.images }
 })
 
@@ -260,6 +289,8 @@ registerHandler("onboarding_analyze", async (task: AgentTask) => {
         uiLocale?: string
     }
     const say = (n: number, m: string) => reportProgress(task.id, n, m)
+    // Průběh a chyby čte zadavatel v průvodci — v jeho jazyce, ne v jazyce značky.
+    const t = await requesterTranslator(task)
 
     // Onboarding byl v účetnictví neviditelný — scrape, analýza značky, popis fotek
     // i dotazník jdou přes model a nikde se nesčítaly. Měří se tady, protože jen tady
@@ -268,23 +299,23 @@ registerHandler("onboarding_analyze", async (task: AgentTask) => {
 
     let analysis
     if (p.mode === "manual") {
-        if (!p.info) throw new Error("onboarding_analyze: chybí info pro ruční zadání")
-        await say(20, "Skládám profil značky z toho, cos vyplnil…")
+        if (!p.info) throw new Error("onboarding_analyze: chybí info pro ruční zadání") // i18n-ignore: kontrakt payloadu (action ho vždy plní), ne chyba uživatele
+        await say(20, t("onboarding.manualProfile"))
         analysis = await trackSpend("onboarding_analyze", { refId: task.id },
             () => buildManualAnalysisCore(p.info!))
     } else {
-        if (!p.url) throw new Error("onboarding_analyze: chybí url")
+        if (!p.url) throw new Error("onboarding_analyze: chybí url") // i18n-ignore: kontrakt payloadu (action ho vždy plní), ne chyba uživatele
         analysis = await trackSpend("onboarding_analyze", { refId: task.id },
             () => analyzeWebsiteCore(p.url!, p.igHandle || "", say))
     }
 
     // Otázky se odvozují z analýzy, takže se generují rovnou tady. Jinak by musel
     // celý objekt (~100–300 KB) doletět do prohlížeče a hned se vrátit zpátky.
-    await say(93, "Připravuju otázky na míru…")
+    await say(93, t("onboarding.questions"))
     const questions = await trackSpend("onboarding_analyze", { refId: task.id },
         () => generateQuestionsCore(analysis, p.uiLocale))
 
-    await say(100, "Hotovo")
+    await say(100, t("onboarding.done"))
     return { analysis, questions }
 })
 
@@ -296,7 +327,8 @@ registerHandler("onboarding_config_preview", async (task: AgentTask) => {
         websiteUrl?: string
         igHandle?: string
     }
-    if (!p.analyzeTaskId) throw new Error("onboarding_config_preview: chybí analyzeTaskId")
+    if (!p.analyzeTaskId) throw new Error("onboarding_config_preview: chybí analyzeTaskId") // i18n-ignore: kontrakt payloadu (action ho vždy plní), ne chyba uživatele
+    const t = await requesterTranslator(task)
 
     // Analýza se čte ze zdrojového tasku, ne od klienta: ušetří to velký round-trip
     // a zároveň nejde podvrhnout cizí vstup. Vlastník musí sedět — jinak by si kdokoli
@@ -306,14 +338,14 @@ registerHandler("onboarding_config_preview", async (task: AgentTask) => {
         .select("result, status, requested_by")
         .eq("id", p.analyzeTaskId)
         .maybeSingle()
-    if (!src || src.status !== "done") throw new Error("Analýza webu ještě není hotová.")
-    if (src.requested_by !== task.requested_by) throw new Error("Analýza patří někomu jinému.")
+    if (!src || src.status !== "done") throw new Error(t("onboarding.errors.analysisNotDone"))
+    if (src.requested_by !== task.requested_by) throw new Error(t("onboarding.errors.analysisForeign"))
 
     const { analysis, questions } = (src.result || {}) as {
         analysis?: Parameters<typeof generateConfigCore>[0]
         questions?: Parameters<typeof generateConfigCore>[4]
     }
-    if (!analysis) throw new Error("Zdrojová analýza je prázdná.")
+    if (!analysis) throw new Error(t("onboarding.errors.analysisEmpty"))
 
     const { trackSpend } = await import("@/instagram/spend-tracker")
     const config = await trackSpend("onboarding_config", { refId: task.id }, () => generateConfigCore(
@@ -324,7 +356,7 @@ registerHandler("onboarding_config_preview", async (task: AgentTask) => {
         questions,
         (n, m) => reportProgress(task.id, n, m),
     ))
-    await reportProgress(task.id, 100, "Hotovo")
+    await reportProgress(task.id, 100, t("onboarding.done"))
     return { config, analysis }
 })
 

@@ -1,3 +1,44 @@
 {
-  "worker": {}
+  "worker": {
+    "campaign": {
+      "greeting": "Hello,",
+      "signature": "The Chrlit team",
+      "failed": {
+        "subject": "Your campaign could not be completed",
+        "noCredits": "the campaign stopped — you ran out of credits. Once you top up, you can generate the content again.",
+        "generation": "unfortunately the posts in your campaign could not be generated. Credits for the failed posts have been refunded — please try again.",
+        "cta": "Open the studio →"
+      },
+      "ready": {
+        "subject": "Your content is ready — {count, plural, one {# post} other {# posts}} of {total}",
+        "introDone": "your content is ready. Ready for review: {count, plural, one {# post} other {# posts}}. Each one has a suggested date, caption and hashtags — check them and approve them for publishing:",
+        "introPartial": "ready for review: {count, plural, one {# post} other {# posts}} of {total}:",
+        "failures": "Could not be generated: {count, plural, one {# post} other {# posts}} — their credits have been refunded.",
+        "noCredits": "The campaign stopped early — you ran out of credits. Once you top up, you can generate the rest again.",
+        "cta": "Open posts in the app →"
+      }
+    },
+    "digest": {
+      "media": {
+        "image": "📷 Image",
+        "story": "📱 Story",
+        "carousel": "🖼️ Carousel",
+        "reel": "🎬 Reel",
+        "reel_long": "🎥 Long reel",
+        "post": "📷 Post"
+      },
+      "unscheduled": "date not set",
+      "more": "You will find {count, plural, one {# more post} other {# more posts}} in the app."
+    },
+    "onboarding": {
+      "manualProfile": "Building your brand profile from what you filled in…",
+      "questions": "Preparing tailored questions…",
+      "done": "Done",
+      "errors": {
+        "analysisNotDone": "The website analysis is not finished yet.",
+        "analysisForeign": "This analysis belongs to someone else.",
+        "analysisEmpty": "The source analysis is empty."
+      }
+    }
+  }
 }

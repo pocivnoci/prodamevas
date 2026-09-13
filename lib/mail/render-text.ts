@@ -10,7 +10,9 @@
  * začne se text renderovat přes markup a zpátky.
  */
 
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
 import type { Block } from "./blocks"
+import { mailTranslatorSync, type MailTranslator } from "./i18n"
 import { parseInline } from "./inline"
 
 /** Tokeny odstavce → text. Z odkazu musí zbýt adresa, jinak je odstavec k ničemu. */
@@ -24,7 +26,7 @@ function underline(text: string): string {
     return `${t}\n${"─".repeat(Math.min(t.length, 46))}`
 }
 
-function blockText(b: Block): string {
+function blockText(b: Block, t: MailTranslator): string {
     switch (b.type) {
         case "eyebrow":
             return b.text.toUpperCase()
@@ -46,7 +48,7 @@ function blockText(b: Block): string {
         case "image":
             // Popisek obrázku nese informaci jen když ji autor napsal; prázdný alt
             // je dekorace a do textové části nepatří.
-            return b.alt ? `[obrázek: ${b.alt}]` : ""
+            return b.alt ? t("blocks.image", { alt: b.alt }) : ""
         case "cards":
             return b.cards.map(c => [
                 c.meta ? `— ${c.meta}` : null,
@@ -62,11 +64,11 @@ function blockText(b: Block): string {
                 `→ ${b.ctaLabel.toUpperCase()}: ${b.ctaUrl}`,
             ].join("\n")
         case "promoCode":
-            return [`${(b.label || "Slevový kód").toUpperCase()}: ${b.code}`, b.note || null].filter(Boolean).join("\n")
+            return [`${(b.label || t("blocks.promoCode")).toUpperCase()}: ${b.code}`, b.note || null].filter(Boolean).join("\n")
         case "stats":
             return b.items.map(s => `${s.value} — ${s.label}`).join("\n")
         case "quote":
-            return [`„${inlineText(b.text)}"`, b.author ? `— ${b.author}` : null].filter(Boolean).join("\n")
+            return [t("blocks.quote", { text: inlineText(b.text) }), b.author ? `— ${b.author}` : null].filter(Boolean).join("\n")
         case "footnote":
             return inlineText(b.text)
         case "raw":
@@ -74,8 +76,10 @@ function blockText(b: Block): string {
     }
 }
 
-export function renderBlocksText(blocks: Block[]): string {
-    return blocks.map(blockText).filter(s => s.trim().length > 0).join("\n\n")
+/** Jazyk příjemce řídí jen výchozí popisky bloků (`mail.blocks.*`); bez něj čeština. */
+export function renderBlocksText(blocks: Block[], locale: UiLocale = DEFAULT_UI_LOCALE): string {
+    const t = mailTranslatorSync(locale, "mail")
+    return blocks.map(b => blockText(b, t)).filter(s => s.trim().length > 0).join("\n\n")
 }
 
 const ENTITIES: Record<string, string> = {

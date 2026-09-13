@@ -14,7 +14,8 @@
  * that triggered it (auth redirect, payment webhook, campaign finalize).
  */
 
-import type { UiLocale } from "@/lib/i18n/locales"
+import { DEFAULT_UI_LOCALE, UI_LOCALE_TAGS, UI_TIME_ZONE, type UiLocale } from "@/lib/i18n/locales"
+import { mailTranslatorSync, type MailTranslator } from "@/lib/mail/i18n"
 import supabaseAdmin from "@/supabase/admin"
 import { isMediumType, type MediumType } from "@/lib/credits"
 import { parsePostMedia } from "@/lib/media-urls"
@@ -25,7 +26,6 @@ import {
 } from "@/lib/mail/blocks"
 import { htmlToText } from "@/lib/mail/render-text"
 import { TYPE } from "@/lib/mail/tokens"
-import { countLabel, POSTS } from "@/lib/plural"
 
 // Odkazy a escapování se přestěhovaly do lib/mail/links.ts, aby na ně dosáhly
 // i cesty, které na transakční poštu sáhnout nesmějí. Re-export tu zůstává,
@@ -199,20 +199,21 @@ function truncateAtWord(s: string, max: number): string {
 }
 
 /** Typed on MediumType so a new medium is a build error here, not a silent
- *  "📷 Příspěvek" in every customer's campaign digest. */
-const MEDIA_LABELS: Record<MediumType, string> = {
-    image: "📷 Obrázek",
-    story: "📱 Story",
-    carousel: "🖼️ Carousel",
-    reel: "🎬 Reel",
-    reel_long: "🎥 Dlouhý reel",
+ *  „📷 Příspěvek" in every customer's campaign digest. Values are message keys —
+ *  the texts live in `messages/<locale>/worker.json` (`worker.digest.media.*`). */
+const MEDIA_LABEL_KEYS: Record<MediumType, string> = {
+    image: "digest.media.image",
+    story: "digest.media.story",
+    carousel: "digest.media.carousel",
+    reel: "digest.media.reel",
+    reel_long: "digest.media.reel_long",
 }
 
-function formatScheduled(post: CampaignDigestPost): string {
-    if (!post.scheduled_for) return "termín neurčen"
+function formatScheduled(post: CampaignDigestPost, locale: UiLocale, t: MailTranslator): string {
+    if (!post.scheduled_for) return t("digest.unscheduled")
     try {
-        return new Intl.DateTimeFormat("cs-CZ", {
-            timeZone: "Europe/Prague",
+        return new Intl.DateTimeFormat(UI_LOCALE_TAGS[locale], {
+            timeZone: UI_TIME_ZONE,
             weekday: "short", day: "numeric", month: "numeric",
             hour: "2-digit", minute: "2-digit",
         }).format(new Date(post.scheduled_for))
@@ -228,13 +229,19 @@ function formatScheduled(post: CampaignDigestPost): string {
  * Dřív to bylo hotové HTML s vlastními tmavými kartami a CTA v odstínu
  * `#e5533f`, který se s brandovým `#e63946` rozešel. Přes bloky drží digest
  * tentýž vzhled jako zbytek pošty a textovou verzi dostane zadarmo.
+ *
+ * `locale` je jazyk PŘÍJEMCE (`localeOfClientOwner`), ne requestu — digest se
+ * skládá v cronu. Popisky médií, termín i „ještě N příspěvků" jdou z
+ * `worker.digest.*`; `intro` a `ctaLabel` si volající přeloží sám (stejný jazyk).
  */
 export function renderCampaignDigest(
     posts: CampaignDigestPost[],
     opts: { intro: string; ctaUrl: string; ctaLabel: string },
+    locale: UiLocale = DEFAULT_UI_LOCALE,
 ): Block[] {
+    const t = mailTranslatorSync(locale, "worker")
     const items: CardItem[] = posts.slice(0, DIGEST_MAX_CARDS).map(post => {
-        const typeLabel = (isMediumType(post.media_type) && MEDIA_LABELS[post.media_type]) || "📷 Příspěvek"
+        const typeLabel = t(isMediumType(post.media_type) ? MEDIA_LABEL_KEYS[post.media_type] : "digest.media.post")
         // image_url is pipe-joined (carousel slides / story frames / reel video|cover) —
         // parsePostMedia picks the one URL that is safe to put in an <img>.
         const thumb = parsePostMedia(post.image_url, post.media_type).thumbUrl
@@ -242,7 +249,7 @@ export function renderCampaignDigest(
         const hashtags = (post.hashtags || []).filter(Boolean)
             .map(h => (h.startsWith("#") ? h : `#${h}`)).join(" ")
         return {
-            meta: `${formatScheduled(post)} · ${typeLabel}`,
+            meta: `${formatScheduled(post, locale, t)} · ${typeLabel}`,
             text: [caption, hashtags].filter(Boolean).join("\n\n"),
             imageUrl: thumb || undefined,
         }
@@ -253,8 +260,8 @@ export function renderCampaignDigest(
         cards(items),
         posts.length > DIGEST_MAX_CARDS &&
             // „…a dalších 1 příspěvek" nešlo spravit jen skloňováním — „dalších" je
-            // 2. pád. Věta je proto přeformulovaná na 4. pád, kde `countLabel` sedí.
-            paragraph(`V aplikaci najdete ještě ${countLabel(posts.length - DIGEST_MAX_CARDS, POSTS)}.`),
+            // 2. pád. Věta je proto přeformulovaná na 4. pád, kde ICU plural sedí.
+            paragraph(t("digest.more", { count: posts.length - DIGEST_MAX_CARDS })),
         button(opts.ctaLabel, opts.ctaUrl),
     ])
 }

@@ -12,9 +12,11 @@
  * kde je reels navíc hlídá `REELS_ENABLED`.
  */
 
+import { DEFAULT_UI_LOCALE } from "@/lib/i18n/locales"
 import { vatNotice } from "@/lib/legal"
 import { formatCzk } from "@/lib/pricing"
 import { button, callout, compact, footnote, heading, paragraph, planCard, promoCode } from "../blocks"
+import { mailTranslatorSync } from "../i18n"
 import { siteUrl } from "../links"
 import { markdownToBlocks } from "../markdown"
 import { creditLine, planBullets, recommendedPlan } from "../plans"
@@ -26,6 +28,9 @@ import type { EmailTemplate } from "../template"
  * s intrem, které slibovalo 30 %.
  */
 const SAMPLE_DISCOUNT_PCT = 30
+
+/** Ukázka i placeholdery vznikají při načtení modulu — česky, jako celá rozesílka. */
+const csMail = mailTranslatorSync(DEFAULT_UI_LOCALE, "mail")
 
 export const promo: EmailTemplate = {
     id: "promo",
@@ -102,6 +107,6 @@ function samplePromo(): { name: string; price: string; period: string; features:
         name: plan.name,
         price: formatCzk(discounted),
         period: `měsíčně místo ${formatCzk(plan.monthlyHaleru)}`,
-        features: [creditLine(plan), ...planBullets(plan)].join("\n"),
+        features: [creditLine(plan, csMail), ...planBullets(plan, csMail)].join("\n"),
     }
 }

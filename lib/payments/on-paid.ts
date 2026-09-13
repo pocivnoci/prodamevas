@@ -118,7 +118,7 @@ async function grantPurchasedCredits(payment: PaidPaymentRow): Promise<boolean> 
         client_id: payment.client_id,
         action: TOPUP_ACTION,
         credits: -credits, // záporně = přírůstek
-        description: `Dobití: ${countLabel(credits, CREDITS)}`,
+        description: `Dobití: ${countLabel(credits, CREDITS)}`, // i18n-ignore: zápis do deníku kreditů, ne text pro zákazníka
         reference_id: payment.id,
     })
 
@@ -253,6 +253,14 @@ export async function deliverPaidArtifacts(
     try {
         const { sendNotification, getOwnerEmail, siteUrl } = await import("@/lib/notifications")
         const to = payment.payer_email || (await getOwnerEmail(payment.client_id))
+        // Potvrzení mluví jazykem vlastníka značky — plátce nemusí být přihlášený
+        // (platí z odkazu), takže účet vlastníka je jediný spolehlivý zdroj jazyka.
+        const { localeOfClientOwner, mailTranslatorSync } = await import("@/lib/mail/i18n")
+        const locale = await localeOfClientOwner(payment.client_id)
+        const t = mailTranslatorSync(locale, "mail")
+        // Zprávy nesou `<strong>` jako ICU tag — v HTML e-mailu ho skládá `t.markup`
+        // s tímhle handlerem (prosté `t()` by na tagu vyhodilo výjimku).
+        const strong = (chunks: string) => `<strong>${chunks}</strong>`
 
         // Faktura se vystavuje nezávisle na e-mailu — doklad je zákonná
         // povinnost, i když se potvrzení nemá komu poslat.
@@ -274,31 +282,33 @@ export async function deliverPaidArtifacts(
         if (!to) return
 
         const invoiceLine = invoice.status === "issued" && invoice.publicUrl
-            ? `Daňový doklad č. <strong>${invoice.number}</strong>: <a href="${invoice.publicUrl}">zobrazit fakturu →</a>`
+            ? t.markup("onPaid.invoice.withLink", { number: invoice.number ?? "", link: `<a href="${invoice.publicUrl}">${t("onPaid.invoice.linkLabel")}</a>`, strong })
             : invoice.status === "issued"
-                ? `Daňový doklad č. <strong>${invoice.number}</strong> jsme vám poslali samostatným e-mailem.`
-                : `Daňový doklad vám zašleme e-mailem během okamžiku.`
+                ? t.markup("onPaid.invoice.issued", { number: invoice.number ?? "", strong })
+                : t("onPaid.invoice.pending")
 
 
         // Dobití: žádný tarif se nezměnil, jen přibyly kredity. Nejdůležitější
         // je říct, že se může hned generovat dál — člověk byl před chvílí
         // zastavený uprostřed práce.
         if (payment.kind === "credits") {
+            const credited = payment.credits_granted ?? 0
             await sendNotification({
                 to,
                 kind: "transactional",
-                subject: `Připsáno: ${countLabel(payment.credits_granted ?? 0, CREDITS)}`,
-                body: `Dobrý den,
+                locale,
+                subject: t("onPaid.credits.subject", { count: credited }),
+                body: `${t("common.greeting")}
 
-na váš účet jsme připsali <strong>${countLabel(payment.credits_granted ?? 0, CREDITS)}</strong>. Můžete rovnou pokračovat v generování — nic dalšího dělat nemusíte.
+${t.markup("onPaid.credits.body", { count: credited, strong })}
 
-Kredity platí do konce probíhajícího kreditového období, stejně jako ty z tarifu.
+${t("onPaid.credits.validity")}
 
 ${invoiceLine}
 
-<a href="${siteUrl()}/dashboard/instagram">Zpět do studia →</a>
+<a href="${siteUrl()}/dashboard/instagram">${t("onPaid.credits.cta")}</a>
 
-Tým Chrlit`,
+${t("common.signature")}`,
             })
             return
         }
@@ -311,18 +321,19 @@ Tým Chrlit`,
             await sendNotification({
                 to,
                 kind: "transactional",
-                subject: "Zaplaceno — vyberte si termín nastavení značky",
-                body: `Dobrý den,
+                locale,
+                subject: t("onPaid.service.subject"),
+                body: `${t("common.greeting")}
 
-děkujeme za platbu. Teď zbývá jediné: <strong>vybrat si termín</strong>.
+${t.markup("onPaid.service.body", { strong })}
 
-<a href="${bookingUrl}">Vybrat termín →</a>
+<a href="${bookingUrl}">${t("onPaid.service.cta")}</a>
 
-Schůzka trvá 30 minut a je online — odkaz na video hovor dostanete spolu s potvrzením termínu. Než se sejdeme, projdeme si vaši značku a přijdeme s hotovým návrhem, takže se na nic připravovat nemusíte.
+${t("onPaid.service.detail")}
 
 ${invoiceLine}
 
-Tým Chrlit`,
+${t("common.signature")}`,
             })
             return
         }
@@ -347,20 +358,21 @@ Tým Chrlit`,
         await sendNotification({
             to,
             kind: "transactional",
+            locale,
             subject: result.isRenewal
-                ? `Předplatné ${planName} obnoveno`
-                : `Potvrzení platby — plán ${planName} je aktivní`,
-            body: `Dobrý den,
+                ? t("onPaid.plan.subjectRenewal", { plan: planName })
+                : t("onPaid.plan.subjectNew", { plan: planName }),
+            body: `${t("common.greeting")}
 
-${amountStr ? `přijali jsme vaši platbu ${amountStr}${payment.label ? ` (${payment.label})` : ""}. ` : ""}${result.isRenewal
-                    ? `Předplatné <strong>${planName}</strong> bylo úspěšně obnoveno na další období.`
-                    : `Plán <strong>${planName}</strong> je aktivní — generování příspěvků je odemčené.`}
+${amountStr ? t("onPaid.plan.received", { amount: amountStr, label: payment.label ? ` (${payment.label})` : "" }) : ""}${result.isRenewal
+                    ? t.markup("onPaid.plan.renewed", { plan: planName, strong })
+                    : t.markup("onPaid.plan.activated", { plan: planName, strong })}
 
 ${invoiceLine}
 
-<a href="${siteUrl()}/dashboard/instagram">Přejít do studia →</a>
+<a href="${siteUrl()}/dashboard/instagram">${t("onPaid.plan.cta")}</a>
 
-Tým Chrlit${amountStr ? `\n\n<small>${vatNotice()}</small>` : ""}`,
+${t("common.signature")}${amountStr ? `\n\n<small>${vatNotice()}</small>` : ""}`,
         })
     } catch (err: any) {
         console.warn(`on-paid: doručení dokladu/potvrzení selhalo: ${err?.message}`)
@@ -583,7 +595,7 @@ export async function applyProviderInvoice(input: ProviderInvoiceInput): Promise
         amount: input.amount,
         currency: input.currency || "CZK",
         status: "PENDING",
-        label: `Chrlit ${plan?.name || sub.plan_id} — obnovení ${termLabel(termMonths)}`,
+        label: `Chrlit ${plan?.name || sub.plan_id} — obnovení ${termLabel(termMonths)}`, // i18n-ignore: položka dokladu a brány — jazyk dokladu jde po zemi odběratele
         term_months: termMonths,
     })
 
@@ -670,7 +682,7 @@ async function proposeRepairActivation(paymentId: string, clientId: string, plan
         await requestAction({
             clientId,
             agentType: "billing",
-            action: "Zaplaceno, plán NEAKTIVOVÁN — opravit",
+            action: "Zaplaceno, plán NEAKTIVOVÁN — opravit", // i18n-ignore: úkol pro správce v agent_actions, ne text pro zákazníka
             // Nevratné: schválení plán skutečně aktivuje. Čeká na člověka a
             // e-mail dorazí hned, ne až ráno.
             riskTier: "irreversible",

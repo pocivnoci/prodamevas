@@ -1,3 +1,44 @@
 {
-  "worker": {}
+  "worker": {
+    "campaign": {
+      "greeting": "Dobrý den,",
+      "signature": "Tým Chrlit",
+      "failed": {
+        "subject": "Kampaň se nepodařilo dokončit",
+        "noCredits": "kampaň se zastavila — došly kredity. Po dobití můžete obsah vygenerovat znovu.",
+        "generation": "příspěvky z vaší kampaně se bohužel nepodařilo vygenerovat. Kredity za nezdařené příspěvky byly vráceny — zkuste to prosím znovu.",
+        "cta": "Otevřít studio →"
+      },
+      "ready": {
+        "subject": "Váš obsah je připraven — {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} z {total}",
+        "introDone": "váš obsah je hotový. Připraveno ke kontrole: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}. Každý má navržený termín, caption i hashtagy — zkontrolujte je a schvalte k publikaci:",
+        "introPartial": "připraveno ke kontrole: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} z {total}:",
+        "failures": "Nepodařilo se vygenerovat: {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}} — kredity za ně byly vráceny.",
+        "noCredits": "Kampaň se zastavila dřív — došly kredity. Po dobití můžete zbytek vygenerovat znovu.",
+        "cta": "Otevřít příspěvky v aplikaci →"
+      }
+    },
+    "digest": {
+      "media": {
+        "image": "📷 Obrázek",
+        "story": "📱 Story",
+        "carousel": "🖼️ Carousel",
+        "reel": "🎬 Reel",
+        "reel_long": "🎥 Dlouhý reel",
+        "post": "📷 Příspěvek"
+      },
+      "unscheduled": "termín neurčen",
+      "more": "V aplikaci najdete ještě {count, plural, one {# příspěvek} few {# příspěvky} other {# příspěvků}}."
+    },
+    "onboarding": {
+      "manualProfile": "Skládám profil značky z toho, cos vyplnil…",
+      "questions": "Připravuju otázky na míru…",
+      "done": "Hotovo",
+      "errors": {
+        "analysisNotDone": "Analýza webu ještě není hotová.",
+        "analysisForeign": "Analýza patří někomu jinému.",
+        "analysisEmpty": "Zdrojová analýza je prázdná."
+      }
+    }
+  }
 }

@@ -31,6 +31,8 @@ import supabaseAdmin from "@/supabase/admin"
 import { requestAction } from "@/lib/agent-safety"
 import { isInternalEmail, NOT_SHOWCASE } from "@/lib/audience"
 import { buildLifecycleEmail, type LifecycleKind } from "@/lib/agents/lifecycle-templates"
+import { DEFAULT_UI_LOCALE } from "@/lib/i18n/locales"
+import { localeOfClientOwner, mailTranslatorSync } from "@/lib/mail/i18n"
 import { getOwnerEmail } from "@/lib/notifications"
 import { isSuperAdminEmail } from "@/lib/super-admins"
 
@@ -216,6 +218,7 @@ async function findWaitlistCandidates(): Promise<Candidate[]> {
 
 // ── Scan ────────────────────────────────────────────────────────────────────
 
+// i18n-ignore-start: popisky pro adminský panel (label akce v `agent_actions`), zákazník je nevidí
 const KIND_LABELS: Record<LifecycleKind, string> = {
     activation_nudge: "Aktivační pobídka",
     credit_low: "Docházejí kredity",
@@ -224,6 +227,7 @@ const KIND_LABELS: Record<LifecycleKind, string> = {
     dormant: "Spící účet",
     ig_disconnected: "Odpojený Instagram",
 }
+// i18n-ignore-end
 
 /**
  * Find lifecycle moments and propose one outbound e-mail per person (approval-
@@ -298,12 +302,19 @@ export async function sendLifecycleEmail(payload: Record<string, unknown>): Prom
     const to = String(payload.email || "").trim().toLowerCase()
     if (!to || !(kind in DEDUPE_DAYS)) throw new Error(`send_lifecycle_email: invalid payload (kind=${payload.kind}, email=${payload.email})`)
 
+    // Jazyk příjemce: pobídka jde vlastníkovi značky (adresa z `getOwnerEmail`),
+    // takže jeho účet určuje i jazyk — a zjišťuje se až teď, při odeslání, ne při
+    // návrhu. Připomínka čekatelům (`waitlist_drip`) nemá účet ani značku → čeština.
+    const clientId = (payload.clientId as string) || null
+    const locale = clientId ? await localeOfClientOwner(clientId) : DEFAULT_UI_LOCALE
+    const t = mailTranslatorSync(locale, "notices")
+
     const msg = buildLifecycleEmail(kind, {
         clientName: (payload.clientName as string) || null,
-        clientId: (payload.clientId as string) || null,
+        clientId,
         creditsRemaining: typeof payload.creditsRemaining === "number" ? payload.creditsRemaining : undefined,
         creditsTotal: typeof payload.creditsTotal === "number" ? payload.creditsTotal : undefined,
-    })
+    }, t, locale)
     // Šablona si řekla, že jí chybí čísla, bez kterých by zpráva lhala. Není to
     // chyba tasku (retry by ji neopravil) — jen se nic nepošle.
     if (!msg) {
@@ -312,6 +323,6 @@ export async function sendLifecycleEmail(payload: Record<string, unknown>): Prom
     }
     const { subject, body } = msg
     const { sendNotification } = await import("@/lib/notifications")
-    await sendNotification({ to, subject, body, kind: "notification" })
+    await sendNotification({ to, subject, body, kind: "notification", locale })
     return { ok: true, kind, to }
 }

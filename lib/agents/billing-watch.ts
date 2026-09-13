@@ -18,7 +18,7 @@
 import supabaseAdmin from "@/supabase/admin"
 import { proposeCustomerNotice } from "@/lib/agents/customer-notices"
 import { renewalNoticeDays, resolveTermMonths } from "@/lib/billing-period"
-import { normalizeTermMonths, renewalChargeHaleru, termPrice, termLabel } from "@/lib/pricing"
+import { normalizeTermMonths, renewalChargeHaleru, termPrice } from "@/lib/pricing"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -114,11 +114,6 @@ export async function scanUpcomingRenewals(now: Date = new Date()): Promise<Upco
     return out
 }
 
-function czDate(iso: string): string {
-    const d = new Date(iso)
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric", year: "numeric" })
-}
-
 /** Rozešle oznámení pro nadcházející obnovy. Vrací, kolik odešlo a kolik už bylo. */
 export async function notifyUpcomingRenewals(now: Date = new Date()): Promise<{ notified: number; duplicates: number }> {
     const upcoming = await scanUpcomingRenewals(now)
@@ -137,10 +132,12 @@ export async function notifyUpcomingRenewals(now: Date = new Date()): Promise<{ 
                     clientId: r.clientId,
                     amountHaleru: r.amountHaleru,
                     netHaleru: r.netHaleru,
-                    date: czDate(r.periodEnd),
+                    // Surové datum a počet měsíců: zformátuje je až šablona v jazyce
+                    // příjemce (ten se zjišťuje při odeslání, ne tady).
+                    dateIso: r.periodEnd,
                     auto: r.auto,
                     // Aby v e-mailu stálo „na dalších 12 měsíců", ne jen částka.
-                    termLabel: termLabel(normalizeTermMonths(r.termMonths)),
+                    termMonths: normalizeTermMonths(r.termMonths),
                 },
             })
             if (outcome === "sent") notified++

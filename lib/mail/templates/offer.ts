@@ -70,7 +70,7 @@ export const offer: EmailTemplate = {
         ctaLabel: "Vyzkoušet zdarma",
         ctaUrl: `${siteUrl()}/register`,
     },
-    build: v => {
+    build: (v, t) => {
         const plan = pickPlan(v.plan || "")
         const term = normalizeTermMonths(v.termMonths || String(DEFAULT_TERM_MONTHS))
         const { badge, note } = getTerm(term)
@@ -110,7 +110,7 @@ export const offer: EmailTemplate = {
                     name: plan.name,
                     price: perMonth,
                     period,
-                    features: [creditLine(plan), ...planBullets(plan)],
+                    features: [creditLine(plan, t), ...planBullets(plan, t)],
                     ctaLabel: "Začít",
                     ctaUrl: v.ctaUrl,
                     highlight: true,
@@ -129,7 +129,7 @@ export const offer: EmailTemplate = {
 
                 heading("Celý ceník", 2),
                 list(FALLBACK_PLANS.map(p =>
-                    `**${p.name}** — ${formatCzk(p.monthlyHaleru)} měsíčně · ${creditLine(p)}`,
+                    `**${p.name}** — ${formatCzk(p.monthlyHaleru)} měsíčně · ${creditLine(p, t)}`,
                 )),
                 paragraph(
                     `Delší období se platí dopředu a je levnější: ` +

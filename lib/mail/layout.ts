@@ -11,6 +11,7 @@
 import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
 import { formatIdentityLine, LEGAL } from "@/lib/legal"
 import type { Block } from "./blocks"
+import { mailTranslatorSync } from "./i18n"
 import { stripInline } from "./inline"
 import { renderBlocksHtml } from "./render-html"
 import { renderBlocksText } from "./render-text"
@@ -36,14 +37,10 @@ export interface MailDocument {
     locale?: UiLocale
 }
 
-/** Texty patičky — jediné, co layout sám píše. Bloky přicházejí přeložené. */
-const CHROME: Record<UiLocale, { internal: string; unsubscribe: string }> = {
-    cs: { internal: "Interní zpráva ze studia", unsubscribe: "Odhlásit odběr" },
-    en: { internal: "Internal studio message", unsubscribe: "Unsubscribe" },
-}
-
-function chrome(doc: MailDocument) {
-    return CHROME[doc.locale ?? DEFAULT_UI_LOCALE]
+/** Texty patičky (`mail.layout.*`) — jediné, co layout sám píše. Bloky přicházejí přeložené. */
+function chrome(doc: MailDocument): { internal: string; unsubscribe: string } {
+    const t = mailTranslatorSync(doc.locale ?? DEFAULT_UI_LOCALE, "mail")
+    return { internal: t("layout.internal"), unsubscribe: t("layout.unsubscribe") }
 }
 
 /**
@@ -108,15 +105,16 @@ export function renderEmail(doc: MailDocument): { html: string; text: string } {
     const preheader = derivePreheader(doc)
     const bandPad = `${28}px ${METRIC.pad}px`
 
+    // Vzhled je zamčený na světlý (`color-scheme` + `supported-color-schemes`).
+    // Bez těch dvou meta tagů si Gmail i Apple Mail e-mail „pomůžou" invertovat
+    // a z černého pásu udělají šedý s nečitelným textem — přesně to, kvůli čemu
+    // je tělo světlé.
     const html = `<!doctype html>
 <html lang="${doc.locale ?? DEFAULT_UI_LOCALE}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="x-apple-disable-message-reformatting" />
-<!-- Vzhled je zamčený na světlý. Bez těchhle dvou si Gmail i Apple Mail
-     e-mail „pomůžou" invertovat a z černého pásu udělají šedý s nečitelným
-     textem — přesně to, kvůli čemu je tělo světlé. -->
 <meta name="color-scheme" content="only light" />
 <meta name="supported-color-schemes" content="only light" />
 <title>${doc.subject}</title>
@@ -139,7 +137,7 @@ ${preheaderHtml(preheader)}
       <tr><td bgcolor="${COLOR.accent}" style="background:${COLOR.accent};height:3px;font-size:0;line-height:0">&nbsp;</td></tr>
 
       <tr><td bgcolor="${COLOR.card}" class="pad" style="background:${COLOR.card};padding:${METRIC.pad}px">
-${renderBlocksHtml(doc.blocks)}
+${renderBlocksHtml(doc.blocks, doc.locale ?? DEFAULT_UI_LOCALE)}
       </td></tr>
 
       <tr><td bgcolor="${COLOR.band}" class="pad" style="background:${COLOR.band};padding:${bandPad}">
@@ -156,7 +154,7 @@ ${renderBlocksHtml(doc.blocks)}
         "CHRLIT",
         doc.eyebrow ? doc.eyebrow.toUpperCase() : null,
         "",
-        renderBlocksText(doc.blocks),
+        renderBlocksText(doc.blocks, doc.locale ?? DEFAULT_UI_LOCALE),
         "",
         "────────────────────────────────",
         footerText(doc),

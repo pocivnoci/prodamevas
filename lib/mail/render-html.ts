@@ -13,7 +13,9 @@
  *    nejméně spolehlivá vlastnost vůbec.
  */
 
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
 import type { Block } from "./blocks"
+import { mailTranslatorSync, type MailTranslator } from "./i18n"
 import { parseInline } from "./inline"
 import { escapeHtml } from "./links"
 import { BUTTON, CALLOUT, COLOR, FONT, METRIC, TYPE } from "./tokens"
@@ -82,7 +84,7 @@ function planCardHtml(b: Extract<Block, { type: "planCard" }>): string {
 </table>`
 }
 
-function blockHtml(b: Block): string {
+function blockHtml(b: Block, t: MailTranslator): string {
     switch (b.type) {
         case "eyebrow":
             return `<p style="${TYPE.eyebrow};margin:0 0 12px">${escapeHtml(b.text)}</p>`
@@ -114,10 +116,10 @@ function blockHtml(b: Block): string {
         }
 
         case "callout": {
-            const t = CALLOUT[b.tone]
+            const tone = CALLOUT[b.tone]
             return row(
-                `<td bgcolor="${t.bg}" style="background:${t.bg};border:1px solid ${t.border};border-left:3px solid ${t.title};border-radius:${METRIC.radius}px;padding:16px 18px">
-      ${b.title ? `<p style="${TYPE.h2};font-size:12px;color:${t.title};margin:0 0 6px">${escapeHtml(b.title)}</p>` : ""}
+                `<td bgcolor="${tone.bg}" style="background:${tone.bg};border:1px solid ${tone.border};border-left:3px solid ${tone.title};border-radius:${METRIC.radius}px;padding:16px 18px">
+      ${b.title ? `<p style="${TYPE.h2};font-size:12px;color:${tone.title};margin:0 0 6px">${escapeHtml(b.title)}</p>` : ""}
       <p style="${TYPE.body};font-size:14px;margin:0">${inlineHtml(b.text)}</p>
     </td>`,
                 `margin:0 0 ${GAP}px`,
@@ -146,7 +148,7 @@ function blockHtml(b: Block): string {
         case "promoCode":
             return row(
                 `<td align="center" style="border:2px dashed ${COLOR.ink};border-radius:${METRIC.radius}px;padding:20px">
-      <p style="${TYPE.eyebrow};margin:0 0 8px">${escapeHtml(b.label || "Slevový kód")}</p>
+      <p style="${TYPE.eyebrow};margin:0 0 8px">${escapeHtml(b.label || t("blocks.promoCode"))}</p>
       <p style="font-family:${FONT};font-size:26px;font-weight:900;letter-spacing:.2em;color:${COLOR.ink};margin:0">${escapeHtml(b.code)}</p>
       ${b.note ? `<p style="${TYPE.small};margin:8px 0 0">${escapeHtml(b.note)}</p>` : ""}
     </td>`,
@@ -179,6 +181,11 @@ function blockHtml(b: Block): string {
     }
 }
 
-export function renderBlocksHtml(blocks: Block[]): string {
-    return blocks.map(blockHtml).join("\n")
+/**
+ * Bloky přicházejí přeložené; renderer sám píše jen výchozí popisky bloků
+ * (`mail.blocks.*`), proto potřebuje jazyk příjemce. Bez něj čeština.
+ */
+export function renderBlocksHtml(blocks: Block[], locale: UiLocale = DEFAULT_UI_LOCALE): string {
+    const t = mailTranslatorSync(locale, "mail")
+    return blocks.map(b => blockHtml(b, t)).join("\n")
 }

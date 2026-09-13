@@ -9,18 +9,23 @@
  * Číslo se ale nepíše ručně: `sample` je v Mailingu předvyplnění formuláře, ne
  * náhled, takže cena z ceníku v5 („1 990 Kč" u Růstu) odsud odcházela zákazníkům
  * o tisícovku pod skutečností. Bere se z `../plans` — hlídá aserce 29.17.
+ *
+ * Texty jdou z `messages/<locale>/mail.json` (`mail.templates.<id>.*`) — e-mail
+ * mluví jazykem příjemce; věta o DPH a měna zůstávají české (`vatNotice`,
+ * `formatCzk`). Popisky formuláře a ukázky čte jen správce, zůstávají česky.
  */
 
 import { vatNotice } from "@/lib/legal"
 import { MAX_BILLING_FAILURES } from "@/lib/billing-period"
-import { formatCzk, normalizeTermMonths, termLabel, termPrice } from "@/lib/pricing"
+import { formatCzk, normalizeTermMonths, termPrice } from "@/lib/pricing"
 import { button, callout, compact, footnote, heading, list, paragraph, promoCode } from "../blocks"
 import { siteUrl } from "../links"
 import { pickPlan, reelsLive, samplePlanName, samplePrice, samplePriceMonthly } from "../plans"
-import type { EmailTemplate } from "../template"
+import { withGreeting, type EmailTemplate } from "../template"
 
 export const subscriptionRenewal: EmailTemplate = {
     id: "subscription_renewal",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předplatné — blíží se obnova",
     group: "subscription",
     kind: "transactional",
@@ -41,12 +46,13 @@ export const subscriptionRenewal: EmailTemplate = {
         renewsOn: "5. 9. 2026",
         manageUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
+    // i18n-ignore-end
     // Strhává se cena ZAPLACENÉHO OBDOBÍ, ne měsíční sazba tarifu. Do 9/2026 tu
     // stála měsíční cena jako cena obnovy, takže roční zákazník četl 2 999 Kč
     // a z karty mu odešlo 29 990 Kč — přesně ten rozdíl na výpisu, kvůli kterému
     // se z obnovy stane chargeback. Číslo proto pochází z ceníku (`termPrice`),
     // ne z ruky.
-    build: v => {
+    build: (v, t) => {
         // Vyplněné období = cenu určuje ceník, ne ruka. Ručně psaná částka se
         // uplatní jen tam, kde období není (jednorázová domluva) — jinak by
         // stačilo zapomenout ji přepsat a roční zákazník by četl měsíční sazbu.
@@ -56,16 +62,22 @@ export const subscriptionRenewal: EmailTemplate = {
         const price = hasTerm
             ? formatCzk(termPrice(plan.monthlyHaleru, term))
             : v.price?.trim() || formatCzk(plan.monthlyHaleru)
-        const forTerm = hasTerm && term > 1 ? ` ${termLabel(term)}` : ""
         return {
-            subject: `Předplatné ${v.planName} se obnoví ${v.renewsOn}`,
-            eyebrow: "Předplatné",
+            subject: t("templates.subscription_renewal.subject", { planName: v.planName, renewsOn: v.renewsOn }),
+            eyebrow: t("common.subscription"),
             preheader: `${price} · ${v.renewsOn}`,
             blocks: [
-                heading("Obnova předplatného"),
-                paragraph(`Dobrý den,\n\nvaše předplatné **${v.planName}** se automaticky obnoví **${v.renewsOn}** a strhneme **${price}**${forTerm}. Nemusíte nic dělat.`),
-                paragraph("Pokud pokračovat nechcete, zrušte obnovu ve studiu — do data obnovy funguje všechno dál."),
-                button("Spravovat předplatné", v.manageUrl),
+                heading(t("templates.subscription_renewal.heading")),
+                // Délka období se skloňuje v messages (ICU plural); bez vyplněného
+                // období se dovětek „na N měsíců" vynechá (větev `=1` je prázdná).
+                paragraph(withGreeting(t, t("templates.subscription_renewal.intro", {
+                    planName: v.planName,
+                    renewsOn: v.renewsOn,
+                    price,
+                    term: hasTerm ? term : 1,
+                }))),
+                paragraph(t("templates.subscription_renewal.cancelHint")),
+                button(t("templates.subscription_renewal.cta"), v.manageUrl),
                 footnote(vatNotice()),
             ],
         }
@@ -74,6 +86,7 @@ export const subscriptionRenewal: EmailTemplate = {
 
 export const subscriptionChargeFailed: EmailTemplate = {
     id: "subscription_charge_failed",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předplatné — platba neprošla",
     group: "subscription",
     kind: "transactional",
@@ -94,17 +107,27 @@ export const subscriptionChargeFailed: EmailTemplate = {
         graceNote: "Účet zůstává aktivní ještě 3 dny.",
         payUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
-    build: v => ({
-        subject: "Platbu se nepodařilo strhnout",
-        eyebrow: "Předplatné",
-        preheader: `Pokus ${v.attempt} z ${v.maxAttempts} · ${v.price}`,
+    // i18n-ignore-end
+    build: (v, t) => ({
+        subject: t("templates.subscription_charge_failed.subject"),
+        eyebrow: t("common.subscription"),
+        preheader: t("templates.subscription_charge_failed.preheader", { attempt: v.attempt, maxAttempts: v.maxAttempts, price: v.price }),
         blocks: compact([
-            heading("Platba neprošla"),
-            paragraph(`Dobrý den,\n\nnepodařilo se nám strhnout **${v.price}** za tarif **${v.planName}** (pokus ${v.attempt} z ${v.maxAttempts}).`),
-            v.graceNote && callout("warning", v.graceNote, "Zatím se nic neděje"),
-            heading("Nejčastější důvody", 2),
-            list(["Expirovaná karta", "Nedostatek prostředků", "Banka zablokovala opakovanou platbu"]),
-            button("Zaplatit teď", v.payUrl, "accent"),
+            heading(t("templates.subscription_charge_failed.heading")),
+            paragraph(withGreeting(t, t("templates.subscription_charge_failed.intro", {
+                price: v.price,
+                planName: v.planName,
+                attempt: v.attempt,
+                maxAttempts: v.maxAttempts,
+            }))),
+            v.graceNote && callout("warning", v.graceNote, t("templates.subscription_charge_failed.graceTitle")),
+            heading(t("templates.subscription_charge_failed.reasonsHeading"), 2),
+            list([
+                t("templates.subscription_charge_failed.reason1"),
+                t("templates.subscription_charge_failed.reason2"),
+                t("templates.subscription_charge_failed.reason3"),
+            ]),
+            button(t("templates.subscription_charge_failed.cta"), v.payUrl, "accent"),
             footnote(vatNotice()),
         ]),
     }),
@@ -112,6 +135,7 @@ export const subscriptionChargeFailed: EmailTemplate = {
 
 export const subscriptionExpired: EmailTemplate = {
     id: "subscription_expired",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předplatné — doběhlo",
     group: "subscription",
     kind: "transactional",
@@ -126,15 +150,16 @@ export const subscriptionExpired: EmailTemplate = {
         price: samplePriceMonthly(),
         renewUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
-    build: v => ({
-        subject: "Vaše předplatné skončilo",
-        eyebrow: "Předplatné",
-        preheader: "Data zůstávají uložená, generování je pozastavené.",
+    // i18n-ignore-end
+    build: (v, t) => ({
+        subject: t("templates.subscription_expired.subject"),
+        eyebrow: t("common.subscription"),
+        preheader: t("templates.subscription_expired.preheader"),
         blocks: [
-            heading("Předplatné skončilo"),
-            paragraph(`Dobrý den,\n\npředplatné **${v.planName}** doběhlo. Generování je pozastavené, ale **nic jsme nesmazali** — příspěvky, značka i nastavení na vás čekají.`),
-            paragraph(`Obnovit můžete kdykoli za **${v.price}**; navážete přesně v místě, kde se generování zastavilo.`),
-            button("Obnovit předplatné", v.renewUrl, "accent"),
+            heading(t("templates.subscription_expired.heading")),
+            paragraph(withGreeting(t, t("templates.subscription_expired.intro", { planName: v.planName }))),
+            paragraph(t("templates.subscription_expired.renew", { price: v.price })),
+            button(t("templates.subscription_expired.cta"), v.renewUrl, "accent"),
             footnote(vatNotice()),
         ],
     }),
@@ -142,6 +167,7 @@ export const subscriptionExpired: EmailTemplate = {
 
 export const subscriptionWinback: EmailTemplate = {
     id: "subscription_winback",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předplatné — nabídka na návrat",
     group: "subscription",
     kind: "notification",
@@ -167,16 +193,17 @@ export const subscriptionWinback: EmailTemplate = {
         price: samplePriceMonthly(),
         ctaUrl: `${siteUrl()}/dashboard/instagram#settings`,
     },
-    build: v => ({
+    // i18n-ignore-end
+    build: (v, t) => ({
         subject: v.headline,
-        eyebrow: "Nabídka",
-        preheader: v.codeNote || "Máme pro vás nabídku na návrat.",
+        eyebrow: t("templates.subscription_winback.eyebrow"),
+        preheader: v.codeNote || t("templates.subscription_winback.preheader"),
         blocks: compact([
             heading(v.headline),
             paragraph(v.intro),
             v.code && promoCode(v.code, v.codeNote || undefined),
-            paragraph(`Běžná cena tarifu je **${v.price}**. Zrušit jde kdykoli.`),
-            button("Vrátit se do Chrlitu", v.ctaUrl, "accent"),
+            paragraph(t("templates.subscription_winback.price", { price: v.price })),
+            button(t("templates.subscription_winback.cta"), v.ctaUrl, "accent"),
             footnote(vatNotice()),
         ]),
     }),

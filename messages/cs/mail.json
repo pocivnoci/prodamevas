@@ -6,6 +6,147 @@
       "body": "váš účet je potvrzený a připravený. Chrlit se naučí vaši značku a chrlí za vás hotové příspěvky — stačí zadat web, projít krátké nastavení a spustit první generování.",
       "cta": "Otevřít studio →",
       "signature": "Tým Chrlit"
+    },
+    "common": {
+      "greeting": "Dobrý den,",
+      "signature": "Tým Chrlit",
+      "replyHint": "Kdyby cokoli drhlo, stačí odpovědět na tenhle e-mail.",
+      "openStudio": "Otevřít studio",
+      "accessCode": "Přístupový kód",
+      "subscription": "Předplatné",
+      "handoff": "Předání značky"
+    },
+    "layout": {
+      "internal": "Interní zpráva ze studia",
+      "unsubscribe": "Odhlásit odběr"
+    },
+    "blocks": {
+      "promoCode": "Slevový kód",
+      "image": "[obrázek: {alt}]",
+      "quote": "„{text}\""
+    },
+    "plans": {
+      "creditLine": "{count, plural, one {# kredit} few {# kredity} other {# kreditů}} měsíčně — {example}",
+      "comingSoon": "{text} (připravujeme)",
+      "monthly": "{price} měsíčně"
+    },
+    "templates": {
+      "welcome": {
+        "eyebrow": "Účet je aktivní",
+        "preheader": "Zadejte web a Chrlit se naučí vaši značku.",
+        "intro": "účet máte hotový. Zbývá jediné — ukázat Chrlitu, jak vypadá vaše značka.",
+        "stepsHeading": "Tři kroky",
+        "step1": "Zadáte adresu svého webu.",
+        "step2": "Chrlit si z něj vytáhne tón, barvy a produkty.",
+        "step3": "Vygenerujete první příspěvky — tři jsou zdarma.",
+        "cta": "Spustit nastavení"
+      },
+      "receipt": {
+        "subject": "Platba přijata — {planName}",
+        "eyebrow": "Potvrzení platby",
+        "heading": "Platba proběhla",
+        "intro": "děkujeme. Přijali jsme **{price}** za **{planName}**. Všechno je aktivní.",
+        "credits": "Kreditů",
+        "periodEnd": "Předplaceno do",
+        "invoiceNote": "Daňový doklad dorazí zvlášť během pár minut."
+      },
+      "client_handoff": {
+        "subject": "{brandName} na vás čeká v Chrlitu",
+        "preheader": "Účet si založíte za minutu, značka je už nastavená.",
+        "heading": "{brandName} je připravená",
+        "intro": "nastavili jsme za vás značku **{brandName}** — tón, témata i vizuál. Zbývá jediné: založit si účet, pod kterým vám bude patřit.",
+        "cta": "Založit účet a převzít značku",
+        "afterLoginHeading": "Co uvidíte po přihlášení",
+        "afterLogin1": "Hotovou konfiguraci značky — nic nenastavujete znovu.",
+        "afterLogin2": "Plán příspěvků a první vygenerované ukázky.",
+        "afterLogin3": "Kalendář, ve kterém si termíny přehodíte, jak potřebujete.",
+        "sameEmail": "Účet si založte na **tuhle** adresu — značka se páruje podle e-mailu.",
+        "codeNote": "Odkaz výš ho vyplní sám. Tohle je pro případ, že byste registraci otevírali ručně."
+      },
+      "client_handoff_done": {
+        "subject": "{brandName} je ve vašem účtu",
+        "preheader": "Najdete ji v přepínači projektů hned po přihlášení.",
+        "heading": "{brandName} je vaše",
+        "intro": "značka **{brandName}** je od teď ve vašem účtu — najdete ji v přepínači projektů hned po přihlášení. Konfigurace i vygenerovaný obsah zůstávají, nic se nenastavuje znovu."
+      },
+      "subscription_renewal": {
+        "subject": "Předplatné {planName} se obnoví {renewsOn}",
+        "heading": "Obnova předplatného",
+        "intro": "vaše předplatné **{planName}** se automaticky obnoví **{renewsOn}** a strhneme **{price}**{term, plural, =1 {} few { na # měsíce} other { na # měsíců}}. Nemusíte nic dělat.",
+        "cancelHint": "Pokud pokračovat nechcete, zrušte obnovu ve studiu — do data obnovy funguje všechno dál.",
+        "cta": "Spravovat předplatné"
+      },
+      "subscription_charge_failed": {
+        "subject": "Platbu se nepodařilo strhnout",
+        "preheader": "Pokus {attempt} z {maxAttempts} · {price}",
+        "heading": "Platba neprošla",
+        "intro": "nepodařilo se nám strhnout **{price}** za tarif **{planName}** (pokus {attempt} z {maxAttempts}).",
+        "graceTitle": "Zatím se nic neděje",
+        "reasonsHeading": "Nejčastější důvody",
+        "reason1": "Expirovaná karta",
+        "reason2": "Nedostatek prostředků",
+        "reason3": "Banka zablokovala opakovanou platbu",
+        "cta": "Zaplatit teď"
+      },
+      "subscription_expired": {
+        "subject": "Vaše předplatné skončilo",
+        "preheader": "Data zůstávají uložená, generování je pozastavené.",
+        "heading": "Předplatné skončilo",
+        "intro": "předplatné **{planName}** doběhlo. Generování je pozastavené, ale **nic jsme nesmazali** — příspěvky, značka i nastavení na vás čekají.",
+        "renew": "Obnovit můžete kdykoli za **{price}**; navážete přesně v místě, kde se generování zastavilo.",
+        "cta": "Obnovit předplatné"
+      },
+      "subscription_winback": {
+        "eyebrow": "Nabídka",
+        "preheader": "Máme pro vás nabídku na návrat.",
+        "price": "Běžná cena tarifu je **{price}**. Zrušit jde kdykoli.",
+        "cta": "Vrátit se do Chrlitu"
+      },
+      "waitlist_welcome": {
+        "eyebrow": "Waitlist",
+        "preheader": "Máme vás na seznamu. Ozveme se, jakmile uvolníme místa.",
+        "nextHeading": "Co bude dál",
+        "next1": "Ozveme se e-mailem s přístupovým kódem.",
+        "next2": "Zadáte web a Chrlit se naučí vaši značku.",
+        "next3": "První tři příspěvky máte zdarma — bez kreditky.",
+        "cta": "Prohlédnout ukázky"
+      },
+      "waitlist_invite": {
+        "eyebrow": "Pozvánka",
+        "preheader": "Váš kód {code} je připravený.",
+        "introWaited": "na seznamu u nás čekáte už {days, plural, one {# den} few {# dny} other {# dní}} a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.",
+        "intro": "uvolnilo se místo. Kód níž vám otevře přístup do Chrlitu.",
+        "cta": "Aktivovat přístup",
+        "codeHint": "Kód zadáte při registraci. Když ho ztratíte, napište nám a pošleme nový."
+      }
+    },
+    "onPaid": {
+      "invoice": {
+        "withLink": "Daňový doklad č. <strong>{number}</strong>: {link}",
+        "issued": "Daňový doklad č. <strong>{number}</strong> jsme vám poslali samostatným e-mailem.",
+        "pending": "Daňový doklad vám zašleme e-mailem během okamžiku.",
+        "linkLabel": "zobrazit fakturu →"
+      },
+      "credits": {
+        "subject": "Připsáno: {count, plural, one {# kredit} few {# kredity} other {# kreditů}}",
+        "body": "na váš účet jsme připsali <strong>{count, plural, one {# kredit} few {# kredity} other {# kreditů}}</strong>. Můžete rovnou pokračovat v generování — nic dalšího dělat nemusíte.",
+        "validity": "Kredity platí do konce probíhajícího kreditového období, stejně jako ty z tarifu.",
+        "cta": "Zpět do studia →"
+      },
+      "service": {
+        "subject": "Zaplaceno — vyberte si termín nastavení značky",
+        "body": "děkujeme za platbu. Teď zbývá jediné: <strong>vybrat si termín</strong>.",
+        "cta": "Vybrat termín →",
+        "detail": "Schůzka trvá 30 minut a je online — odkaz na video hovor dostanete spolu s potvrzením termínu. Než se sejdeme, projdeme si vaši značku a přijdeme s hotovým návrhem, takže se na nic připravovat nemusíte."
+      },
+      "plan": {
+        "subjectRenewal": "Předplatné {plan} obnoveno",
+        "subjectNew": "Potvrzení platby — plán {plan} je aktivní",
+        "received": "přijali jsme vaši platbu {amount}{label}. ",
+        "renewed": "Předplatné <strong>{plan}</strong> bylo úspěšně obnoveno na další období.",
+        "activated": "Plán <strong>{plan}</strong> je aktivní — generování příspěvků je odemčené.",
+        "cta": "Přejít do studia →"
+      }
     }
   }
 }

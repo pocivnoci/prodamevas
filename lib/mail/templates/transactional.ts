@@ -5,16 +5,21 @@
  * odhlašovací odkaz: z potvrzení platby se odhlásit nejde. Proto tu taky nesmí
  * skončit nic marketingového — jinak by první stížnost padla na kanál, přes
  * který chodí doklady.
+ *
+ * Texty jdou z `messages/<locale>/mail.json` (`mail.templates.<id>.*`, sdílené
+ * `mail.common.*`) — e-mail mluví jazykem příjemce. Popisky formuláře a ukázková
+ * data čte jen správce v Mailingu, ty zůstávají česky.
  */
 
 import { vatNotice } from "@/lib/legal"
 import { button, callout, compact, footnote, heading, list, paragraph, promoCode, stats } from "../blocks"
 import { siteUrl } from "../links"
 import { sampleCredits, samplePlanName, samplePrice } from "../plans"
-import type { EmailTemplate } from "../template"
+import { withGreeting, type EmailTemplate } from "../template"
 
 export const welcome: EmailTemplate = {
     id: "welcome",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Uvítání po registraci",
     group: "transactional",
     kind: "transactional",
@@ -26,27 +31,29 @@ export const welcome: EmailTemplate = {
         headline: "Vítejte v Chrlitu",
         ctaUrl: `${siteUrl()}/onboarding`,
     },
-    build: v => ({
+    // i18n-ignore-end
+    build: (v, t) => ({
         subject: v.headline,
-        eyebrow: "Účet je aktivní",
-        preheader: "Zadejte web a Chrlit se naučí vaši značku.",
+        eyebrow: t("templates.welcome.eyebrow"),
+        preheader: t("templates.welcome.preheader"),
         blocks: [
             heading(v.headline),
-            paragraph("Dobrý den,\n\núčet máte hotový. Zbývá jediné — ukázat Chrlitu, jak vypadá vaše značka."),
-            heading("Tři kroky", 2),
+            paragraph(withGreeting(t, t("templates.welcome.intro"))),
+            heading(t("templates.welcome.stepsHeading"), 2),
             list([
-                "Zadáte adresu svého webu.",
-                "Chrlit si z něj vytáhne tón, barvy a produkty.",
-                "Vygenerujete první příspěvky — tři jsou zdarma.",
+                t("templates.welcome.step1"),
+                t("templates.welcome.step2"),
+                t("templates.welcome.step3"),
             ], true),
-            button("Spustit nastavení", v.ctaUrl),
-            paragraph("Kdyby cokoli drhlo, stačí odpovědět na tenhle e-mail."),
+            button(t("templates.welcome.cta"), v.ctaUrl),
+            paragraph(t("common.replyHint")),
         ],
     }),
 }
 
 export const receipt: EmailTemplate = {
     id: "receipt",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Potvrzení platby",
     group: "transactional",
     kind: "transactional",
@@ -65,19 +72,20 @@ export const receipt: EmailTemplate = {
         periodEnd: "5. 9. 2026",
         ctaUrl: `${siteUrl()}/dashboard/instagram`,
     },
-    build: v => ({
-        subject: `Platba přijata — ${v.planName}`,
-        eyebrow: "Potvrzení platby",
+    // i18n-ignore-end
+    build: (v, t) => ({
+        subject: t("templates.receipt.subject", { planName: v.planName }),
+        eyebrow: t("templates.receipt.eyebrow"),
         preheader: `${v.price} · ${v.planName}`,
         blocks: compact([
-            heading("Platba proběhla"),
-            paragraph(`Dobrý den,\n\nděkujeme. Přijali jsme **${v.price}** za **${v.planName}**. Všechno je aktivní.`),
+            heading(t("templates.receipt.heading")),
+            paragraph(withGreeting(t, t("templates.receipt.intro", { price: v.price, planName: v.planName }))),
             (v.credits || v.periodEnd) && stats([
-                ...(v.credits ? [{ label: "Kreditů", value: v.credits }] : []),
-                ...(v.periodEnd ? [{ label: "Předplaceno do", value: v.periodEnd }] : []),
+                ...(v.credits ? [{ label: t("templates.receipt.credits"), value: v.credits }] : []),
+                ...(v.periodEnd ? [{ label: t("templates.receipt.periodEnd"), value: v.periodEnd }] : []),
             ]),
-            button("Otevřít studio", v.ctaUrl),
-            paragraph("Daňový doklad dorazí zvlášť během pár minut."),
+            button(t("common.openStudio"), v.ctaUrl),
+            paragraph(t("templates.receipt.invoiceNote")),
             footnote(vatNotice()),
         ]),
     }),
@@ -92,6 +100,7 @@ export const receipt: EmailTemplate = {
  */
 export const clientHandoff: EmailTemplate = {
     id: "client_handoff",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předání značky — pozvánka",
     group: "transactional",
     kind: "transactional",
@@ -105,24 +114,26 @@ export const clientHandoff: EmailTemplate = {
         code: "ZNACKA-K7M2QP",
         ctaUrl: `${siteUrl()}/register?code=ZNACKA-K7M2QP&email=zakaznik%40firma.cz`,
     },
-    build: v => ({
-        subject: `${v.brandName} na vás čeká v Chrlitu`,
-        eyebrow: "Předání značky",
-        preheader: "Účet si založíte za minutu, značka je už nastavená.",
+    // i18n-ignore-end
+    build: (v, t) => ({
+        subject: t("templates.client_handoff.subject", { brandName: v.brandName }),
+        eyebrow: t("common.handoff"),
+        preheader: t("templates.client_handoff.preheader"),
         blocks: compact([
-            heading(`${v.brandName} je připravená`),
-            paragraph(`Dobrý den,\n\nnastavili jsme za vás značku **${v.brandName}** — tón, témata i vizuál. Zbývá jediné: založit si účet, pod kterým vám bude patřit.`),
-            button("Založit účet a převzít značku", v.ctaUrl),
-            heading("Co uvidíte po přihlášení", 2),
+            heading(t("templates.client_handoff.heading", { brandName: v.brandName })),
+            paragraph(withGreeting(t, t("templates.client_handoff.intro", { brandName: v.brandName }))),
+            button(t("templates.client_handoff.cta"), v.ctaUrl),
+            heading(t("templates.client_handoff.afterLoginHeading"), 2),
             list([
-                "Hotovou konfiguraci značky — nic nenastavujete znovu.",
-                "Plán příspěvků a první vygenerované ukázky.",
-                "Kalendář, ve kterém si termíny přehodíte, jak potřebujete.",
+                t("templates.client_handoff.afterLogin1"),
+                t("templates.client_handoff.afterLogin2"),
+                t("templates.client_handoff.afterLogin3"),
             ]),
-            callout("info", "Účet si založte na **tuhle** adresu — značka se páruje podle e-mailu."),
-            // Kód je záložní cesta, ne pointa: tlačítko výš ho vyplní samo.
-            v.code && promoCode(v.code, "Odkaz výš ho vyplní sám. Tohle je pro případ, že byste registraci otevírali ručně.", "Přístupový kód"),
-            paragraph("Tým Chrlit"),
+            callout("info", t("templates.client_handoff.sameEmail")),
+            // Kód je záložní cesta, ne pointa: tlačítko výš ho vyplní samo. Popisek
+            // říká, že jde o vstupní kód — výchozí popisek rámečku mluví o slevě.
+            v.code && promoCode(v.code, t("templates.client_handoff.codeNote"), t("common.accessCode")),
+            paragraph(t("common.signature")),
         ]),
     }),
 }
@@ -130,6 +141,7 @@ export const clientHandoff: EmailTemplate = {
 /** Zákazník účet má — jen se mu v něm objevila značka. Ať ví proč. */
 export const clientHandoffDone: EmailTemplate = {
     id: "client_handoff_done",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Předání značky — hotovo",
     group: "transactional",
     kind: "transactional",
@@ -141,15 +153,16 @@ export const clientHandoffDone: EmailTemplate = {
         brandName: "Květiny nad Museem",
         ctaUrl: `${siteUrl()}/dashboard/instagram`,
     },
-    build: v => ({
-        subject: `${v.brandName} je ve vašem účtu`,
-        eyebrow: "Předání značky",
-        preheader: "Najdete ji v přepínači projektů hned po přihlášení.",
+    // i18n-ignore-end
+    build: (v, t) => ({
+        subject: t("templates.client_handoff_done.subject", { brandName: v.brandName }),
+        eyebrow: t("common.handoff"),
+        preheader: t("templates.client_handoff_done.preheader"),
         blocks: [
-            heading(`${v.brandName} je vaše`),
-            paragraph(`Dobrý den,\n\nznačka **${v.brandName}** je od teď ve vašem účtu — najdete ji v přepínači projektů hned po přihlášení. Konfigurace i vygenerovaný obsah zůstávají, nic se nenastavuje znovu.`),
-            button("Otevřít studio", v.ctaUrl),
-            paragraph("Kdyby cokoli drhlo, stačí odpovědět na tenhle e-mail."),
+            heading(t("templates.client_handoff_done.heading", { brandName: v.brandName })),
+            paragraph(withGreeting(t, t("templates.client_handoff_done.intro", { brandName: v.brandName }))),
+            button(t("common.openStudio"), v.ctaUrl),
+            paragraph(t("common.replyHint")),
         ],
     }),
 }

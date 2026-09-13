@@ -11,15 +11,19 @@
  * ale příčestí singulární a rodové. Věta se proto skládá tak, aby v ní příčestí
  * o adresátovi vůbec nebylo — přítomný čas („čekáte") funguje pro všechny.
  * Hlídá aserce 29.18.
+ *
+ * Texty jdou z `messages/<locale>/mail.json` (`mail.templates.<id>.*`); počet dní
+ * čekání skloňuje ICU plural v messages, šablona předává jen číslo. Popisky
+ * formuláře a ukázky čte jen správce v Mailingu, zůstávají česky.
  */
 
-import { countLabel, DAYS } from "@/lib/plural"
 import { button, callout, compact, heading, list, paragraph, promoCode } from "../blocks"
 import { siteUrl } from "../links"
-import type { EmailTemplate } from "../template"
+import { withGreeting, type EmailTemplate } from "../template"
 
 export const waitlistWelcome: EmailTemplate = {
     id: "waitlist_welcome",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Waitlist — potvrzení zápisu",
     group: "waitlist",
     kind: "notification",
@@ -34,27 +38,29 @@ export const waitlistWelcome: EmailTemplate = {
         intro: "Dobrý den,\n\ndíky za zájem o Chrlit. Zapsali jsme vás na waitlist — jakmile uvolníme další místa, ozveme se jako prvním.",
         ctaUrl: `${siteUrl()}/ukazky`,
     },
-    build: v => ({
+    // i18n-ignore-end
+    build: (v, t) => ({
         subject: v.headline,
-        eyebrow: "Waitlist",
-        preheader: "Máme vás na seznamu. Ozveme se, jakmile uvolníme místa.",
+        eyebrow: t("templates.waitlist_welcome.eyebrow"),
+        preheader: t("templates.waitlist_welcome.preheader"),
         blocks: compact([
             heading(v.headline),
             paragraph(v.intro),
-            heading("Co bude dál", 2),
+            heading(t("templates.waitlist_welcome.nextHeading"), 2),
             list([
-                "Ozveme se e-mailem s přístupovým kódem.",
-                "Zadáte web a Chrlit se naučí vaši značku.",
-                "První tři příspěvky máte zdarma — bez kreditky.",
+                t("templates.waitlist_welcome.next1"),
+                t("templates.waitlist_welcome.next2"),
+                t("templates.waitlist_welcome.next3"),
             ]),
-            v.ctaUrl && button("Prohlédnout ukázky", v.ctaUrl),
-            paragraph("Tým Chrlit"),
+            v.ctaUrl && button(t("templates.waitlist_welcome.cta"), v.ctaUrl),
+            paragraph(t("common.signature")),
         ]),
     }),
 }
 
 export const waitlistInvite: EmailTemplate = {
     id: "waitlist_invite",
+    // i18n-ignore-start: popisky formuláře v Mailingu a ukázková data — čte je jen správce
     label: "Waitlist — pozvánka s kódem",
     group: "waitlist",
     kind: "notification",
@@ -73,34 +79,39 @@ export const waitlistInvite: EmailTemplate = {
         expiresNote: "Kód platí 14 dní.",
         ctaUrl: `${siteUrl()}/register`,
     },
-    build: v => ({
-        subject: v.headline,
-        eyebrow: "Pozvánka",
-        preheader: `Váš kód ${v.code} je připravený.`,
-        blocks: compact([
-            heading(v.headline),
-            paragraph(
-                // Bez rodových příčestí o adresátovi („zapsal jste se") — e-mail
-                // neví, komu píše, a půlce příjemců se netrefí do rodu.
-                waited(v.waitedDays)
-                    ? `Dobrý den,\n\nna seznamu u nás čekáte už ${waited(v.waitedDays)} a teď jsme na vás vyšli. Uvolnilo se místo — kód níž vám otevře přístup.`
-                    : "Dobrý den,\n\nuvolnilo se místo. Kód níž vám otevře přístup do Chrlitu.",
-            ),
-            promoCode(v.code, v.expiresNote || undefined, "Přístupový kód"),
-            button("Aktivovat přístup", v.ctaUrl),
-            callout("info", "Kód zadáte při registraci. Když ho ztratíte, napište nám a pošleme nový."),
-            paragraph("Tým Chrlit"),
-        ]),
-    }),
+    // i18n-ignore-end
+    build: (v, t) => {
+        const days = waitedDays(v.waitedDays)
+        return {
+            subject: v.headline,
+            eyebrow: t("templates.waitlist_invite.eyebrow"),
+            preheader: t("templates.waitlist_invite.preheader", { code: v.code }),
+            blocks: compact([
+                heading(v.headline),
+                paragraph(withGreeting(
+                    t,
+                    // Bez rodových příčestí o adresátovi („zapsal jste se") — e-mail
+                    // neví, komu píše, a půlce příjemců se netrefí do rodu.
+                    days
+                        ? t("templates.waitlist_invite.introWaited", { days })
+                        : t("templates.waitlist_invite.intro"),
+                )),
+                promoCode(v.code, v.expiresNote || undefined, t("common.accessCode")),
+                button(t("templates.waitlist_invite.cta"), v.ctaUrl),
+                callout("info", t("templates.waitlist_invite.codeHint")),
+                paragraph(t("common.signature")),
+            ]),
+        }
+    },
 }
 
 /**
- * „26 dní" z toho, co obchodník napsal do formuláře. Pole je text (jako všechna
+ * Počet dní z toho, co obchodník napsal do formuláře. Pole je text (jako všechna
  * ostatní), takže se sem dostane i prázdno nebo překlep — a „před 1 dny" nebo
  * „0 dní" v pozvánce vypadá jako rozbitá šablona. Co není kladné číslo, větu
- * o čekání vynechá.
+ * o čekání vynechá. Skloňování („26 dní") dělá ICU plural v messages.
  */
-function waited(raw: string | undefined): string | null {
+function waitedDays(raw: string | undefined): number | null {
     const days = Number.parseInt((raw ?? "").trim(), 10)
-    return Number.isFinite(days) && days > 0 ? countLabel(days, DAYS) : null
+    return Number.isFinite(days) && days > 0 ? days : null
 }

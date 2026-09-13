@@ -6,6 +6,147 @@
       "body": "your account is confirmed and ready. Chrlit learns your brand and churns out finished posts for you — enter your website, go through a short setup and start the first generation.",
       "cta": "Open the studio →",
       "signature": "The Chrlit team"
+    },
+    "common": {
+      "greeting": "Hello,",
+      "signature": "The Chrlit team",
+      "replyHint": "If anything gets stuck, just reply to this e-mail.",
+      "openStudio": "Open the studio",
+      "accessCode": "Access code",
+      "subscription": "Subscription",
+      "handoff": "Brand handover"
+    },
+    "layout": {
+      "internal": "Internal studio message",
+      "unsubscribe": "Unsubscribe"
+    },
+    "blocks": {
+      "promoCode": "Discount code",
+      "image": "[image: {alt}]",
+      "quote": "“{text}”"
+    },
+    "plans": {
+      "creditLine": "{count, plural, one {# credit} other {# credits}} a month — {example}",
+      "comingSoon": "{text} (coming soon)",
+      "monthly": "{price} a month"
+    },
+    "templates": {
+      "welcome": {
+        "eyebrow": "Your account is active",
+        "preheader": "Enter your website and Chrlit will learn your brand.",
+        "intro": "Your account is ready. One thing remains — show Chrlit what your brand looks like.",
+        "stepsHeading": "Three steps",
+        "step1": "Enter your website address.",
+        "step2": "Chrlit pulls the tone, colours and products from it.",
+        "step3": "Generate your first posts — three are free.",
+        "cta": "Start the setup"
+      },
+      "receipt": {
+        "subject": "Payment received — {planName}",
+        "eyebrow": "Payment confirmation",
+        "heading": "Payment successful",
+        "intro": "Thank you. We have received **{price}** for **{planName}**. Everything is active.",
+        "credits": "Credits",
+        "periodEnd": "Paid until",
+        "invoiceNote": "The tax invoice will arrive separately within a few minutes."
+      },
+      "client_handoff": {
+        "subject": "{brandName} is waiting for you in Chrlit",
+        "preheader": "Creating an account takes a minute — the brand is already set up.",
+        "heading": "{brandName} is ready",
+        "intro": "We have set up the brand **{brandName}** for you — tone, topics and visuals. One thing remains: create the account it will belong to.",
+        "cta": "Create an account and take over the brand",
+        "afterLoginHeading": "What you will see after signing in",
+        "afterLogin1": "The finished brand configuration — nothing to set up again.",
+        "afterLogin2": "A post plan and the first generated samples.",
+        "afterLogin3": "A calendar where you can move dates around as you need.",
+        "sameEmail": "Create the account with **this** e-mail address — the brand is matched by e-mail.",
+        "codeNote": "The link above fills it in for you. This is just in case you open the registration by hand."
+      },
+      "client_handoff_done": {
+        "subject": "{brandName} is in your account",
+        "preheader": "You will find it in the project switcher right after signing in.",
+        "heading": "{brandName} is yours",
+        "intro": "The brand **{brandName}** is now in your account — you will find it in the project switcher right after signing in. The configuration and generated content stay in place; nothing needs setting up again."
+      },
+      "subscription_renewal": {
+        "subject": "Your {planName} subscription renews on {renewsOn}",
+        "heading": "Subscription renewal",
+        "intro": "Your **{planName}** subscription renews automatically on **{renewsOn}** and we will charge **{price}**{term, plural, =1 {} other { for # months}}. Nothing to do on your side.",
+        "cancelHint": "If you don't want to continue, cancel the renewal in the studio — everything keeps working until the renewal date.",
+        "cta": "Manage subscription"
+      },
+      "subscription_charge_failed": {
+        "subject": "We couldn't charge your payment",
+        "preheader": "Attempt {attempt} of {maxAttempts} · {price}",
+        "heading": "Payment failed",
+        "intro": "We couldn't charge **{price}** for the **{planName}** plan (attempt {attempt} of {maxAttempts}).",
+        "graceTitle": "Nothing has changed yet",
+        "reasonsHeading": "Most common reasons",
+        "reason1": "Expired card",
+        "reason2": "Insufficient funds",
+        "reason3": "The bank blocked a recurring payment",
+        "cta": "Pay now"
+      },
+      "subscription_expired": {
+        "subject": "Your subscription has ended",
+        "preheader": "Your data stays saved; generation is paused.",
+        "heading": "Subscription ended",
+        "intro": "Your **{planName}** subscription has run out. Generation is paused, but **we haven't deleted anything** — your posts, brand and settings are waiting for you.",
+        "renew": "You can renew any time for **{price}** and pick up exactly where generation stopped.",
+        "cta": "Renew subscription"
+      },
+      "subscription_winback": {
+        "eyebrow": "Offer",
+        "preheader": "We have an offer to bring you back.",
+        "price": "The regular plan price is **{price}**. Cancel any time.",
+        "cta": "Come back to Chrlit"
+      },
+      "waitlist_welcome": {
+        "eyebrow": "Waitlist",
+        "preheader": "You're on the list. We'll be in touch as soon as spots open up.",
+        "nextHeading": "What happens next",
+        "next1": "We'll e-mail you an access code.",
+        "next2": "You enter your website and Chrlit learns your brand.",
+        "next3": "Your first three posts are free — no credit card.",
+        "cta": "See the samples"
+      },
+      "waitlist_invite": {
+        "eyebrow": "Invitation",
+        "preheader": "Your code {code} is ready.",
+        "introWaited": "You've been on our list for {days, plural, one {# day} other {# days}} and now it's your turn. A spot has opened up — the code below unlocks your access.",
+        "intro": "A spot has opened up. The code below unlocks your access to Chrlit.",
+        "cta": "Activate access",
+        "codeHint": "Enter the code during registration. If you lose it, write to us and we'll send a new one."
+      }
+    },
+    "onPaid": {
+      "invoice": {
+        "withLink": "Tax invoice no. <strong>{number}</strong>: {link}",
+        "issued": "We have sent tax invoice no. <strong>{number}</strong> in a separate e-mail.",
+        "pending": "We will e-mail you the tax invoice in a moment.",
+        "linkLabel": "view the invoice →"
+      },
+      "credits": {
+        "subject": "Credited: {count, plural, one {# credit} other {# credits}}",
+        "body": "we have credited <strong>{count, plural, one {# credit} other {# credits}}</strong> to your account. You can carry on generating right away — nothing else to do.",
+        "validity": "The credits are valid until the end of the current credit period, just like the ones from your plan.",
+        "cta": "Back to the studio →"
+      },
+      "service": {
+        "subject": "Paid — pick a time for your brand setup",
+        "body": "thank you for your payment. One thing left: <strong>pick a time</strong>.",
+        "cta": "Pick a time →",
+        "detail": "The session takes 30 minutes and runs online — you get the video call link with the confirmation. Before we meet we go through your brand and bring a finished proposal, so there is nothing to prepare."
+      },
+      "plan": {
+        "subjectRenewal": "{plan} subscription renewed",
+        "subjectNew": "Payment confirmation — the {plan} plan is active",
+        "received": "we have received your payment of {amount}{label}. ",
+        "renewed": "Your <strong>{plan}</strong> subscription has been renewed for another period.",
+        "activated": "The <strong>{plan}</strong> plan is active — post generation is unlocked.",
+        "cta": "Go to the studio →"
+      }
     }
   }
 }

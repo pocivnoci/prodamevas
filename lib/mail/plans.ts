@@ -15,12 +15,17 @@
  * a od 9/2026 je Růst v `PLAN_COPY` vůbec nemá (drží je až Dominance). Odrážku
  * o videu proto smí napsat jen `planBullets()`, kde platí obojí.
  *
+ * Věty (skloňování kreditů, „měsíčně", „připravujeme") jdou z `mail.plans.*`
+ * přes překladač, který dodá šablona; ukázky vznikají při načtení modulu, proto
+ * berou `locale` a překladač si staví samy. Čísla zůstávají z ceníku.
+ *
  * Modul je čistý — žádná DB, žádné `server-only` (aserce 29.1).
  */
 
-import { countLabel, CREDITS } from "@/lib/plural"
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
 import { creditExample } from "@/lib/credits"
 import { FALLBACK_PLANS, formatCzk, PLAN_COPY, type PricingPlan } from "@/lib/pricing"
+import { mailTranslatorSync, type MailTranslator } from "./i18n"
 
 /** Jedou reels doopravdy? Stejná otázka, jakou si klade ceník na landingu. */
 export const reelsLive = (): boolean => process.env.REELS_ENABLED === "1"
@@ -43,22 +48,30 @@ export function recommendedPlan(): PricingPlan {
  * netrefí, padá to na doporučený tarif, ne na nejlevnější.
  */
 export function pickPlan(name: string): PricingPlan {
-    const norm = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    const norm = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     const wanted = norm(name)
     const byName = wanted && FALLBACK_PLANS.find(p => norm(p.name) === wanted || norm(p.id) === wanted)
     return byName || recommendedPlan()
 }
 
-/** Odrážky tarifu z ceníkové kopie; reels si nesou přiznání, když jsou vypnuté. */
-export function planBullets(plan: PricingPlan): string[] {
+/**
+ * Odrážky tarifu z ceníkové kopie; reels si nesou přiznání, když jsou vypnuté.
+ * Odrážky samotné jsou `PLAN_COPY` z `lib/pricing.ts` — label mapa v `lib/` se
+ * nepřekládá, takže v cizím jazyce zůstávají české (překlad ceníkové kopie je
+ * samostatný krok); přeložený je jen dovětek o reels.
+ */
+export function planBullets(plan: PricingPlan, t: MailTranslator): string[] {
     return (PLAN_COPY[plan.id]?.bullets ?? []).map(b =>
-        typeof b === "string" ? b : reelsLive() ? b.text : `${b.text} (připravujeme)`,
+        typeof b === "string" ? b : reelsLive() ? b.text : t("plans.comingSoon", { text: b.text }),
     )
 }
 
 /** „70 kreditů měsíčně — ≈ 70 obrázků nebo 23 carouselů" */
-export function creditLine(plan: PricingPlan): string {
-    return `${countLabel(plan.creditsPerMonth, CREDITS)} měsíčně — ${creditExample(plan.creditsPerMonth, { reels: planHasReels(plan) })}`
+export function creditLine(plan: PricingPlan, t: MailTranslator): string {
+    return t("plans.creditLine", {
+        count: plan.creditsPerMonth,
+        example: creditExample(plan.creditsPerMonth, { reels: planHasReels(plan) }),
+    })
 }
 
 // ─── Ukázková data šablon ────────────────────────────────────────────────────
@@ -69,8 +82,8 @@ export function samplePrice(): string {
 }
 
 /** „2 999 Kč měsíčně" — tam, kde věta potřebuje i období. */
-export function samplePriceMonthly(): string {
-    return `${samplePrice()} měsíčně`
+export function samplePriceMonthly(locale: UiLocale = DEFAULT_UI_LOCALE): string {
+    return mailTranslatorSync(locale, "mail")("plans.monthly", { price: samplePrice() })
 }
 
 /** „70" — kolik kreditů doporučený tarif opravdu dává. */

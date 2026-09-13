@@ -7,7 +7,6 @@ import { isQualityUnavailable, isVideoPending } from "@/utils/retry"
 import { RENDER_BUDGET_MS } from "@/lib/job-park"
 import type { MediumType } from "@/lib/credits"
 import { isReelMedium } from "@/lib/reel-media"
-import { countLabel, POSTS } from "@/lib/plural"
 
 export const maxDuration = 800 // Vercel Pro cap (Fluid Compute) — full budget to drain a campaign.
 
@@ -149,7 +148,7 @@ export async function GET(req: Request) {
 
     if (!configName) {
         await supabaseAdmin.from("ig_campaigns")
-            .update({ status: "failed", error: "Kampaň postrádá configName.", worker_lease: null })
+            .update({ status: "failed", error: "Kampaň postrádá configName.", worker_lease: null }) // i18n-ignore: cron bez requestu
             .eq("id", campaign.id)
         return NextResponse.json({ success: false, error: "missing configName" }, { status: 500 })
     }
@@ -248,7 +247,7 @@ export async function GET(req: Request) {
         // would silently rewrite. What you approve in the plan ≈ what ships.
         const baseTopic = item?.topic || opts.topic || undefined
         const postTopic = item?.angle
-            ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim()
+            ? `${baseTopic || ""}${baseTopic ? " — " : ""}úhel: ${item.angle}`.trim() // i18n-ignore: téma do promptu enginu, ne UI
             : baseTopic
         const approvedHook = item?.hookPreview?.trim() || undefined
         // Co brána u hooku označila při plánování a uživatel to přesto schválil.
@@ -284,8 +283,8 @@ export async function GET(req: Request) {
         // ne paušálně na karusel — 12. 9. 2026 tak agro-invest dostal z prvních sedmi
         // postů šest karuselů. Nahlas, protože se dodává jiný formát, než uživatel schválil.
         const reelBlockedBy = !isReelMedium(itemMedium) ? null
-            : process.env.REELS_ENABLED !== "1" ? "REELS_ENABLED není zapnuté"
-            : allowedMedia && !allowedMedia.includes(itemMedium) ? "tarif reel nedovoluje"
+            : process.env.REELS_ENABLED !== "1" ? "REELS_ENABLED není zapnuté" // i18n-ignore: důvod do logu
+            : allowedMedia && !allowedMedia.includes(itemMedium) ? "tarif reel nedovoluje" // i18n-ignore: důvod do logu
             : null
         if (reelBlockedBy) {
             const fallback: MediumType = cursor % 3 === 0 && (!allowedMedia || allowedMedia.includes("carousel")) ? "carousel" : "image"
@@ -352,7 +351,7 @@ export async function GET(req: Request) {
                     : undefined
                 await supabaseAdmin.from("ig_jobs").update({
                     status: "researcher", progress: 5, error: null,
-                    agent_message: resumeFrom ? "♻️ Navazuji z checkpointu..." : "🔍 Researcher vybírá zdroje...",
+                    agent_message: resumeFrom ? "♻️ Navazuji z checkpointu..." : "🔍 Researcher vybírá zdroje...", // i18n-ignore: cron bez requestu
                 }).eq("id", parked.id)
                 console.log(`   ♻️ campaign ${campaign.id} item #${cursor + 1}: reusing parked job ${parked.id}${resumeFrom ? " (caption checkpoint)" : ""}`)
             }
@@ -362,7 +361,7 @@ export async function GET(req: Request) {
             const check = ADMIN_BYPASS ? { allowed: true, isPlanPost: false } : await canPerformAction(clientId, "post", undefined, chargedMedium)
             if (!check.allowed) {
                 stopReason = "no_credits"
-                stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování."
+                stopDetail = (check as { reason?: string }).reason || "Nedostatek kreditů pro pokračování." // i18n-ignore: cron bez requestu
                 break
             }
             const isPlanPost = !!check.isPlanPost
@@ -387,7 +386,7 @@ export async function GET(req: Request) {
                     },
                     status: "researcher",
                     progress: 5,
-                    agent_message: "🔍 Researcher vybírá zdroje...",
+                    agent_message: "🔍 Researcher vybírá zdroje...", // i18n-ignore: cron bez requestu
                 })
                 .select("id")
                 .single()
@@ -414,13 +413,13 @@ export async function GET(req: Request) {
                         action: "post",
                         credits: chargedCredits,
                         monthly: monthlyCredits,
-                        description: `Post (kampaň ${campaign.id})`,
+                        description: `Post (kampaň ${campaign.id})`, // i18n-ignore: deník kreditů (data)
                         referenceId: job.id,
                     })
                     if (!reservation.reserved) {
                         await supabaseAdmin.from("ig_jobs").delete().eq("id", job.id)
                         stopReason = "no_credits"
-                        stopDetail = `Nedostatek kreditů pro pokračování. Potřebujete ${chargedCredits}, zbývá ${Math.max(0, reservation.remaining)}.`
+                        stopDetail = `Nedostatek kreditů pro pokračování. Potřebujete ${chargedCredits}, zbývá ${Math.max(0, reservation.remaining)}.` // i18n-ignore: cron bez requestu
                         break
                     }
                 }
@@ -437,7 +436,7 @@ export async function GET(req: Request) {
             // charge. Same persistence pattern as the deferral path below.
             if (item) {
                 item.jobId = job.id
-                await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => { // i18n-ignore: popisek do logu a Sentry
                     const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
                     if (error) throw new Error(error.message)
                 })
@@ -478,12 +477,12 @@ export async function GET(req: Request) {
             })
 
             await supabaseAdmin.from("ig_jobs").update({
-                status: "done", progress: 100, agent_message: "✅ Hotovo!",
+                status: "done", progress: 100, agent_message: "✅ Hotovo!", // i18n-ignore: cron bez requestu
                 result: { success: true, postId: result.id, caption: result.caption, imageUrl: result.imageUrl, cost: result.cost, mediaType: result.mediaType },
             }).eq("id", job.id)
 
             // Engine clamped below the billed medium? Refund the difference.
-            await mustSucceed("dorovnání ceny (reconcile)", () => reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType))
+            await mustSucceed("dorovnání ceny (reconcile)", () => reconcileJobCharge(clientId, job.id, charged, chargedCredits, result.mediaType)) // i18n-ignore: popisek do logu a Sentry
 
             // Planner: stamp the chosen posting time + calendar entry on the new post.
             // Best-effort — a calendar hiccup must never fail an already-generated post.
@@ -512,10 +511,10 @@ export async function GET(req: Request) {
             // retry_after — item vlastní worker, ne job-resume), nechat cursor, další
             // tick dopolluje. Kredit zůstává.
             if (isVideoPending(err)) {
-                await supabaseAdmin.from("ig_jobs").update({ status: "failed", retry_after: null, agent_message: "🎬 Video se ještě renderuje — pokračuji v dalším ticku", error: msg }).eq("id", job.id)
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", retry_after: null, agent_message: "🎬 Video se ještě renderuje — pokračuji v dalším ticku", error: msg }).eq("id", job.id) // i18n-ignore: cron bez requestu
                 if (item) {
                     item.jobId = job.id
-                    await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                    await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => { // i18n-ignore: popisek do logu a Sentry
                     const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
                     if (error) throw new Error(error.message)
                 })
@@ -536,10 +535,10 @@ export async function GET(req: Request) {
                 if (ageMs <= MAX_CAMPAIGN_AGE_MS) {
                     // status 'failed' = terminal → the stuck-job reaper won't touch it
                     // (it would refund the charge we're deliberately keeping).
-                    await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "⏸️ Odloženo — velký provoz, pokračuji v dalším ticku", error: msg }).eq("id", job.id)
+                    await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "⏸️ Odloženo — velký provoz, pokračuji v dalším ticku", error: msg }).eq("id", job.id) // i18n-ignore: cron bez requestu
                     if (item) {
                         item.jobId = job.id
-                        await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => {
+                        await mustSucceed("zápis jobId na položku plánu (ochrana proti dvojímu účtování)", async () => { // i18n-ignore: popisek do logu a Sentry
                     const { error } = await supabaseAdmin.from("ig_campaigns").update({ plan }).eq("id", campaign.id)
                     if (error) throw new Error(error.message)
                 })
@@ -549,13 +548,13 @@ export async function GET(req: Request) {
                     break
                 }
                 // Tried for hours — give up on this item as a failure, refund, move on.
-                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits))
-                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Nepodařilo se dokončit — velký provoz", error: msg }).eq("id", job.id)
+                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits)) // i18n-ignore: popisek do logu a Sentry
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Nepodařilo se dokončit — velký provoz", error: msg }).eq("id", job.id) // i18n-ignore: cron bez requestu
                 console.warn(`   ❌ campaign ${campaign.id} item #${cursor + 1}: Pro exhausted past max age — failing item`)
                 failures++
             } else {
-                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id)
-                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits))
+                await supabaseAdmin.from("ig_jobs").update({ status: "failed", agent_message: "❌ Generování selhalo", error: msg }).eq("id", job.id) // i18n-ignore: cron bez requestu
+                await mustSucceed("vrácení kreditu", () => refundJobCharge(clientId, job.id, charged, chargedCredits)) // i18n-ignore: popisek do logu a Sentry
                 failures++
             }
         }
@@ -572,7 +571,7 @@ export async function GET(req: Request) {
         const finalStatus = failures === 0 ? "done" : (successes === 0 ? "failed" : "partial")
         const { data: claimedTerminal } = await supabaseAdmin.from("ig_campaigns").update({
             status: finalStatus, cursor, successes, failures, worker_lease: null,
-            error: stopReason === "no_credits" ? (stopDetail || "Došly kredity v průběhu kampaně.") : null,
+            error: stopReason === "no_credits" ? (stopDetail || "Došly kredity v průběhu kampaně.") : null, // i18n-ignore: cron bez requestu
         }).eq("id", campaign.id)
             .in("status", ["pending", "running"])
             .select("id")
@@ -586,7 +585,7 @@ export async function GET(req: Request) {
     if (stopReason === "no_credits") {
         const { data: claimedTerminal } = await supabaseAdmin.from("ig_campaigns").update({
             status: "partial", cursor, successes, failures, worker_lease: null,
-            error: stopDetail || "Došly kredity — kampaň zastavena.",
+            error: stopDetail || "Došly kredity — kampaň zastavena.", // i18n-ignore: cron bez requestu
         }).eq("id", campaign.id)
             .in("status", ["pending", "running"])
             .select("id")
@@ -616,6 +615,11 @@ export async function GET(req: Request) {
  * actions live; matches the in-app result CTA). kind "notification" → respects
  * email_optouts and carries the unsubscribe footer. Best-effort: never lets an
  * e-mail problem fail the finalize response.
+ *
+ * Jazyk je jazyk PŘÍJEMCE (`localeOfClientOwner` — tentýž vlastník, kterého
+ * vybírá `getOwnerEmail`), ne requestu: worker žádný request nemá. Texty jsou
+ * v `messages/<locale>/worker.json` (`worker.campaign.*`), počty skloňuje ICU
+ * plural přímo ve zprávě.
  */
 async function sendPlanReadyEmail(
     campaignId: string,
@@ -625,24 +629,26 @@ async function sendPlanReadyEmail(
     try {
         const { getOwnerEmail, getCampaignPosts, renderCampaignDigest, sendNotification, studioDeepLink } =
             await import("@/lib/notifications")
+        const { localeOfClientOwner, mailTranslatorSync } = await import("@/lib/mail/i18n")
         const to = await getOwnerEmail(clientId)
         if (!to) return
+        const locale = await localeOfClientOwner(clientId)
+        const t = mailTranslatorSync(locale, "worker")
         const ctaUrl = studioDeepLink(clientId, "posts")
 
         if (info.successes === 0) {
             await sendNotification({
                 to,
                 kind: "notification",
-                subject: "Kampaň se nepodařilo dokončit",
-                body: `Dobrý den,
+                locale,
+                subject: t("campaign.failed.subject"),
+                body: `${t("campaign.greeting")}
 
-${info.noCredits
-                        ? "kampaň se zastavila — došly kredity. Po dobití můžete obsah vygenerovat znovu."
-                        : "příspěvky z vaší kampaně se bohužel nepodařilo vygenerovat. Kredity za nezdařené příspěvky byly vráceny — zkuste to prosím znovu."}
+${t(info.noCredits ? "campaign.failed.noCredits" : "campaign.failed.generation")}
 
-<a href="${ctaUrl}">Otevřít studio →</a>
+<a href="${ctaUrl}">${t("campaign.failed.cta")}</a>
 
-Tým Chrlit`,
+${t("campaign.signature")}`,
             })
             return
         }
@@ -651,29 +657,30 @@ Tým Chrlit`,
         // Věty jsou přeformulované tak, aby sloveso nezáviselo na počtu: „všech 1
         // příspěvků je připraveno" vzniklo z pevného tvaru u proměnné. Dvojtečkové
         // uvození („Připraveno ke kontrole: 3 příspěvky") zvládne jakékoli číslo,
-        // skloňuje se jen podstatné jméno přes `countLabel`.
+        // skloňuje se jen podstatné jméno — ICU plural (one/few/other) ve zprávě.
         const introParts = [
-            "Dobrý den,",
+            t("campaign.greeting"),
             info.finalStatus === "done"
-                ? `váš obsah je hotový. Připraveno ke kontrole: ${countLabel(info.total, POSTS)}. Každý má navržený termín, caption i hashtagy — zkontrolujte je a schvalte k publikaci:`
-                : `připraveno ke kontrole: ${countLabel(info.successes, POSTS)} z ${info.total}:`,
+                ? t("campaign.ready.introDone", { count: info.total })
+                : t("campaign.ready.introPartial", { count: info.successes, total: info.total }),
         ]
         if (info.failures > 0) {
-            introParts.push(`Nepodařilo se vygenerovat: ${countLabel(info.failures, POSTS)} — kredity za ně byly vráceny.`)
+            introParts.push(t("campaign.ready.failures", { count: info.failures }))
         }
         if (info.noCredits) {
-            introParts.push("Kampaň se zastavila dřív — došly kredity. Po dobití můžete zbytek vygenerovat znovu.")
+            introParts.push(t("campaign.ready.noCredits"))
         }
 
         await sendNotification({
             to,
             kind: "notification",
-            subject: `Váš obsah je připraven — ${countLabel(info.successes, POSTS)} z ${info.total}`,
+            locale,
+            subject: t("campaign.ready.subject", { count: info.successes, total: info.total }),
             blocks: renderCampaignDigest(posts, {
                 intro: introParts.join("\n\n"),
                 ctaUrl,
-                ctaLabel: "Otevřít příspěvky v aplikaci →",
-            }),
+                ctaLabel: t("campaign.ready.cta"),
+            }, locale),
         })
     } catch (err: any) {
         console.warn(`campaign-worker: plan-ready e-mail failed (campaign ${campaignId}): ${err?.message}`)

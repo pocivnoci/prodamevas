@@ -23,6 +23,8 @@
 import supabaseAdmin from "@/supabase/admin"
 import { requestAction } from "@/lib/agent-safety"
 import { buildCustomerNotice, KIND_LABELS, type NoticeKind, type NoticeVars } from "@/lib/agents/notice-templates"
+import { DEFAULT_UI_LOCALE } from "@/lib/i18n/locales"
+import { localeOfClientOwner, mailTranslatorSync } from "@/lib/mail/i18n"
 
 // Znění e-mailů žije v `notice-templates.ts` (čistá funkce, bez DB). Re-export
 // tu zůstává, takže volající dál importují jedno místo.
@@ -101,27 +103,38 @@ export async function sendCustomerNotice(payload: Record<string, unknown>): Prom
     const kind = String(payload.kind || "") as NoticeKind
     const to = String(payload.email || "").trim().toLowerCase()
     if (!to || !(kind in KIND_LABELS)) {
-        throw new Error(`send_customer_notice: neplatný payload (kind=${payload.kind}, email=${payload.email})`)
+        throw new Error(`send_customer_notice: neplatný payload (kind=${payload.kind}, email=${payload.email})`) // i18n-ignore: interní chyba, končí jen v logu
     }
+
+    // Jazyk příjemce: oznámení jde vlastníkovi značky — tatáž vazba, ze které
+    // bere adresu `getOwnerEmail` — takže jeho účet určuje i jazyk. Zjišťuje se
+    // až tady, v okamžiku odeslání, ne při návrhu. Bez značky čeština.
+    const clientId = (payload.clientId as string) ?? null
+    const locale = clientId ? await localeOfClientOwner(clientId) : DEFAULT_UI_LOCALE
+    const t = mailTranslatorSync(locale, "notices")
 
     const { subject, body } = buildCustomerNotice(kind, {
         clientName: (payload.clientName as string) ?? null,
-        clientId: (payload.clientId as string) ?? null,
+        clientId,
         amountHaleru: typeof payload.amountHaleru === "number" ? payload.amountHaleru : null,
         netHaleru: typeof payload.netHaleru === "number" ? payload.netHaleru : null,
+        // Datum a délku období formátuje šablona v jazyce příjemce ze surových
+        // hodnot (`dateIso`, `termMonths`); hotový text je záloha pro starší payload.
         date: (payload.date as string) ?? null,
+        dateIso: (payload.dateIso as string) ?? null,
         auto: Boolean(payload.auto),
         attempt: typeof payload.attempt === "number" ? payload.attempt : undefined,
         what: (payload.what as string) ?? null,
-        // Bez `termLabel` chyběla roční obnově ta nejdůležitější informace: že
+        // Bez délky období chyběla roční obnově ta nejdůležitější informace: že
         // strhávaná částka je za dvanáct měsíců, ne za měsíc. Do šablony se to
         // od začátku nepředávalo, takže věta v ní byla mrtvý kód.
+        termMonths: typeof payload.termMonths === "number" ? payload.termMonths : null,
         termLabel: (payload.termLabel as string) ?? null,
         reason: (payload.reason as string) ?? null,
         count: typeof payload.count === "number" ? payload.count : null,
-    })
+    }, t, locale)
 
     const { sendNotification } = await import("@/lib/notifications")
-    await sendNotification({ to, subject, body, kind: "transactional" })
+    await sendNotification({ to, subject, body, kind: "transactional", locale })
     return { ok: true, kind, to }
 }

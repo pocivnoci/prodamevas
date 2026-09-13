@@ -6,11 +6,16 @@
  * v guardu bez `.env.local`. Tam se totiž pozná prosáklé „?", rodové příčestí
  * i druhý hlas — a jinde se to nepozná vůbec, protože tyhle zprávy nejsou
  * v registru šablon.
+ *
+ * Jazyk příjemce: texty jsou v `messages/<locale>/notices.json` pod
+ * `lifecycle.<kind>`; `t` a `locale` dodá odesílatel (`sendLifecycleEmail` →
+ * `localeOfClientOwner`). Bez nich čeština — guard i náhledy renderují zdroj.
  */
 
-import { siteUrl, studioDeepLink } from "@/lib/mail/links"
 import type { StudioSection } from "@/app/(dashboard)/StudioContext"
-import { countLabel, CREDITS } from "@/lib/plural"
+import { DEFAULT_UI_LOCALE, type UiLocale } from "@/lib/i18n/locales"
+import { mailTranslatorSync, type MailTranslator } from "@/lib/mail/i18n"
+import { siteUrl, studioDeepLink } from "@/lib/mail/links"
 
 export type LifecycleKind =
     | "activation_nudge" | "credit_low" | "winback" | "waitlist_drip"
@@ -32,63 +37,81 @@ export type LifecycleKind =
 export function buildLifecycleEmail(
     kind: LifecycleKind,
     vars: { clientName?: string | null; clientId?: string | null; creditsRemaining?: number; creditsTotal?: number },
+    t?: MailTranslator,
+    locale: UiLocale = DEFAULT_UI_LOCALE,
 ): { subject: string; body: string } | null {
+    const tr = t ?? mailTranslatorSync(locale, "notices")
     const brand = vars.clientName?.trim() || null
-    /** „ — Kavárna Alchymista" v apozici, nebo nic. */
-    const tag = brand ? ` — ${brand}` : ""
+    /** „ — Kavárna Alchymista" v apozici za předmětem, nebo nic. */
+    const withTag = (subject: string) => (brand ? `${subject} — ${brand}` : subject)
     const studio = (section: StudioSection) =>
         vars.clientId ? studioDeepLink(vars.clientId, section) : `${siteUrl()}/dashboard/instagram`
-    const sign = "\n\nTým Chrlit"
+    const strong = (chunks: string) => `<strong>${chunks}</strong>`
+    /** Značka ve větě jen jako `<strong>` uvnitř select větve — bez ní věta drží i tak. */
+    const brandVars = { hasBrand: brand ? "yes" : "no", brand: brand ?? "", strong }
+    const cta = (section: StudioSection, key: string) => `<a href="${studio(section)}">${tr(key)}</a>`
+    /** Pozdrav, odstavce, podpis — týž hlas jako zákaznická oznámení. */
+    const compose = (...paragraphs: string[]) =>
+        [tr("common.greeting"), ...paragraphs, tr("common.signature")].join("\n\n")
 
     switch (kind) {
         case "activation_nudge":
             return {
-                subject: `Váš obsah čeká — spusťte první kampaň${tag}`,
-                body: `Dobrý den,\n\n` +
-                    `do Chrlitu jste se zaregistrovali${brand ? ` se značkou <strong>${brand}</strong>` : ""}, ale vlastní kampaň zatím nejela. Ukázkové příspěvky na vás čekají ve studiu.\n\n` +
-                    `Stačí jedno kliknutí a připravíme celý týdenní plán obsahu — texty, obrázky, kalendář.\n\n` +
-                    `<a href="${studio("plan")}">Otevřít studio →</a>${sign}`,
+                subject: withTag(tr("lifecycle.activation_nudge.subject")),
+                body: compose(
+                    tr.markup("lifecycle.activation_nudge.body", brandVars),
+                    tr("lifecycle.activation_nudge.next"),
+                    cta("plan", "common.cta.openStudio"),
+                ),
             }
         case "credit_low": {
             // Bez obou čísel by ve zprávě zůstalo „málo z ?". Radši nic.
             if (typeof vars.creditsRemaining !== "number" || typeof vars.creditsTotal !== "number") return null
             return {
-                subject: `Kredity skoro vyčerpané${tag}`,
-                body: `Dobrý den,\n\n` +
-                    `v plánu${brand ? ` pro značku <strong>${brand}</strong>` : ""} zbývá ${vars.creditsRemaining} z ${countLabel(Number(vars.creditsTotal), CREDITS)}. Aby obsah nepřestal vycházet, navyšte prosím plán nebo si dokupte kredity.\n\n` +
-                    `<a href="${studio("settings")}">Spravovat předplatné →</a>${sign}`,
+                subject: withTag(tr("lifecycle.credit_low.subject")),
+                body: compose(
+                    tr.markup("lifecycle.credit_low.body", {
+                        ...brandVars,
+                        remaining: vars.creditsRemaining,
+                        total: Number(vars.creditsTotal),
+                    }),
+                    cta("settings", "common.cta.manageSubscription"),
+                ),
             }
         }
         case "winback":
             return {
-                subject: `Instagram mezitím spí — vraťte se do Chrlitu${tag}`,
-                body: `Dobrý den,\n\n` +
-                    `předplatné${brand ? ` pro značku <strong>${brand}</strong>` : ""} vypršelo a účet přestal dostávat nový obsah. Nastavení, značku i naučené preference máme uložené — návrat je otázka jednoho kliknutí.\n\n` +
-                    `<a href="${studio("settings")}">Obnovit předplatné →</a>${sign}`,
+                subject: withTag(tr("lifecycle.winback.subject")),
+                body: compose(
+                    tr.markup("lifecycle.winback.body", brandVars),
+                    cta("settings", "common.cta.renewSubscription"),
+                ),
             }
         case "dormant":
             return {
-                subject: `Váš Instagram je pár kliknutí od dalšího týdne obsahu${tag}`,
-                body: `Dobrý den,\n\n` +
-                    `za poslední dva týdny nevznikl${brand ? ` pro značku <strong>${brand}</strong>` : ""} žádný nový příspěvek — a účet, který přestane publikovat, ztrácí dosah rychleji, než ho jde pak získat zpátky.\n\n` +
-                    `Značku i naučené preference máme uložené, takže týdenní plán vznikne na jedno kliknutí.\n\n` +
-                    `<a href="${studio("plan")}">Vygenerovat obsah →</a>${sign}`,
+                subject: withTag(tr("lifecycle.dormant.subject")),
+                body: compose(
+                    tr.markup("lifecycle.dormant.body", brandVars),
+                    tr("lifecycle.dormant.next"),
+                    cta("plan", "common.cta.generateContent"),
+                ),
             }
         case "ig_disconnected":
             return {
-                subject: `Propojení s Instagramem je potřeba obnovit${tag}`,
-                body: `Dobrý den,\n\n` +
-                    `účet${brand ? ` značky <strong>${brand}</strong>` : ""} nemá funkční propojení s Instagramem — přístup od Meta po čase vyprší a je potřeba ho jednou za čas potvrdit.\n\n` +
-                    `Dokud je odpojený, příspěvky se sice vygenerují, ale nemají se kam publikovat. Obnovení je otázka dvou kliknutí:\n\n` +
-                    `<a href="${studio("settings")}">Připojit Instagram →</a>${sign}`,
+                subject: withTag(tr("lifecycle.ig_disconnected.subject")),
+                body: compose(
+                    tr.markup("lifecycle.ig_disconnected.body", brandVars),
+                    tr("lifecycle.ig_disconnected.next"),
+                    cta("settings", "common.cta.connectInstagram"),
+                ),
             }
         case "waitlist_drip":
             return {
-                subject: "Nezapomněli jsme na vás",
-                body: `Dobrý den,\n\n` +
-                    `máme vás na čekací listině Chrlit Studia. Pouštíme dovnitř postupně, aby každý nový účet dostal plnou kvalitu — další vlna pozvánek je na cestě.\n\n` +
-                    `Díky za trpělivost. Ozveme se, jakmile na vás přijde řada.${sign}`,
+                subject: tr("lifecycle.waitlist_drip.subject"),
+                body: compose(
+                    tr("lifecycle.waitlist_drip.body"),
+                    tr("lifecycle.waitlist_drip.next"),
+                ),
             }
     }
 }
-
