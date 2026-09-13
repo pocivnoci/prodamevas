@@ -276,6 +276,12 @@ export const SUBPROCESSORS: ReadonlyArray<{
     // na ni umí přepnout pouhou změnou env proměnné, a mlčet o zpracovateli,
     // který může kdykoli dostat data zákazníka, je porušení informační povinnosti.
     { name: "Stripe Payments Europe, Ltd.", purpose: "zpracování plateb a opakovaných plateb", location: "Irsko / USA" },
+    // Přibyl 12. 9. 2026 s hlasem značky v reelech, doplněn 13. 9. 2026 s agentem
+    // podpory. Druhé použití je citlivější: u reelu odchází vygenerovaná narace,
+    // u podpory věty, které klient sám napíše nebo řekne (a kontext jeho účtu —
+    // tarif, kredity, stav fakturace). Uvedený stejnou logikou jako druhá platební
+    // brána a publikační most výš: kdo může dostat data zákazníka, patří do seznamu.
+    { name: "ElevenLabs, Inc.", purpose: "hlas značky v reelech a agent zákaznické podpory", location: "USA" },
     { name: "Resend, Inc.", purpose: "odesílání transakčních e-mailů", location: "EU / USA" },
     { name: "Fakturoid s.r.o.", purpose: "vystavování a archivace faktur", location: "Česká republika" },
     { name: "Meta Platforms Ireland Ltd.", purpose: "publikování na Instagram (jen při propojení účtu)", location: "EU / USA" },

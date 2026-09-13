@@ -115,6 +115,19 @@ export interface PlanFeatures {
      * omylem na tarifu, kde neplatí (aserce 13.16 a 13.17).
      */
     human_support?: boolean
+    /**
+     * Agent podpory v Nápovědě (`components/support/SupportAgent.tsx`) — odpovídá
+     * ze znalostní báze a zná stav účtu. Zapnuto na Dominance a Impérium.
+     *
+     * Je to VLASTNÍ pole, ne `human_support`: to slibuje člověka (specialista nad
+     * obsahem, přednostní vyřízení) a má ho jen Impérium. Kdyby agent jel na něm,
+     * Dominance by se tím začala prodávat s lidskou podporou, kterou nedostane —
+     * potřetí týž omyl jako `max_projects` a boolean `priority`.
+     *
+     * Nečte se přímo, ale přes `canUseSupportAgent()`: samotný tarif nestačí,
+     * platí se i za to, že klient skutečně platí.
+     */
+    support_agent?: boolean
 }
 
 /**
@@ -168,6 +181,31 @@ export interface SubscriptionInfo {
      * od správce (`giftPlan`) — bez brány, bez platby, na konci skončí.
      */
     provider: "comgate" | "stripe" | "gift"
+}
+
+/**
+ * Smí tenhle tenant na agenta podpory?
+ *
+ * Dvě podmínky, ne jedna. **Tarif** (`features.support_agent` — Dominance,
+ * Impérium) a **skutečná platba**: minuty hlasu stojí peníze u ElevenLabs za
+ * každou konverzaci, takže se otevírají tomu, kdo platí, ne každému, kdo se
+ * přihlásí. Trial má vlastní tarif (`trial_v2`), kde pole není, takže vypadne
+ * sám; `gift` je tarif zdarma od správce a ten neplatí nikdo.
+ *
+ * Co se naopak NEBLOKUJE: dunning, odklad obnovy a výpověď ke konci období.
+ * Klient, kterému selhala karta, je přesně ten, kdo potřebuje podporu nejvíc —
+ * zavřít mu ji před nosem je způsob, jak z dočasného problému udělat odchod.
+ * Konec služby je jedině `expired` (a `pending` = ještě nikdy nezaplaceno).
+ *
+ * Čistá funkce: rozhoduje se z předplatného, ne z requestu. Bránu má
+ * `app/actions/support-actions.ts`, protože jen ta zná přihlášeného člověka.
+ */
+export function canUseSupportAgent(sub: SubscriptionInfo | null | undefined): boolean {
+    if (!sub) return false
+    if (sub.features.support_agent !== true) return false
+    if (sub.isTrial) return false
+    if (sub.provider === "gift") return false
+    return sub.status !== "expired" && sub.status !== "pending"
 }
 
 export interface CanPerformResult {

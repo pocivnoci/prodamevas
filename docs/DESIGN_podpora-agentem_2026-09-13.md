@@ -52,9 +52,28 @@ Druhá past: `override-prompt` a `override-first-message` jdou z atributu widget
 V konfiguraci agenta musí být **overrides vypnuté**, jinak si prompt podpory
 přepíše kdokoli z konzole prohlížeče.
 
+## Co se ukázalo až při zapojení (13. 9. 2026)
+
+Čtyři věci, které dokumentace neřekne dopředu a stálo to o ně pokus:
+
+1. **Agent v jiném jazyce než angličtině musí mít TTS model `eleven_turbo_v2_5`
+   nebo `eleven_flash_v2_5.`** Založení s `eleven_v3` skončí chybou „Non-english
+   Agents must use turbo or flash v2_5". Podpora tedy mluví JINOU rodinou modelů
+   než reely (`eleven_v3`), a je to kvalitativní rozdíl, se kterým se nic dělat
+   nedá — Turbo je optimalizovaný na latenci konverzace, ne na přednes.
+2. **Hlas z Voice Library se musí nejdřív přidat do workspace.** `voice_id`
+   vybraný z katalogu vrátí `voice_not_found`, dokud ho někdo v konzoli nepřidá.
+   Agent proto vznikl s výchozím hlasem workspace.
+3. **Widget se lokalizuje sám** podle jazyka agenta — „Potřebujete pomoc?“,
+   „Zahájit hovor“, „Zpráva“ přišly česky bez jediného nastavení.
+4. **Nabízí text i hlas zároveň** (`text_only: false`, `supports_text_only: true`).
+   Text-first tedy není výchozí stav, jen možnost, kterou klient vidí vedle hovoru.
+   Vynutit jen text jde přes `text_only` v konfiguraci agenta.
+
 ## Fáze
 
 Každá je samostatně nasaditelná. Fáze 0+1 je ten „80 % za 20 %" kus.
+**Fáze 0 a 1 jsou hotové** (13. 9. 2026) — viz „Zbývá v konzoli" na konci.
 
 ### Fáze 0 — Znalostní báze ze zdrojů pravdy (2–3 h)
 
@@ -230,3 +249,43 @@ přesně pro náš prompt a naši bázi.
 
 **0+1 je jeden den práce a většina hodnoty.** 2 je nejlepší poměr v celém návrhu.
 3+4 zavírají smyčku a teprve po nich je to systém, ne demo.
+
+## Komu se agent otevře
+
+Brána je `canUseSupportAgent()` v `lib/subscription.ts` a má DVĚ podmínky, ne jednu:
+
+- **tarif** — `features.support_agent` (migrace `20260913_podpora_agentem.sql`
+  ho zapíná na Dominance a Impérium, vypíná na Start, Růst a trialu),
+- **skutečná platba** — trial (`trial_v2`) a tarif zdarma od správce (`provider:
+  "gift"`) nárok nemají, protože každá konverzace stojí minuty nebo zprávy.
+
+Co bránu NEZAVÍRÁ: dunning, odklad obnovy (`grace`) ani výpověď ke konci období.
+Komu selhala karta, ten podporu potřebuje nejvíc; zavřít mu ji je způsob, jak
+z dočasného problému udělat odchod. Konec je jedině `expired` a `pending`.
+
+Superadmin bránu obchází — jinak nejde agenta vyzkoušet na jiném než vlastním
+platícím tenantovi.
+
+**Agent se zatím neinzeruje.** Žádná odrážka v ceníku, žádná věta v obchodních
+podmínkách — dokud je to test, není to prodejní slib a aserce 13.16/13.17 se ho
+netýkají. Až se začne prodávat, je to jeden krok: odrážka, pole a věta
+v podmínkách zároveň. `human_support` zůstává čistě o ČLOVĚKU (Impérium).
+
+## Zbývá v konzoli ElevenLabs
+
+Kód a agent existují; tohle jde jen klikáním a bez toho se testovat nemá:
+
+1. **Znalostní bázi nahrát a připojit** — `npx tsx scripts/sync-support-kb.ts --push`
+   (lokálně, kde je `ELEVENLABS_API_KEY`), pak ji v Agents → Chrlit — podpora →
+   Knowledge base přidat agentovi. Bez báze agent nezná ceny ani nápovědu.
+2. **Zapnout `enable_auth`** (Security → require authentication). Bez toho je
+   agent dosažitelný pro každého, kdo si vezme `agent-id` z DOMu — brána
+   v aplikaci by hlídala dveře, u kterých chybí zeď.
+3. **Vypnout overrides promptu a první zprávy.** `override-prompt` chodí
+   atributem widgetu, takže dokud jsou povolené, přepíše si prompt podpory
+   kdokoli z konzole prohlížeče.
+4. **Vybrat český hlas.** Doporučený „Daniel" (`e36pGtHFyzkf4HTb9rQG`) — v katalogu
+   je popsaný přímo pro zákaznickou podporu a NENÍ v `lib/voice-library.ts`,
+   takže nemůže znít jako hlas cizí značky. Nejdřív ho přidat do workspace.
+5. **`ELEVENLABS_AGENT_ID` do env** (Vercel i `.env.local`) — bez něj se widget
+   nevykreslí a Nápověda zůstane statická.

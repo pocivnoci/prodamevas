@@ -30,6 +30,7 @@ Open [http://localhost:3000](http://localhost:3000)
 | `ARK_API_KEY` | BytePlus ModelArk — Seedance video pro reely. Bez něj reel nejde vyrobit; `REELS_ENABLED=1` bez klíče hlásí health-check |
 | `ARK_BASE_URL` | Endpoint ModelArk, výchozí `https://ark.ap-southeast.bytepluses.com/api/v3` (měnit jen při přesunu regionu) |
 | `ELEVENLABS_API_KEY` | ElevenLabs TTS — **výchozí** hlas značky v reelech (rodilé české hlasy; `eleven_v3`, fallback `eleven_multilingual_v2` se stejným hlasem). Skutečný klíč začíná `sk_`; bez něj reel s hlasem nejde vyrobit a parkuje se (na Gemini se nepadá) |
+| `ELEVENLABS_AGENT_ID` | Agent zákaznické podpory v Nápovědě (ElevenLabs Agents Platform). Bez něj se widget nevykreslí a Nápověda zůstane statická; nárok drží `features.support_agent` (Dominance, Impérium) + skutečná platba — viz `canUseSupportAgent()`. LLM agenta žije v konfiguraci ElevenLabs, **ne** v `instagram/models.ts` |
 | `COMGATE_MERCHANT` / `COMGATE_SECRET` | Platební brána (CZK) |
 | `COMGATE_MOCK=true` | Testovací platby bez reálné brány (na produkci ignorováno) |
 | `HIKERAPI_KEY` | IG scraping v onboardingu (volitelné) |

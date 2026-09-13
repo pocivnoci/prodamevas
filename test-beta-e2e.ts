@@ -2138,7 +2138,11 @@ test("15.3 úprava obrázku je zpoplatněná, úprava textu ne", () => {
     const sub = fileContent("lib/subscription.ts")
     assert(!/action === "post" \|\| action === "post_edit"/.test(sub), "post_edit je plochý — edit je jedno volání modelu bez ohledu na médium")
     // Nápověda a hinty skládají čísla z tabulek, ne z ruky (jednou už lhaly).
-    const faq = codeOnly("app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx")
+    // Data nápovědy se 13. 9. 2026 přestěhovala z `FaqTab.tsx` do `lib/support/faq.ts`,
+    // aby z TÝCHŽ odpovědí mohla vzniknout znalostní báze agenta podpory. Aserce jde
+    // za nimi — pravidlo se nezměnilo, jen soubor. Že si `FaqTab` nedrží vlastní kopii
+    // (a báze nese aktuální ceny), hlídá `scripts/test-support-kb.ts`.
+    const faq = codeOnly("lib/support/faq.ts")
     assert(/ACTION_CREDITS\.post_edit/.test(faq) && !/= 1 kredit\. Generování nápadů = 1 kredit/.test(faq), "FAQ bere ceny akcí z ACTION_CREDITS")
     assert(/mediaCreditsSentence\(\)/.test(codeOnly("app/(dashboard)/dashboard/instagram/tabs/Hint.tsx")), "hint o formátech bere váhy z MEDIA_CREDITS")
 })
