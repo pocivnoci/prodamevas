@@ -87,6 +87,30 @@ function main() {
     // fakta, která jde odcitovat i obejít.
     check("báze neobsahuje instrukce pro agenta", !/^Nikdy |^Vždy /m.test(kb))
 
+    // ─────────────────────────────────── báze nesmí vynést naše vnitřnosti
+    // 13. 9. 2026 byly v bázi `docs/INSTAGRAM_SETUP_GUIDE.md` a `POSTING_GUIDE.md`
+    // — vybrané podle názvu. Obsahem jsou to interní dokumenty: jména tajemství,
+    // `openssl rand`, nastavení Vercelu, stav App Review u Mety a věta „most je
+    // neověřený, nezapínej ho platícímu zákazníkovi". Agent by to odcitoval
+    // klientovi. Tahle aserce je důvod, proč se to nemůže vrátit omylem.
+    const FORBIDDEN = [
+        "META_APP_ID", "META_APP_SECRET", "IG_TOKEN_ENCRYPTION_KEY", "CRON_SECRET",
+        "openssl", ".env.local", "process.env", "npx tsx", "Vercel",
+        "App Review", "Business Verification", "upload-post", "uploadpost",
+        "supabase/migrations", "dogfood", "docs/",
+    ]
+    // Postavená TAK, jak ji staví skript: s blogem z disku, ne jen jádro z kódu.
+    const blog = fs.existsSync("content/blog")
+        ? fs.readdirSync("content/blog").filter(n => n.endsWith(".md")).sort()
+            .map(n => ({ title: `Článek: ${n}`, markdown: fs.readFileSync(`content/blog/${n}`, "utf-8") }))
+        : []
+    const shipped = buildSupportKnowledgeBase({ guides: blog, builtAt: new Date("2026-09-13") })
+    for (const marker of FORBIDDEN) {
+        check(`báze neobsahuje „${marker}"`, !shipped.includes(marker))
+    }
+    check("synchronizační skript nebere nic z docs/",
+        !/["'`]docs\//.test(codeOnly("scripts/sync-support-kb.ts")))
+
     // ────────────────────────────────────────────── jedna kopie odpovědí
     const faqTab = read("app/(dashboard)/dashboard/instagram/tabs/FaqTab.tsx")
     check("FaqTab čte odpovědi z lib/support/faq", faqTab.includes('from "@/lib/support/faq"'))

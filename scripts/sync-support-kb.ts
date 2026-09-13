@@ -25,14 +25,25 @@ import { buildSupportKnowledgeBase, type SupportGuide } from "../lib/support/kb"
 dotenv.config({ path: ".env.local" })
 
 /**
- * Klientské dokumenty, které patří do báze. **Vědomě jen tyhle** — `docs/` je
- * hlavně interní architektura (RUNBOOK, SYSTEM_MAP, návrhy) a ta do úst podpory
- * nepatří: agent by z ní citoval vnitřnosti systému zákazníkovi.
+ * Přiložené dokumenty — dnes ŽÁDNÉ z `docs/`, a je to vědomé.
+ *
+ * `INSTAGRAM_SETUP_GUIDE.md` a `POSTING_GUIDE.md` sem 13. 9. 2026 patřily podle
+ * názvu. Podle obsahu ne: jsou psané pro nás, ne pro zákazníka. Stojí v nich
+ * `META_APP_SECRET`, `IG_TOKEN_ENCRYPTION_KEY`, `openssl rand -hex 32`, nastavení
+ * Vercelu, spouštění migrací — a hlavně věty typu „most je neověřený, nezapínej
+ * ho platícímu zákazníkovi" a stav App Review u Mety. Agent podpory by to
+ * odcitoval platícímu klientovi: náš provozní stav, jména tajemství i to, co si
+ * o vlastní funkci interně říkáme.
+ *
+ * Celé `docs/` je takové — interní architektura, návrhy, runbooky. Do úst podpory
+ * nepatří nic z toho, dokud nevznikne KLIENTSKÁ verze návodu („jak připojím
+ * Instagram", „jak publikuju"). Ta zatím není a Luděk na tyhle dvě otázky
+ * odpovědět neumí; radši neumí, než aby odpověděl z interního dokumentu.
+ *
+ * Mechanismus zůstává: jakmile klientský návod vznikne, přidá se sem řádek.
+ * Že se z `docs/` nic nevrátí omylem, hlídá `scripts/test-support-kb.ts`.
  */
-const GUIDES: { file: string; title: string }[] = [
-    { file: "docs/INSTAGRAM_SETUP_GUIDE.md", title: "Propojení Instagramu" },
-    { file: "docs/POSTING_GUIDE.md", title: "Jak publikovat" },
-]
+const GUIDES: { file: string; title: string }[] = []
 
 /** Blogové články — psané pro zákazníka, takže tón i obsah sedí. */
 const BLOG_DIR = "content/blog"

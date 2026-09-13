@@ -69,6 +69,12 @@ přepíše kdokoli z konzole prohlížeče.
 4. **Nabízí text i hlas zároveň** (`text_only: false`, `supports_text_only: true`).
    Text-first tedy není výchozí stav, jen možnost, kterou klient vidí vedle hovoru.
    Vynutit jen text jde přes `text_only` v konfiguraci agenta.
+5. **Zapnout `rag.enabled` NESTAČÍ.** Dokument potřebuje vlastní vektorový index
+   a ten se nepostaví sám — po nahrání a připojení vrací RAG dotaz nula chunků
+   a spočítat index nejde přes API ani MCP, jedině v konzoli. Zapnuté RAG bez
+   indexu je **horší než vypnuté**: agent z báze nedostane nic. Proto je dokument
+   zatím v režimu `prompt` (celý jede v kontextu), RAG zůstává zapnutý na chvíli,
+   kdy index vznikne.
 
 ## Fáze
 
@@ -291,14 +297,17 @@ klikáním — část z toho nemá API ani MCP cestu:
       (`overrides.agent.prompt.prompt: false`). Přepsat Luďkovi prompt
       z prohlížeče tedy nejde. Přepnout se smí jen `text_only`, což je
       neškodné — klient si vybere levnější režim.
-- [ ] **Znalostní bázi nahrát a připojit** — `npx tsx scripts/sync-support-kb.ts --push`
-      (lokálně, kde je `ELEVENLABS_API_KEY`), pak v Agents → Luděk → Knowledge
-      base. Dnes je `knowledge_base: []`, takže Luděk nezná ceny ani nápovědu.
-- [ ] **Zapnout RAG** (`rag.enabled` je dnes `false`). Báze má ~31 000 znaků;
-      bez RAG by jela v promptu při každém tahu a platila se pořád dokola.
-- [ ] **Zapnout `enable_auth`** (`auth.enable_auth: false`). Bez toho je agent
-      dosažitelný pro každého, kdo si vezme `agent-id` z DOMu — brána
-      v aplikaci by hlídala dveře, u kterých chybí zeď.
+- [x] **Znalostní báze nahraná a připojená** — dokument `Ec6hVFRBPgpjsCWExUL7`
+      („chrlit-podpora-2026-09-13"), 17 153 znaků / 18 951 bajtů, ověřeno proti
+      lokálně složenému souboru na bajt. Po přecenění se nahrává nová verze
+      (`npx tsx scripts/sync-support-kb.ts --push`) a stará se odpojí a smaže.
+- [x] **`enable_auth` zapnutý.** Bez podepsané URL už agent nikoho nepustí,
+      takže `agent-id` vytažené z DOMu samo nestačí.
+- [ ] **Spočítat RAG index** nad dokumentem (v konzoli, u dokumentu). `rag.enabled`
+      je zapnuté, ale index neexistuje — dotaz vrací nula chunků. Dokud index
+      není, drží dokument režim `usage_mode: "prompt"`: celá báze jede v kontextu
+      každého tahu (~17 000 znaků, u Flashe jednotky desetitisícin dolaru za tah).
+      Po výpočtu indexu přepnout zpátky na `auto` a ušetřit.
 - [ ] **Přidat hlas do workspace a vybrat ho.** Doporučený „Daniel"
       (`e36pGtHFyzkf4HTb9rQG`) — v katalogu popsaný přímo pro zákaznickou
       podporu a NENÍ v `lib/voice-library.ts`, takže nemůže znít jako hlas cizí
@@ -307,6 +316,23 @@ klikáním — část z toho nemá API ani MCP cestu:
       sedí výchozí hlas workspace (`cjVigY5qzO86Huf0OWal`), který není český.
 - [ ] **`ELEVENLABS_AGENT_ID` do env** (Vercel i `.env.local`) — bez něj se
       widget nevykreslí a Nápověda zůstane statická.
+
+## Co v bázi ZÁMĚRNĚ není
+
+Do báze šly původně `docs/INSTAGRAM_SETUP_GUIDE.md` a `docs/POSTING_GUIDE.md` —
+vybrané podle názvu. Přečtené od začátku do konce to jsou **interní dokumenty**:
+`META_APP_SECRET`, `IG_TOKEN_ENCRYPTION_KEY`, `openssl rand -hex 32`, nastavení
+Vercelu, spouštění migrací, stav App Review u Mety a věta „most je neověřený,
+nezapínej ho platícímu zákazníkovi". Luděk by to odcitoval platícímu klientovi:
+náš provozní stav i jména tajemství. Vyřazeny 13. 9. 2026 (báze klesla z 31 124
+na 17 153 znaků) a `scripts/test-support-kb.ts` hlídá, že se nevrátí — stará
+verze obsahovala 27 výskytů interních markerů, na kterých ta aserce stojí.
+
+**Důsledek, který je potřeba dořešit:** Luděk neumí odpovědět na „jak připojím
+Instagram" a „jak publikuju". Radši neumí, než aby odpovídal z interního
+dokumentu — ale je to díra v nejčastějším okruhu dotazů. Chce to KLIENTSKOU verzi
+obou návodů; jakmile vznikne, přidá se řádek do `GUIDES` v synchronizačním
+skriptu a mechanismus už stojí.
 
 Tři věci k rozhodnutí, ne k odklikání:
 
