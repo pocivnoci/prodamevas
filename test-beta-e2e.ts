@@ -3217,6 +3217,41 @@ test("23.17 opuštěná značka se deaktivuje, nemaže", () => {
         "aktivita se měří skutečným obsahem, ne zamčenými teasery")
 })
 
+test("23.22 ruční karanténa nesmí zavřít platící značku", () => {
+    // Ruční karanténa existuje proto, že automatické kritérium
+    // (`scripts/neaktivni-klienti.ts`) testovací profil s čerstvým obsahem
+    // nikdy nechytí. Tím ale vzniká druhá cesta k `is_active = false` — a ta
+    // musí mít stejné pojistky jako první, jinak je slabším článkem ona.
+    const src = codeOnly("app/actions/company-actions.ts")
+
+    // Cross-tenant zápis patří jen správci.
+    assert(/requireSuperAdmin\(\)/.test(src), "karanténu smí přepnout jen super admin")
+
+    // `deactivated_at` startuje třicetidenní lhůtu, po které druhý stupeň
+    // obsah smaže nebo anonymizuje. U platícího zákazníka by tedy „vratný
+    // klik" byl tikající budík — stejné dvě podmínky jako v sweepu.
+    assert(/trialing/.test(src) && /"paid"/.test(src),
+        "živé předplatné ani historie platby nesmí projít do ruční karantény")
+    // Selhaný dotaz na peníze nesmí pojistku otevřít.
+    assert(/subsErr \|\| paysErr/.test(src),
+        "když se peníze nepodaří ověřit, karanténa se nekoná")
+
+    // Podmíněný claim, nikdy slepý update: souběžné kliknutí nesmí přepsat
+    // stav, který mezitím nastavil někdo jiný.
+    assert(/const stavPredZmenou = quarantine/.test(src) && /\.eq\("is_active", stavPredZmenou\)/.test(src),
+        "přepnutí karantény musí zabírat podmíněně na stav před změnou")
+    assert(!/\.delete\(\)/.test(src), "přehled firmy nikdy nemaže — od toho je druhý stupeň úklidu")
+
+    // Návrat z karantény musí razítko smazat, jinak druhý stupeň počítá dál
+    // u značky, která je zpátky v provozu.
+    assert(/deactivated_at: null/.test(src),
+        "návrat do provozu musí smazat deactivated_at")
+
+    // Zásah mimo agenta musí být v auditu stejně jako zásah agenta.
+    assert(/requestAction\(/.test(src) && /agent-safety/.test(src),
+        "ruční karanténa musí nechat řádek v agent_actions")
+})
+
 test("23.21 druhý stupeň úklidu nesmí smazat daňové doklady", () => {
     // `invoices.client_id` i `payments.client_id` mají ON DELETE CASCADE
     // (20260730_billing_invoices.sql), takže DELETE klienta vezme s sebou
